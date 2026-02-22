@@ -262,6 +262,23 @@ enum DatabaseManager {
         }
     }
 
+    static func markHighlightShown(id: UUID) {
+        do {
+            try shared.write { database in
+                try database.execute(
+                    sql: """
+                    UPDATE highlights
+                    SET lastShownAt = ?
+                    WHERE id = ?
+                    """,
+                    arguments: [iso8601Formatter.string(from: Date()), id.uuidString]
+                )
+            }
+        } catch {
+            fatalError("Failed to mark highlight as shown: \(error)")
+        }
+    }
+
     private static func computeDedupeKey(for highlight: Highlight) -> String {
         let normalizedLocation = normalizedDedupeComponent(highlight.location ?? "")
         let normalizedQuotePrefix = String(normalizedDedupeComponent(highlight.quoteText).prefix(50))
