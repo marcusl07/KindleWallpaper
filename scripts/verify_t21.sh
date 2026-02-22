@@ -144,6 +144,7 @@ SWIFT
 
 swiftc \
   -module-cache-path "$tmp_dir/module-cache" \
+  App/AppSupportPaths.swift \
   App/BackgroundImageStore.swift \
   "$tmp_dir/verify_t21.swift" \
   -o "$tmp_dir/verify_t21"

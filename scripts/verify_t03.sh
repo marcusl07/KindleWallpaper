@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
 database_file="App/Database.swift"
+paths_file="App/AppSupportPaths.swift"
 project_file="KindleWall.xcodeproj/project.pbxproj"
 
 if [[ ! -f "$database_file" ]]; then
@@ -17,24 +18,51 @@ if ! rg -q 'static let shared: DatabaseQueue' "$database_file"; then
   exit 1
 fi
 
-if ! rg -q 'homeDirectoryForCurrentUser' "$database_file"; then
-  echo "Database path does not use the home directory"
-  exit 1
-fi
+if rg -q 'AppSupportPaths\.kindleWallDirectory' "$database_file"; then
+  if [[ ! -f "$paths_file" ]]; then
+    echo "AppSupportPaths.swift is missing while Database.swift depends on it"
+    exit 1
+  fi
 
-if ! rg -q 'appendingPathComponent\("Library"' "$database_file"; then
-  echo "Database path missing Library component"
-  exit 1
-fi
+  if ! rg -q 'homeDirectoryForCurrentUser' "$paths_file"; then
+    echo "App support path does not use the home directory"
+    exit 1
+  fi
 
-if ! rg -q 'appendingPathComponent\("Application Support"' "$database_file"; then
-  echo "Database path missing Application Support component"
-  exit 1
-fi
+  if ! rg -q 'appendingPathComponent\("Library"' "$paths_file"; then
+    echo "App support path missing Library component"
+    exit 1
+  fi
 
-if ! rg -q 'appendingPathComponent\("KindleWall"' "$database_file"; then
-  echo "Database path missing KindleWall component"
-  exit 1
+  if ! rg -q 'appendingPathComponent\("Application Support"' "$paths_file"; then
+    echo "App support path missing Application Support component"
+    exit 1
+  fi
+
+  if ! rg -q 'appendingPathComponent\("KindleWall"' "$paths_file"; then
+    echo "App support path missing KindleWall component"
+    exit 1
+  fi
+else
+  if ! rg -q 'homeDirectoryForCurrentUser' "$database_file"; then
+    echo "Database path does not use the home directory"
+    exit 1
+  fi
+
+  if ! rg -q 'appendingPathComponent\("Library"' "$database_file"; then
+    echo "Database path missing Library component"
+    exit 1
+  fi
+
+  if ! rg -q 'appendingPathComponent\("Application Support"' "$database_file"; then
+    echo "Database path missing Application Support component"
+    exit 1
+  fi
+
+  if ! rg -q 'appendingPathComponent\("KindleWall"' "$database_file"; then
+    echo "Database path missing KindleWall component"
+    exit 1
+  fi
 fi
 
 if ! rg -q 'appendingPathComponent\("highlights\.db"' "$database_file"; then

@@ -20,8 +20,7 @@ struct BackgroundImageStore {
         if let appSupportDirectoryURL {
             self.appSupportDirectoryURL = appSupportDirectoryURL
         } else {
-            let rootURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            self.appSupportDirectoryURL = rootURL.appendingPathComponent("KindleWall", isDirectory: true)
+            self.appSupportDirectoryURL = AppSupportPaths.kindleWallDirectory(fileManager: fileManager)
         }
     }
 
