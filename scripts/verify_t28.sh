@@ -31,6 +31,10 @@ swiftc \
   -typecheck \
   "$ROOT_DIR/App/ScheduleSettings.swift" \
   "$ROOT_DIR/App/AppState.swift" \
+  "$ROOT_DIR/App/AppSupportPaths.swift" \
+  "$ROOT_DIR/App/BackgroundImageStore.swift" \
+  "$ROOT_DIR/App/SettingsView.swift" \
+  "$ROOT_DIR/App/MenuBarView.swift" \
   "$ROOT_DIR/App/WallpaperScheduler.swift" \
   "$ROOT_DIR/App/VolumeWatcher.swift" \
   "$ROOT_DIR/App/KindleWallApp.swift" \
