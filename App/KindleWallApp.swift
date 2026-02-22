@@ -23,7 +23,13 @@ struct KindleWallApp: App {
         })
 
         #if canImport(AppKit)
-        statusItemController = StatusItemController(openSettings: Self.openSettingsWindow)
+        statusItemController = StatusItemController(
+            appState: appState,
+            openSettings: Self.openSettingsWindow,
+            rotateWallpaper: { [weak appState] in
+                appState?.rotateWallpaper()
+            }
+        )
         mountListener = Self.makeMountListener(appState: appState)
         #endif
     }
@@ -98,28 +104,25 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
 
 private final class StatusItemController: NSObject {
     private let statusItem: NSStatusItem
-    private let menu: NSMenu
-    private let openSettings: () -> Void
+    private let menuBarView: MenuBarView
 
-    init(openSettings: @escaping () -> Void) {
+    init(
+        appState: AppState,
+        openSettings: @escaping () -> Void,
+        rotateWallpaper: @escaping () -> Void
+    ) {
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        self.menu = NSMenu()
-        self.openSettings = openSettings
+        self.menuBarView = MenuBarView(
+            appState: appState,
+            nextQuoteAction: rotateWallpaper,
+            openSettingsAction: openSettings,
+            quitAction: {
+                NSApp.terminate(nil)
+            }
+        )
         super.init()
-        configureStatusItem()
-    }
-
-    @objc private func openSettingsClicked() {
-        openSettings()
-    }
-
-    @objc private func quitClicked() {
-        NSApp.terminate(nil)
-    }
-
-    private func configureStatusItem() {
         configureStatusButton()
-        configureMenu()
+        statusItem.menu = menuBarView.menu
     }
 
     private func configureStatusButton() {
@@ -135,27 +138,6 @@ private final class StatusItemController: NSObject {
         }
 
         button.toolTip = "KindleWall"
-    }
-
-    private func configureMenu() {
-        let openSettingsItem = NSMenuItem(
-            title: "Open Settings...",
-            action: #selector(openSettingsClicked),
-            keyEquivalent: ","
-        )
-        openSettingsItem.target = self
-
-        let quitItem = NSMenuItem(
-            title: "Quit KindleWall",
-            action: #selector(quitClicked),
-            keyEquivalent: "q"
-        )
-        quitItem.target = self
-
-        menu.addItem(openSettingsItem)
-        menu.addItem(.separator())
-        menu.addItem(quitItem)
-        statusItem.menu = menu
     }
 }
 #endif
