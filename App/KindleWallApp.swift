@@ -23,10 +23,7 @@ struct KindleWallApp: App {
 
         #if canImport(AppKit)
         mountListener = Self.makeMountListener(appState: appState)
-        appDelegate.configure(
-            appState: appState,
-            openSettings: Self.openSettingsWindow
-        )
+        appDelegate.configure(appState: appState)
         #endif
     }
 
@@ -81,25 +78,18 @@ struct KindleWallApp: App {
         return listener
     }
 
-    private static func openSettingsWindow() {
-        NSApp.activate(ignoringOtherApps: true)
-        if !NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) {
-            _ = NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
-        }
-    }
     #endif
 }
 
 #if canImport(AppKit)
-private final class AppDelegate: NSObject, NSApplicationDelegate {
+private final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private weak var appState: AppState?
-    private var openSettings: (() -> Void)?
     private var statusItemController: StatusItemController?
+    private var settingsWindowController: NSWindowController?
     private var hasFinishedLaunching = false
 
-    func configure(appState: AppState, openSettings: @escaping () -> Void) {
+    func configure(appState: AppState) {
         self.appState = appState
-        self.openSettings = openSettings
 
         if hasFinishedLaunching {
             installStatusItemIfNeeded()
@@ -116,17 +106,57 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         guard statusItemController == nil else {
             return
         }
-        guard let appState, let openSettings else {
+        guard let appState else {
             return
         }
 
         statusItemController = StatusItemController(
             appState: appState,
-            openSettings: openSettings,
+            openSettings: { [weak self] in
+                self?.openSettingsWindow()
+            },
             rotateWallpaper: { [weak appState] in
                 appState?.rotateWallpaper()
             }
         )
+    }
+
+    private func openSettingsWindow() {
+        NSApp.activate(ignoringOtherApps: true)
+
+        if let existingWindow = settingsWindowController?.window {
+            existingWindow.makeKeyAndOrderFront(nil)
+            return
+        }
+
+        guard let appState else {
+            return
+        }
+
+        let settingsView = SettingsView()
+            .environmentObject(appState)
+        let hostingController = NSHostingController(rootView: settingsView)
+        let window = NSWindow(contentViewController: hostingController)
+        window.title = "Settings"
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        window.setContentSize(NSSize(width: 760, height: 560))
+        window.center()
+        window.delegate = self
+
+        let controller = NSWindowController(window: window)
+        settingsWindowController = controller
+        controller.showWindow(nil)
+        window.makeKeyAndOrderFront(nil)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        guard let closedWindow = notification.object as? NSWindow else {
+            return
+        }
+        guard settingsWindowController?.window === closedWindow else {
+            return
+        }
+        settingsWindowController = nil
     }
 }
 
