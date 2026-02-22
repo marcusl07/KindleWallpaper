@@ -2,9 +2,27 @@ import AppKit
 import Foundation
 
 struct WallpaperGenerator {
+    struct RenderTarget: Equatable {
+        let identifier: String
+        let pixelWidth: Int
+        let pixelHeight: Int
+    }
+
+    struct GeneratedWallpaper: Equatable {
+        let targetIdentifier: String
+        let fileURL: URL
+    }
+
+    private enum Constants {
+        static let generatedWallpapersDirectoryName = "generated-wallpapers"
+        static let generatedWallpaperPrefix = "wallpaper_"
+        static let defaultRetainedGeneratedFiles = 5
+    }
+
     private let fileManager: FileManager
     private let appSupportDirectoryProvider: () -> URL
     private let mainScreenPixelSizeProvider: () -> CGSize?
+    private let retainedGeneratedFileCount: Int
 
     init(
         fileManager: FileManager = .default,
@@ -19,26 +37,82 @@ struct WallpaperGenerator {
             let size = screen.frame.size
             let scale = screen.backingScaleFactor
             return CGSize(width: size.width * scale, height: size.height * scale)
-        }
+        },
+        retainedGeneratedFileCount: Int = Constants.defaultRetainedGeneratedFiles
     ) {
         self.fileManager = fileManager
         self.appSupportDirectoryProvider = appSupportDirectoryProvider
         self.mainScreenPixelSizeProvider = mainScreenPixelSizeProvider
+        self.retainedGeneratedFileCount = max(retainedGeneratedFileCount, 1)
     }
 
     func generateWallpaper(highlight: Highlight, backgroundURL: URL?) -> URL {
-        let outputSize = normalizedSize(mainScreenPixelSizeProvider() ?? CGSize(width: 1920, height: 1080))
-        let backgroundImage = loadBackgroundImage(from: backgroundURL) ?? solidBlackImage(size: outputSize)
-
-        let composedImage = composeImage(
-            backgroundImage: backgroundImage,
-            size: outputSize,
-            highlight: highlight
+        let fallbackSize = normalizedSize(mainScreenPixelSizeProvider() ?? CGSize(width: 1920, height: 1080))
+        let fallbackTarget = RenderTarget(
+            identifier: "main",
+            pixelWidth: Int(fallbackSize.width),
+            pixelHeight: Int(fallbackSize.height)
+        )
+        let generatedWallpapers = generateWallpapers(
+            highlight: highlight,
+            backgroundURL: backgroundURL,
+            targets: [fallbackTarget]
         )
 
-        let outputURL = appSupportDirectoryProvider().appendingPathComponent("current_wallpaper.png", isDirectory: false)
-        writeImageAsPNG(composedImage, to: outputURL)
+        guard let outputURL = generatedWallpapers.first?.fileURL else {
+            fatalError("Failed to generate fallback wallpaper")
+        }
+
         return outputURL
+    }
+
+    func generateWallpapers(
+        highlight: Highlight,
+        backgroundURL: URL?,
+        targets: [RenderTarget],
+        rotationID: String = UUID().uuidString
+    ) -> [GeneratedWallpaper] {
+        guard !targets.isEmpty else {
+            return []
+        }
+
+        let outputDirectory = generatedWallpapersDirectoryURL()
+        do {
+            try fileManager.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
+        } catch {
+            fatalError("Failed to create generated wallpapers directory at \(outputDirectory.path): \(error)")
+        }
+
+        let loadedBackgroundImage = loadBackgroundImage(from: backgroundURL)
+        var generatedWallpapers: [GeneratedWallpaper] = []
+        generatedWallpapers.reserveCapacity(targets.count)
+
+        for target in targets {
+            let outputSize = normalizedSize(
+                CGSize(width: CGFloat(max(target.pixelWidth, 1)), height: CGFloat(max(target.pixelHeight, 1)))
+            )
+            let backgroundImage = loadedBackgroundImage ?? solidBlackImage(size: outputSize)
+            let composedImage = composeImage(
+                backgroundImage: backgroundImage,
+                size: outputSize,
+                highlight: highlight
+            )
+            let outputFilename = outputFilename(
+                rotationID: rotationID,
+                targetIdentifier: target.identifier
+            )
+            let outputURL = outputDirectory.appendingPathComponent(outputFilename, isDirectory: false)
+            writeImageAsPNG(composedImage, to: outputURL)
+            generatedWallpapers.append(
+                GeneratedWallpaper(
+                    targetIdentifier: target.identifier,
+                    fileURL: outputURL
+                )
+            )
+        }
+
+        cleanupGeneratedWallpapers(in: outputDirectory)
+        return generatedWallpapers
     }
 
     private func loadBackgroundImage(from url: URL?) -> NSImage? {
@@ -179,6 +253,75 @@ struct WallpaperGenerator {
         } catch {
             fatalError("Failed to write wallpaper PNG to \(url.path): \(error)")
         }
+    }
+
+    private func generatedWallpapersDirectoryURL() -> URL {
+        appSupportDirectoryProvider()
+            .appendingPathComponent(Constants.generatedWallpapersDirectoryName, isDirectory: true)
+    }
+
+    private func outputFilename(rotationID: String, targetIdentifier: String) -> String {
+        let sanitizedTargetIdentifier = sanitizeIdentifier(targetIdentifier)
+        let sanitizedRotationID = sanitizeIdentifier(rotationID)
+        return "\(Constants.generatedWallpaperPrefix)\(sanitizedRotationID)_\(sanitizedTargetIdentifier).png"
+    }
+
+    private func sanitizeIdentifier(_ value: String) -> String {
+        let collapsed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let result = collapsed.replacingOccurrences(
+            of: "[^A-Za-z0-9_-]",
+            with: "_",
+            options: .regularExpression
+        )
+        return result.isEmpty ? "unknown" : result
+    }
+
+    private func cleanupGeneratedWallpapers(in directoryURL: URL) {
+        do {
+            let fileURLs = try fileManager.contentsOfDirectory(
+                at: directoryURL,
+                includingPropertiesForKeys: [
+                    .isRegularFileKey,
+                    .contentModificationDateKey,
+                    .creationDateKey
+                ],
+                options: [.skipsHiddenFiles]
+            )
+
+            let generatedFiles = fileURLs.filter { url in
+                let filename = url.lastPathComponent
+                guard filename.hasPrefix(Constants.generatedWallpaperPrefix) else {
+                    return false
+                }
+                guard url.pathExtension.lowercased() == "png" else {
+                    return false
+                }
+                let values = try? url.resourceValues(forKeys: [.isRegularFileKey])
+                return values?.isRegularFile ?? false
+            }
+
+            guard generatedFiles.count > retainedGeneratedFileCount else {
+                return
+            }
+
+            let sortedFiles = generatedFiles.sorted { lhs, rhs in
+                resourceTimestamp(for: lhs) > resourceTimestamp(for: rhs)
+            }
+
+            let staleFiles = sortedFiles.dropFirst(retainedGeneratedFileCount)
+            for staleFile in staleFiles {
+                try? fileManager.removeItem(at: staleFile)
+            }
+        } catch {
+            // Retention cleanup is best-effort and should not block wallpaper updates.
+        }
+    }
+
+    private func resourceTimestamp(for url: URL) -> Date {
+        let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .creationDateKey])
+        return values?.contentModificationDate
+            ?? values?.creationDate
+            ?? .distantPast
     }
 
     private func normalizedSize(_ size: CGSize) -> CGSize {

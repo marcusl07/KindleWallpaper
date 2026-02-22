@@ -2,10 +2,15 @@ import Combine
 import Foundation
 
 final class AppState: ObservableObject {
+    typealias WallpaperTarget = (identifier: String, pixelWidth: Int, pixelHeight: Int)
+    typealias GeneratedWallpaper = (targetIdentifier: String, fileURL: URL)
     typealias PickNextHighlight = () -> Highlight?
     typealias LoadBackgroundImageURL = () -> URL?
     typealias GenerateWallpaper = (Highlight, URL?) -> URL
     typealias SetWallpaper = (URL) -> Void
+    typealias FetchWallpaperTargets = () -> [WallpaperTarget]
+    typealias GenerateWallpapers = (Highlight, URL?, [WallpaperTarget]) -> [GeneratedWallpaper]
+    typealias SetWallpapers = ([GeneratedWallpaper]) -> Void
     typealias MarkHighlightShown = (UUID) -> Void
     typealias SetBookEnabled = (UUID, Bool) -> Void
     typealias SetAllBooksEnabled = (Bool) -> Void
@@ -26,6 +31,9 @@ final class AppState: ObservableObject {
     private let loadBackgroundImageURL: LoadBackgroundImageURL
     private let generateWallpaper: GenerateWallpaper
     private let setWallpaper: SetWallpaper
+    private let fetchWallpaperTargets: FetchWallpaperTargets?
+    private let generateWallpapers: GenerateWallpapers?
+    private let setWallpapers: SetWallpapers?
     private let markHighlightShown: MarkHighlightShown
     private let setBookEnabledAction: SetBookEnabled
     private let setAllBooksEnabledAction: SetAllBooksEnabled
@@ -46,6 +54,9 @@ final class AppState: ObservableObject {
         loadBackgroundImageURL: @escaping LoadBackgroundImageURL,
         generateWallpaper: @escaping GenerateWallpaper,
         setWallpaper: @escaping SetWallpaper,
+        fetchWallpaperTargets: FetchWallpaperTargets? = nil,
+        generateWallpapers: GenerateWallpapers? = nil,
+        setWallpapers: SetWallpapers? = nil,
         markHighlightShown: @escaping MarkHighlightShown,
         setBookEnabled: @escaping SetBookEnabled = { _, _ in },
         setAllBooksEnabled: @escaping SetAllBooksEnabled = { _ in },
@@ -65,6 +76,9 @@ final class AppState: ObservableObject {
         self.loadBackgroundImageURL = loadBackgroundImageURL
         self.generateWallpaper = generateWallpaper
         self.setWallpaper = setWallpaper
+        self.fetchWallpaperTargets = fetchWallpaperTargets
+        self.generateWallpapers = generateWallpapers
+        self.setWallpapers = setWallpapers
         self.markHighlightShown = markHighlightShown
         self.setBookEnabledAction = setBookEnabled
         self.setAllBooksEnabledAction = setAllBooksEnabled
@@ -89,8 +103,33 @@ final class AppState: ObservableObject {
         }
 
         let backgroundURL = loadBackgroundImageURL()
-        let wallpaperURL = generateWallpaper(highlight, backgroundURL)
-        setWallpaper(wallpaperURL)
+        if
+            let fetchWallpaperTargets,
+            let generateWallpapers,
+            let setWallpapers
+        {
+            let targets = fetchWallpaperTargets()
+            guard !targets.isEmpty else {
+                return false
+            }
+
+            let generatedWallpapers = generateWallpapers(highlight, backgroundURL, targets)
+            let targetIdentifiers = Set(targets.map { $0.identifier })
+            let generatedIdentifiers = Set(generatedWallpapers.map { $0.targetIdentifier })
+
+            guard
+                generatedWallpapers.count == targets.count,
+                generatedIdentifiers == targetIdentifiers
+            else {
+                return false
+            }
+
+            setWallpapers(generatedWallpapers)
+        } else {
+            let wallpaperURL = generateWallpaper(highlight, backgroundURL)
+            setWallpaper(wallpaperURL)
+        }
+
         markHighlightShown(highlight.id)
 
         let changedAt = now()
@@ -161,6 +200,36 @@ extension AppState {
             },
             setWallpaper: { imageURL in
                 WallpaperSetter.setWallpaper(imageURL: imageURL)
+            },
+            fetchWallpaperTargets: {
+                WallpaperSetter.connectedScreenTargets().map { target in
+                    (identifier: target.identifier, pixelWidth: target.pixelWidth, pixelHeight: target.pixelHeight)
+                }
+            },
+            generateWallpapers: { highlight, backgroundURL, targets in
+                let generatorTargets = targets.map { target in
+                    WallpaperGenerator.RenderTarget(
+                        identifier: target.identifier,
+                        pixelWidth: target.pixelWidth,
+                        pixelHeight: target.pixelHeight
+                    )
+                }
+                return wallpaperGenerator.generateWallpapers(
+                    highlight: highlight,
+                    backgroundURL: backgroundURL,
+                    targets: generatorTargets
+                ).map { generated in
+                    (targetIdentifier: generated.targetIdentifier, fileURL: generated.fileURL)
+                }
+            },
+            setWallpapers: { generatedWallpapers in
+                let assignments = generatedWallpapers.map { generated in
+                    WallpaperSetter.WallpaperAssignment(
+                        screenIdentifier: generated.targetIdentifier,
+                        imageURL: generated.fileURL
+                    )
+                }
+                WallpaperSetter.setWallpapers(assignments: assignments)
             },
             markHighlightShown: DatabaseManager.markHighlightShown(id:),
             setBookEnabled: DatabaseManager.setBookEnabled(id:enabled:),

@@ -250,6 +250,125 @@ func testRotateWallpaperReentrancyGuardPreventsNestedWork() throws {
     assertEqual(nowCallCount, 1, "Expected nested rotateWallpaper call to skip timestamp update")
 }
 
+func testRotateWallpaperUsesPerScreenPipelineWhenConfigured() throws {
+    let fixture = try Fixture.make()
+    defer { fixture.cleanup() }
+
+    let highlight = sampleHighlight(quoteText: "Per-screen quote")
+    let backgroundURL = URL(fileURLWithPath: "/tmp/background.jpg")
+    let targets: [AppState.WallpaperTarget] = [
+        (identifier: "display-101", pixelWidth: 1400, pixelHeight: 900),
+        (identifier: "display-202", pixelWidth: 2400, pixelHeight: 1350)
+    ]
+
+    var calls: [String] = []
+    var legacyGenerateCallCount = 0
+    var legacySetCallCount = 0
+    var appliedWallpapers: [AppState.GeneratedWallpaper] = []
+    var markedID: UUID?
+
+    let appState = AppState(
+        userDefaults: fixture.defaults,
+        pickNextHighlight: {
+            calls.append("pick")
+            return highlight
+        },
+        loadBackgroundImageURL: {
+            calls.append("loadBackground")
+            return backgroundURL
+        },
+        generateWallpaper: { _, _ in
+            legacyGenerateCallCount += 1
+            return URL(fileURLWithPath: "/tmp/legacy.png")
+        },
+        setWallpaper: { _ in
+            legacySetCallCount += 1
+        },
+        fetchWallpaperTargets: {
+            calls.append("targets")
+            return targets
+        },
+        generateWallpapers: { incomingHighlight, incomingBackgroundURL, incomingTargets in
+            calls.append("generateMany")
+            assertEqual(incomingHighlight.id, highlight.id, "Expected multi-screen generation to use picked highlight")
+            assertEqual(incomingBackgroundURL, backgroundURL, "Expected multi-screen generation to use loaded background")
+            assertEqual(incomingTargets.count, targets.count, "Expected generation to receive all fetched targets")
+            return incomingTargets.map { target in
+                (
+                    targetIdentifier: target.identifier,
+                    fileURL: URL(fileURLWithPath: "/tmp/\(target.identifier).png")
+                )
+            }
+        },
+        setWallpapers: { generated in
+            calls.append("setMany")
+            appliedWallpapers = generated
+        },
+        markHighlightShown: { id in
+            calls.append("mark")
+            markedID = id
+        },
+        now: {
+            calls.append("now")
+            return Date(timeIntervalSince1970: 1_735_930_000)
+        }
+    )
+
+    let didRotate = appState.rotateWallpaper()
+    assertEqual(didRotate, true, "Expected rotateWallpaper to succeed when per-screen pipeline is configured")
+    assertEqual(legacyGenerateCallCount, 0, "Expected legacy single-wallpaper generation to be skipped")
+    assertEqual(legacySetCallCount, 0, "Expected legacy single-wallpaper apply to be skipped")
+    assertEqual(appliedWallpapers.count, 2, "Expected one generated wallpaper per target")
+    assertEqual(Set(appliedWallpapers.map { $0.targetIdentifier }), Set(targets.map { $0.identifier }), "Expected generated wallpapers to cover all targets")
+    assertEqual(markedID, highlight.id, "Expected highlight to be marked as shown after per-screen update")
+    assertEqual(calls, ["pick", "loadBackground", "targets", "generateMany", "setMany", "mark", "now"], "Expected per-screen pipeline orchestration order")
+}
+
+func testRotateWallpaperPerScreenPipelineRejectsIdentifierMismatch() throws {
+    let fixture = try Fixture.make()
+    defer { fixture.cleanup() }
+
+    let highlight = sampleHighlight(quoteText: "Mismatch quote")
+    var setWallpapersCallCount = 0
+    var markCallCount = 0
+    var nowCallCount = 0
+
+    let appState = AppState(
+        userDefaults: fixture.defaults,
+        pickNextHighlight: { highlight },
+        loadBackgroundImageURL: { nil },
+        generateWallpaper: { _, _ in URL(fileURLWithPath: "/tmp/legacy.png") },
+        setWallpaper: { _ in },
+        fetchWallpaperTargets: {
+            [
+                (identifier: "display-1", pixelWidth: 1000, pixelHeight: 700),
+                (identifier: "display-2", pixelWidth: 1200, pixelHeight: 800)
+            ]
+        },
+        generateWallpapers: { _, _, _ in
+            [
+                (targetIdentifier: "display-1", fileURL: URL(fileURLWithPath: "/tmp/display-1.png"))
+            ]
+        },
+        setWallpapers: { _ in
+            setWallpapersCallCount += 1
+        },
+        markHighlightShown: { _ in
+            markCallCount += 1
+        },
+        now: {
+            nowCallCount += 1
+            return Date(timeIntervalSince1970: 0)
+        }
+    )
+
+    let didRotate = appState.rotateWallpaper()
+    assertEqual(didRotate, false, "Expected rotateWallpaper to fail when generated wallpaper targets do not match fetched targets")
+    assertEqual(setWallpapersCallCount, 0, "Expected per-screen apply to be skipped on identifier mismatch")
+    assertEqual(markCallCount, 0, "Expected markHighlightShown to be skipped on identifier mismatch")
+    assertEqual(nowCallCount, 0, "Expected timestamp update to be skipped on identifier mismatch")
+}
+
 func sampleHighlight(id: UUID = UUID(), quoteText: String) -> Highlight {
     Highlight(
         id: id,
@@ -317,6 +436,8 @@ do {
     try testRotateWallpaperSkipsWorkWhenNoHighlightIsAvailable()
     try testRotateWallpaperPassesNilBackgroundToGenerator()
     try testRotateWallpaperReentrancyGuardPreventsNestedWork()
+    try testRotateWallpaperUsesPerScreenPipelineWhenConfigured()
+    try testRotateWallpaperPerScreenPipelineRejectsIdentifierMismatch()
     print("T24 verification passed")
 } catch {
     fputs("Verification failure: \(error)\n", stderr)

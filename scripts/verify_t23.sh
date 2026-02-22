@@ -10,53 +10,81 @@ trap 'rm -rf "$tmp_dir"' EXIT
 cat > "$tmp_dir/main.swift" <<'SWIFT'
 import Foundation
 
-testAppliesSameImageURLToAllScreens()
-testNoScreensMakesNoCalls()
-try testApplyWallpaperStopsOnError()
+testApplyWallpapersUsesMatchingScreenIdentifiers()
+testApplyWallpapersSkipsScreensWithoutAssignment()
+try testApplyWallpapersStopsOnError()
 print("T23 verification passed")
 
-private func testAppliesSameImageURLToAllScreens() {
-    let imageURL = URL(fileURLWithPath: "/tmp/current_wallpaper.png")
+private func testApplyWallpapersUsesMatchingScreenIdentifiers() {
+    let urlA = URL(fileURLWithPath: "/tmp/current_wallpaper_a.png")
+    let urlB = URL(fileURLWithPath: "/tmp/current_wallpaper_b.png")
+    let assignments = [
+        WallpaperSetter.WallpaperAssignment(screenIdentifier: "display-101", imageURL: urlA),
+        WallpaperSetter.WallpaperAssignment(screenIdentifier: "display-202", imageURL: urlB)
+    ]
     let screens = [101, 202, 303]
     var calls: [(URL, Int)] = []
 
-    WallpaperSetter.applyWallpaper(imageURL: imageURL, screens: screens) { url, screen in
+    WallpaperSetter.applyWallpapers(
+        assignments: assignments,
+        screens: screens,
+        screenIdentifier: { screen, _ in "display-\(screen)" }
+    ) { url, screen in
         calls.append((url, screen))
     }
 
-    expect(calls.count == screens.count, "Expected one setDesktopImage call per screen")
-    expect(calls.map(\.0) == Array(repeating: imageURL, count: screens.count), "Expected identical image URL for each call")
-    expect(calls.map(\.1) == screens, "Expected screens to be visited in sequence")
+    expect(calls.count == 2, "Expected one setDesktopImage call per matching screen")
+    expect(calls[0].0 == urlA && calls[0].1 == 101, "Expected first matching screen to receive mapped URL")
+    expect(calls[1].0 == urlB && calls[1].1 == 202, "Expected second matching screen to receive mapped URL")
 }
 
-private func testNoScreensMakesNoCalls() {
-    let imageURL = URL(fileURLWithPath: "/tmp/current_wallpaper.png")
+private func testApplyWallpapersSkipsScreensWithoutAssignment() {
+    let assignments = [
+        WallpaperSetter.WallpaperAssignment(
+            screenIdentifier: "display-404",
+            imageURL: URL(fileURLWithPath: "/tmp/unused.png")
+        )
+    ]
+    let screens = [1, 2, 3]
     var callCount = 0
 
-    WallpaperSetter.applyWallpaper(imageURL: imageURL, screens: [Int]()) { _, _ in
+    WallpaperSetter.applyWallpapers(
+        assignments: assignments,
+        screens: screens,
+        screenIdentifier: { screen, _ in "display-\(screen)" }
+    ) { _, _ in
         callCount += 1
     }
 
-    expect(callCount == 0, "Expected no calls when there are no screens")
+    expect(callCount == 0, "Expected no calls when no screen identifier matches an assignment")
 }
 
-private func testApplyWallpaperStopsOnError() throws {
+private func testApplyWallpapersStopsOnError() throws {
     enum SampleError: Error {
         case fail
     }
 
-    let imageURL = URL(fileURLWithPath: "/tmp/current_wallpaper.png")
+    let urlA = URL(fileURLWithPath: "/tmp/current_wallpaper_a.png")
+    let urlB = URL(fileURLWithPath: "/tmp/current_wallpaper_b.png")
+    let assignments = [
+        WallpaperSetter.WallpaperAssignment(screenIdentifier: "display-1", imageURL: urlA),
+        WallpaperSetter.WallpaperAssignment(screenIdentifier: "display-2", imageURL: urlB)
+    ]
     let screens = [1, 2, 3]
     var processedScreens: [Int] = []
 
     do {
-        try WallpaperSetter.applyWallpaper(imageURL: imageURL, screens: screens) { _, screen in
+        try WallpaperSetter.applyWallpapers(
+            assignments: assignments,
+            screens: screens,
+            screenIdentifier: { screen, _ in "display-\(screen)" }
+        ) { _, screen in
             processedScreens.append(screen)
             if screen == 2 {
                 throw SampleError.fail
             }
         }
-        fail("Expected error to be thrown from applyWallpaper")
+        fail("Expected error to be thrown from applyWallpapers")
     } catch SampleError.fail {
         // Expected path.
     } catch {

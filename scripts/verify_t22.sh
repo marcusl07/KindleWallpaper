@@ -11,65 +11,88 @@ cat > "$TMP_DIR/main.swift" <<'SWIFT'
 import AppKit
 import Foundation
 
-func testGenerateWithoutBackgroundCreatesExpectedPNG() throws {
-    let fixture = try TestFixture.make(screenSize: CGSize(width: 1200, height: 800))
+func testGenerateWallpapersCreatesPerTargetFilesAndSizes() throws {
+    let fixture = try TestFixture.make()
     defer { fixture.cleanup() }
 
-    let outputURL = fixture.generator.generateWallpaper(
-        highlight: sampleHighlight(quote: "A short quote for baseline coverage."),
-        backgroundURL: nil
+    let targets = [
+        WallpaperGenerator.RenderTarget(identifier: "display-111", pixelWidth: 1200, pixelHeight: 800),
+        WallpaperGenerator.RenderTarget(identifier: "display-222", pixelWidth: 2000, pixelHeight: 1100)
+    ]
+
+    let outputs = fixture.generator.generateWallpapers(
+        highlight: sampleHighlight(quote: "A short quote for per-screen coverage."),
+        backgroundURL: nil,
+        targets: targets,
+        rotationID: "rotation-a"
     )
 
-    let expectedURL = fixture.appSupportURL.appendingPathComponent("current_wallpaper.png", isDirectory: false)
-    expect(outputURL == expectedURL, "Expected wallpaper to be written to current_wallpaper.png in app support")
-    expect(FileManager.default.fileExists(atPath: outputURL.path), "Expected output file to exist")
+    expect(outputs.count == 2, "Expected one generated wallpaper per target screen")
+    expect(Set(outputs.map { $0.targetIdentifier }) == Set(targets.map { $0.identifier }), "Expected target identifiers to round-trip")
+    expect(Set(outputs.map { $0.fileURL.path }).count == 2, "Expected generated file URLs to be unique per target")
 
-    let dimensions = try imageDimensions(at: outputURL)
-    expect(dimensions.width == 1200 && dimensions.height == 800, "Expected output dimensions to match provided screen size")
+    for output in outputs {
+        expect(FileManager.default.fileExists(atPath: output.fileURL.path), "Expected generated file to exist for \(output.targetIdentifier)")
+        expect(output.fileURL.lastPathComponent.hasPrefix("wallpaper_rotation-a_"), "Expected prefixed filename format for generated wallpaper")
+
+        let dimensions = try imageDimensions(at: output.fileURL)
+        if output.targetIdentifier == "display-111" {
+            expect(dimensions.width == 1200 && dimensions.height == 800, "Expected display-111 output dimensions to match target")
+        }
+        if output.targetIdentifier == "display-222" {
+            expect(dimensions.width == 2000 && dimensions.height == 1100, "Expected display-222 output dimensions to match target")
+        }
+    }
 }
 
-func testMissingBackgroundFallsBackToBlackCanvas() throws {
-    let fixture = try TestFixture.make(screenSize: CGSize(width: 1440, height: 900))
+func testGenerateWallpapersUsesUniqueFilenameAcrossRotations() throws {
+    let fixture = try TestFixture.make()
     defer { fixture.cleanup() }
 
-    let missingBackgroundURL = fixture.rootURL.appendingPathComponent("does-not-exist.jpg", isDirectory: false)
-    let outputURL = fixture.generator.generateWallpaper(
-        highlight: sampleHighlight(quote: "Fallback behavior should still produce a wallpaper."),
-        backgroundURL: missingBackgroundURL
+    let target = WallpaperGenerator.RenderTarget(identifier: "display-1", pixelWidth: 1440, pixelHeight: 900)
+
+    let first = fixture.generator.generateWallpapers(
+        highlight: sampleHighlight(quote: "First run"),
+        backgroundURL: nil,
+        targets: [target]
+    )
+    let second = fixture.generator.generateWallpapers(
+        highlight: sampleHighlight(quote: "Second run"),
+        backgroundURL: nil,
+        targets: [target]
     )
 
-    expect(FileManager.default.fileExists(atPath: outputURL.path), "Expected output file to exist when background image is missing")
-    let dimensions = try imageDimensions(at: outputURL)
-    expect(dimensions.width == 1440 && dimensions.height == 900, "Expected fallback output dimensions to match provided screen size")
+    expect(first.count == 1 && second.count == 1, "Expected one output for each single-target rotation")
+    expect(first[0].fileURL != second[0].fileURL, "Expected unique wallpaper filename per rotation")
 }
 
-func testGenerationNormalizesOutputToTargetScreenSize() throws {
-    let fixture = try TestFixture.make(screenSize: CGSize(width: 1000, height: 500))
+func testCleanupRetainsLastFiveGeneratedFiles() throws {
+    let fixture = try TestFixture.make(retainedGeneratedFileCount: 5)
     defer { fixture.cleanup() }
 
-    let backgroundURL = fixture.rootURL.appendingPathComponent("large-background.png", isDirectory: false)
-    try writeSolidPNG(color: .systemBlue, size: CGSize(width: 4000, height: 2200), to: backgroundURL)
+    let target = WallpaperGenerator.RenderTarget(identifier: "display-1", pixelWidth: 1000, pixelHeight: 600)
 
-    let outputURL = fixture.generator.generateWallpaper(
-        highlight: sampleHighlight(quote: "This quote verifies source-image scaling behavior."),
-        backgroundURL: backgroundURL
+    for index in 1...7 {
+        _ = fixture.generator.generateWallpapers(
+            highlight: sampleHighlight(quote: "Rotation \(index)"),
+            backgroundURL: nil,
+            targets: [target],
+            rotationID: "rot-\(index)"
+        )
+        Thread.sleep(forTimeInterval: 0.05)
+    }
+
+    let generatedDirectory = fixture.appSupportURL.appendingPathComponent("generated-wallpapers", isDirectory: true)
+    let remaining = try FileManager.default.contentsOfDirectory(
+        at: generatedDirectory,
+        includingPropertiesForKeys: nil,
+        options: [.skipsHiddenFiles]
     )
+    .map(\.lastPathComponent)
+    .filter { $0.hasPrefix("wallpaper_") && $0.hasSuffix(".png") }
 
-    let dimensions = try imageDimensions(at: outputURL)
-    expect(dimensions.width == 1000 && dimensions.height == 500, "Expected output dimensions to be normalized to target screen size")
-}
-
-func testNilScreenSizeUsesDeterministicDefault() throws {
-    let fixture = try TestFixture.make(screenSize: nil)
-    defer { fixture.cleanup() }
-
-    let outputURL = fixture.generator.generateWallpaper(
-        highlight: sampleHighlight(quote: "Default sizing should be deterministic for tests."),
-        backgroundURL: nil
-    )
-
-    let dimensions = try imageDimensions(at: outputURL)
-    expect(dimensions.width == 1920 && dimensions.height == 1080, "Expected default output dimensions to be 1920x1080 when screen size is unavailable")
+    expect(remaining.count == 5, "Expected retention cleanup to keep only five generated wallpapers")
+    expect(remaining.allSatisfy { !$0.contains("rot-1") && !$0.contains("rot-2") }, "Expected oldest generated files to be cleaned up")
 }
 
 func sampleHighlight(quote: String) -> Highlight {
@@ -83,43 +106,6 @@ func sampleHighlight(quote: String) -> Highlight {
         dateAdded: nil,
         lastShownAt: nil
     )
-}
-
-func writeSolidPNG(color: NSColor, size: CGSize, to url: URL) throws {
-    let width = max(Int(size.width.rounded(.toNearestOrAwayFromZero)), 1)
-    let height = max(Int(size.height.rounded(.toNearestOrAwayFromZero)), 1)
-
-    guard
-        let bitmap = NSBitmapImageRep(
-            bitmapDataPlanes: nil,
-            pixelsWide: width,
-            pixelsHigh: height,
-            bitsPerSample: 8,
-            samplesPerPixel: 4,
-            hasAlpha: true,
-            isPlanar: false,
-            colorSpaceName: .deviceRGB,
-            bytesPerRow: 0,
-            bitsPerPixel: 0
-        ),
-        let context = NSGraphicsContext(bitmapImageRep: bitmap)
-    else {
-        throw NSError(domain: "VerifyT22", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to allocate bitmap context"])
-    }
-
-    let rect = NSRect(origin: .zero, size: CGSize(width: CGFloat(width), height: CGFloat(height)))
-    NSGraphicsContext.saveGraphicsState()
-    NSGraphicsContext.current = context
-    color.setFill()
-    rect.fill()
-    context.flushGraphics()
-    NSGraphicsContext.restoreGraphicsState()
-
-    guard let data = bitmap.representation(using: .png, properties: [:]) else {
-        throw NSError(domain: "VerifyT22", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to encode PNG"])
-    }
-
-    try data.write(to: url, options: .atomic)
 }
 
 func imageDimensions(at url: URL) throws -> (width: Int, height: Int) {
@@ -145,7 +131,7 @@ struct TestFixture {
     let appSupportURL: URL
     let generator: WallpaperGenerator
 
-    static func make(screenSize: CGSize?) throws -> TestFixture {
+    static func make(retainedGeneratedFileCount: Int = 5) throws -> TestFixture {
         let fileManager = FileManager.default
         let rootURL = fileManager.temporaryDirectory.appendingPathComponent("kindlewall-t22-\(UUID().uuidString)", isDirectory: true)
         try fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
@@ -154,7 +140,8 @@ struct TestFixture {
         let generator = WallpaperGenerator(
             fileManager: fileManager,
             appSupportDirectoryProvider: { appSupportURL },
-            mainScreenPixelSizeProvider: { screenSize }
+            mainScreenPixelSizeProvider: { CGSize(width: 1920, height: 1080) },
+            retainedGeneratedFileCount: retainedGeneratedFileCount
         )
 
         return TestFixture(
@@ -170,10 +157,9 @@ struct TestFixture {
 }
 
 do {
-    try testGenerateWithoutBackgroundCreatesExpectedPNG()
-    try testMissingBackgroundFallsBackToBlackCanvas()
-    try testGenerationNormalizesOutputToTargetScreenSize()
-    try testNilScreenSizeUsesDeterministicDefault()
+    try testGenerateWallpapersCreatesPerTargetFilesAndSizes()
+    try testGenerateWallpapersUsesUniqueFilenameAcrossRotations()
+    try testCleanupRetainsLastFiveGeneratedFiles()
     print("T22 verification passed")
 } catch {
     fputs("Verification failure: \(error)\n", stderr)
