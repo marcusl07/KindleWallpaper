@@ -279,6 +279,52 @@ enum DatabaseManager {
         }
     }
 
+    static func fetchAllBooks() -> [Book] {
+        do {
+            return try shared.read { database in
+                let rows = try Row.fetchAll(
+                    database,
+                    sql: """
+                    SELECT
+                        books.id,
+                        books.title,
+                        books.author,
+                        books.isEnabled,
+                        (
+                            SELECT COUNT(*)
+                            FROM highlights
+                            WHERE highlights.bookId = books.id
+                        ) AS highlightCount
+                    FROM books
+                    ORDER BY books.title COLLATE NOCASE ASC
+                    """
+                )
+
+                return rows.map { row in
+                    guard
+                        let idValue: String = row["id"],
+                        let id = UUID(uuidString: idValue)
+                    else {
+                        fatalError("Invalid book id in database row")
+                    }
+
+                    let isEnabledValue: Int = row["isEnabled"]
+                    let highlightCountValue: Int = row["highlightCount"]
+
+                    return Book(
+                        id: id,
+                        title: row["title"],
+                        author: row["author"],
+                        isEnabled: isEnabledValue != 0,
+                        highlightCount: highlightCountValue
+                    )
+                }
+            }
+        } catch {
+            fatalError("Failed to fetch all books: \(error)")
+        }
+    }
+
     private static func computeDedupeKey(for highlight: Highlight) -> String {
         let normalizedLocation = normalizedDedupeComponent(highlight.location ?? "")
         let normalizedQuotePrefix = String(normalizedDedupeComponent(highlight.quoteText).prefix(50))
