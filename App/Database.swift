@@ -43,6 +43,11 @@ enum DatabaseManager {
     );
     """
 
+    private static let createHighlightsBookIDIndexSQL = """
+    CREATE INDEX IF NOT EXISTS idx_highlights_bookId
+    ON highlights(bookId);
+    """
+
     private static let iso8601Formatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -66,6 +71,7 @@ enum DatabaseManager {
         try databaseQueue.write { database in
             try database.execute(sql: createBooksTableSQL)
             try database.execute(sql: createHighlightsTableSQL)
+            try database.execute(sql: createHighlightsBookIDIndexSQL)
         }
     }
 
@@ -153,6 +159,34 @@ enum DatabaseManager {
             }
         } catch {
             fatalError("Failed to insert highlight: \(error)")
+        }
+    }
+
+    static func setBookEnabled(id: UUID, enabled: Bool) {
+        do {
+            try shared.write { database in
+                try database.execute(
+                    sql: """
+                    UPDATE books
+                    SET isEnabled = ?
+                    WHERE id = ?
+                    """,
+                    arguments: [enabled ? 1 : 0, id.uuidString]
+                )
+
+                if enabled {
+                    try database.execute(
+                        sql: """
+                        UPDATE highlights
+                        SET lastShownAt = NULL
+                        WHERE bookId = ?
+                        """,
+                        arguments: [id.uuidString]
+                    )
+                }
+            }
+        } catch {
+            fatalError("Failed to set book enabled state: \(error)")
         }
     }
 
