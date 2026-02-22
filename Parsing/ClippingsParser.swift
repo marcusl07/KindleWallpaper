@@ -32,6 +32,44 @@ enum ClippingsParser {
         chunks.compactMap(extractEntryFields(from:))
     }
 
+    static func cleanTitleAndAuthor(from titleLine: String) -> (title: String, author: String) {
+        let normalizedLine = collapseWhitespace(in: titleLine)
+        guard !normalizedLine.isEmpty else {
+            return (title: "Unknown Title", author: "Unknown Author")
+        }
+
+        let separator = " -- "
+        let finalParenthesized = finalParenthesizedGroup(in: normalizedLine)
+        var cleanedTitle = normalizedLine
+        var fallbackAuthor: String?
+
+        if let firstSeparatorRange = normalizedLine.range(of: separator) {
+            cleanedTitle = String(normalizedLine[..<firstSeparatorRange.lowerBound])
+            let remainder = normalizedLine[firstSeparatorRange.upperBound...]
+            if let secondSeparatorRange = remainder.range(of: separator) {
+                fallbackAuthor = String(remainder[..<secondSeparatorRange.lowerBound])
+            } else {
+                fallbackAuthor = String(remainder)
+            }
+        } else if let finalParenthesized {
+            let titlePrefix = normalizedLine[..<finalParenthesized.range.lowerBound]
+            cleanedTitle = String(titlePrefix)
+        }
+
+        cleanedTitle = collapseWhitespace(in: cleanedTitle)
+        if cleanedTitle.isEmpty {
+            cleanedTitle = "Unknown Title"
+        }
+
+        let parsedAuthor = finalParenthesized?.value ?? fallbackAuthor ?? "Unknown Author"
+        let cleanedAuthor = collapseWhitespace(in: parsedAuthor)
+        if cleanedAuthor.isEmpty {
+            return (title: cleanedTitle, author: "Unknown Author")
+        }
+
+        return (title: cleanedTitle, author: cleanedAuthor)
+    }
+
     private static func extractEntryFields(from chunk: String) -> ExtractedChunk? {
         let lines = chunk
             .split(separator: "\n", omittingEmptySubsequences: false)
@@ -89,5 +127,28 @@ enum ClippingsParser {
 
     private static func isBlankLine(_ line: String) -> Bool {
         line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private static func collapseWhitespace(in string: String) -> String {
+        string.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+    }
+
+    private static func finalParenthesizedGroup(in line: String) -> (value: String, range: Range<String.Index>)? {
+        guard
+            let closingParen = line.lastIndex(of: ")"),
+            closingParen == line.index(before: line.endIndex),
+            let openingParen = line[..<closingParen].lastIndex(of: "(")
+        else {
+            return nil
+        }
+
+        let contentRange = line.index(after: openingParen)..<closingParen
+        let content = collapseWhitespace(in: String(line[contentRange]))
+        guard !content.isEmpty else {
+            return nil
+        }
+
+        let fullRange = openingParen..<line.index(after: closingParen)
+        return (value: content, range: fullRange)
     }
 }
