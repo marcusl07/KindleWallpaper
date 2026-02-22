@@ -2,6 +2,17 @@ import Foundation
 
 enum ClippingsParser {
     private static let separator = "=========="
+    private static let kindleDateFormat = "EEEE, MMMM d, yyyy h:mm:ss a"
+    private static let kindleDateLocaleIdentifier = "en_US_POSIX"
+    private static let kindleDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: kindleDateLocaleIdentifier)
+        formatter.timeZone = .autoupdatingCurrent
+        formatter.dateFormat = kindleDateFormat
+        return formatter
+    }()
+
+    private(set) static var parseErrorCount = 0
 
     struct ExtractedChunk: Equatable {
         let titleLine: String
@@ -68,6 +79,19 @@ enum ClippingsParser {
         }
 
         return (title: cleanedTitle, author: cleanedAuthor)
+    }
+
+    static func parseKindleDate(_ string: String) -> Date? {
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let date = kindleDateFormatter.date(from: trimmed) else {
+            parseErrorCount += 1
+            return nil
+        }
+        return date
+    }
+
+    static func resetParseErrorCount() {
+        parseErrorCount = 0
     }
 
     private static func extractEntryFields(from chunk: String) -> ExtractedChunk? {
