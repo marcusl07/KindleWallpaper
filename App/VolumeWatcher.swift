@@ -325,7 +325,7 @@ extension VolumeWatcher.MountListener {
         VolumeWatcher.MountListener(
             notificationCenter: notificationCenter,
             importFile: { clippingsURL in
-                let result = importFile(at: clippingsURL)
+                let result = ImportCoordinator.live.importFile(at: clippingsURL)
                 return VolumeWatcher.ImportPayload(
                     newHighlightCount: result.newHighlightCount,
                     error: result.error,
