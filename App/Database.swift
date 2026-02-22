@@ -43,6 +43,12 @@ enum DatabaseManager {
     );
     """
 
+    private static let iso8601Formatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
     private static func makeDatabaseURL() throws -> URL {
         let fileManager = FileManager.default
         let appSupportURL = fileManager.homeDirectoryForCurrentUser
@@ -96,5 +102,77 @@ enum DatabaseManager {
         } catch {
             fatalError("Failed to upsert book: \(error)")
         }
+    }
+
+    static func insertHighlightIfNew(_ highlight: Highlight) {
+        do {
+            try shared.write { database in
+                let dedupeKey = computeDedupeKey(for: highlight)
+                let alreadyExists = try Int.fetchOne(
+                    database,
+                    sql: """
+                    SELECT 1
+                    FROM highlights
+                    WHERE dedupeKey = ?
+                    LIMIT 1
+                    """,
+                    arguments: [dedupeKey]
+                ) != nil
+
+                guard !alreadyExists else {
+                    return
+                }
+
+                try database.execute(
+                    sql: """
+                    INSERT INTO highlights (
+                        id,
+                        bookId,
+                        quoteText,
+                        bookTitle,
+                        author,
+                        location,
+                        dateAdded,
+                        lastShownAt,
+                        dedupeKey
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    arguments: [
+                        highlight.id.uuidString,
+                        highlight.bookId.uuidString,
+                        highlight.quoteText,
+                        highlight.bookTitle,
+                        highlight.author,
+                        highlight.location,
+                        iso8601String(from: highlight.dateAdded),
+                        iso8601String(from: highlight.lastShownAt),
+                        dedupeKey
+                    ]
+                )
+            }
+        } catch {
+            fatalError("Failed to insert highlight: \(error)")
+        }
+    }
+
+    private static func computeDedupeKey(for highlight: Highlight) -> String {
+        let normalizedLocation = normalizedDedupeComponent(highlight.location ?? "")
+        let normalizedQuotePrefix = String(normalizedDedupeComponent(highlight.quoteText).prefix(50))
+        return "\(highlight.bookId.uuidString.lowercased())|\(normalizedLocation)|\(normalizedQuotePrefix)"
+    }
+
+    private static func normalizedDedupeComponent(_ value: String) -> String {
+        value
+            .lowercased()
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+    }
+
+    private static func iso8601String(from date: Date?) -> String? {
+        guard let date else {
+            return nil
+        }
+        return iso8601Formatter.string(from: date)
     }
 }
