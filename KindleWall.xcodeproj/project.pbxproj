@@ -11,14 +11,18 @@
 		0F47113C8F5C5C3A9CDF9C42 /* KindleWallApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67306A31618FE6581F9F81F4 /* KindleWallApp.swift */; };
 		154FAA67B9134B920BB2E402 /* Database.swift in Sources */ = {isa = PBXBuildFile; fileRef = 126D2BED290D16D70E707B68 /* Database.swift */; };
 		630FD92E3719C965D0208253 /* Highlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86F9EA5F3C2418D8AA0D9365 /* Highlight.swift */; };
+		7067D38042A1BC59897C1BAE /* BackgroundImageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 766BDB43991580ED0548AE8A /* BackgroundImageStore.swift */; };
 		B91FD28C7AEC1D1726DD6E98 /* ScheduleSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7722C3B4FB0A66E04C7BB28 /* ScheduleSettings.swift */; };
+		C06D7617B1725A8B722A3626 /* ClippingsParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7702F347CAD3C65FDA7851 /* ClippingsParser.swift */; };
 		E9181E2AB7C4C596E1EAD8AD /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 9551A09A2327039A1281BEA5 /* GRDB */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		126D2BED290D16D70E707B68 /* Database.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Database.swift; sourceTree = "<group>"; };
+		1D7702F347CAD3C65FDA7851 /* ClippingsParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClippingsParser.swift; sourceTree = "<group>"; };
 		67306A31618FE6581F9F81F4 /* KindleWallApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KindleWallApp.swift; sourceTree = "<group>"; };
 		67E7F15FCB23FBD77BC647C6 /* Book.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Book.swift; sourceTree = "<group>"; };
+		766BDB43991580ED0548AE8A /* BackgroundImageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundImageStore.swift; sourceTree = "<group>"; };
 		811E26389F17F084542DAAF7 /* KindleWall.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KindleWall.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		86F9EA5F3C2418D8AA0D9365 /* Highlight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Highlight.swift; sourceTree = "<group>"; };
 		931DFDD6D12D8887EA968760 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -37,11 +41,20 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		031DE6FED8A853242735DC25 /* Parsing */ = {
+			isa = PBXGroup;
+			children = (
+				1D7702F347CAD3C65FDA7851 /* ClippingsParser.swift */,
+			);
+			path = Parsing;
+			sourceTree = "<group>";
+		};
 		2C2B7B77EDAA73932A89F526 = {
 			isa = PBXGroup;
 			children = (
 				34D11B167C7ACAEF878BFE92 /* App */,
 				45C42DCDDC36FFEB4D2F707D /* Models */,
+				031DE6FED8A853242735DC25 /* Parsing */,
 				D079063320403131A75753EC /* Products */,
 			);
 			sourceTree = "<group>";
@@ -49,6 +62,7 @@
 		34D11B167C7ACAEF878BFE92 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				766BDB43991580ED0548AE8A /* BackgroundImageStore.swift */,
 				126D2BED290D16D70E707B68 /* Database.swift */,
 				931DFDD6D12D8887EA968760 /* Info.plist */,
 				67306A31618FE6581F9F81F4 /* KindleWallApp.swift */,
@@ -137,7 +151,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7067D38042A1BC59897C1BAE /* BackgroundImageStore.swift in Sources */,
 				006BFF281CE13CB5B2AA67E6 /* Book.swift in Sources */,
+				C06D7617B1725A8B722A3626 /* ClippingsParser.swift in Sources */,
 				154FAA67B9134B920BB2E402 /* Database.swift in Sources */,
 				630FD92E3719C965D0208253 /* Highlight.swift in Sources */,
 				0F47113C8F5C5C3A9CDF9C42 /* KindleWallApp.swift in Sources */,
