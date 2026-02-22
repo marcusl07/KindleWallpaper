@@ -7,6 +7,7 @@ import GRDB
 struct ImportResult: Equatable {
     let newHighlightCount: Int
     let error: String?
+    let parseWarningCount: Int
 }
 
 struct ImportCoordinator {
@@ -34,13 +35,18 @@ struct ImportCoordinator {
 
     func importFile(at url: URL) -> ImportResult {
         guard url.isFileURL else {
-            return ImportResult(newHighlightCount: 0, error: "Import failed: URL is not a local file.")
+            return ImportResult(
+                newHighlightCount: 0,
+                error: "Import failed: URL is not a local file.",
+                parseWarningCount: 0
+            )
         }
 
         guard FileManager.default.fileExists(atPath: url.path) else {
             return ImportResult(
                 newHighlightCount: 0,
-                error: "Import failed: file does not exist at \(url.path)."
+                error: "Import failed: file does not exist at \(url.path).",
+                parseWarningCount: 0
             )
         }
 
@@ -82,11 +88,16 @@ struct ImportCoordinator {
         if missingBookMappingCount > 0 {
             return ImportResult(
                 newHighlightCount: newHighlightCount,
-                error: "Import completed with \(missingBookMappingCount) skipped highlight(s) due to missing book mappings."
+                error: "Import completed with \(missingBookMappingCount) skipped highlight(s) due to missing book mappings.",
+                parseWarningCount: parsed.parseErrorCount
             )
         }
 
-        return ImportResult(newHighlightCount: newHighlightCount, error: nil)
+        return ImportResult(
+            newHighlightCount: newHighlightCount,
+            error: nil,
+            parseWarningCount: parsed.parseErrorCount
+        )
     }
 }
 

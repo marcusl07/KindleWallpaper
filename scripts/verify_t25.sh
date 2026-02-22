@@ -42,6 +42,8 @@ struct VerifyT25 {
             userDefaults: defaults,
             rotateWallpaper: {
                 rotateCallCount += 1
+                defaults.lastChangedAt = clock.current
+                return true
             },
             now: { clock.current },
             calendar: makeUTCCalendar(),
@@ -70,6 +72,7 @@ struct VerifyT25 {
             userDefaults: defaults,
             rotateWallpaper: {
                 rotateCallCount += 1
+                return true
             },
             repeatingTimerFactory: timerFactory.make(interval:handler:)
         )
@@ -96,6 +99,8 @@ struct VerifyT25 {
             userDefaults: defaults,
             rotateWallpaper: {
                 rotateCallCount += 1
+                defaults.lastChangedAt = clock.current
+                return true
             },
             now: { clock.current },
             calendar: makeUTCCalendar(),
@@ -135,6 +140,8 @@ struct VerifyT25 {
             userDefaults: defaults,
             rotateWallpaper: {
                 rotateCallCount += 1
+                defaults.lastChangedAt = clock.current
+                return true
             },
             now: { clock.current },
             calendar: makeUTCCalendar(),
@@ -198,6 +205,7 @@ struct VerifyT25 {
             userDefaults: defaults,
             rotateWallpaper: {
                 rotateCallCount += 1
+                return true
             },
             repeatingTimerFactory: timerFactory.make(interval:handler:),
             autoStart: false
@@ -235,7 +243,9 @@ struct VerifyT25 {
             userDefaults: defaults,
             rotateWallpaper: {
                 rotateCallCount += 1
+                defaults.lastChangedAt = Date()
                 scheduler?.checkNow()
+                return true
             },
             repeatingTimerFactory: timerFactory.make(interval:handler:),
             autoStart: false

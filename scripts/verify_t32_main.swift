@@ -11,6 +11,7 @@ var persistedBooks = [
 ]
 
 var toggleCalls: [(UUID, Bool)] = []
+var bulkToggleCalls: [Bool] = []
 
 let appState = AppState(
     pickNextHighlight: { nil },
@@ -22,6 +23,21 @@ let appState = AppState(
         toggleCalls.append((id, enabled))
         persistedBooks = persistedBooks.map { book in
             guard book.id == id else {
+                return book
+            }
+            return Book(
+                id: book.id,
+                title: book.title,
+                author: book.author,
+                isEnabled: enabled,
+                highlightCount: book.highlightCount
+            )
+        }
+    },
+    setAllBooksEnabled: { enabled in
+        bulkToggleCalls.append(enabled)
+        persistedBooks = persistedBooks.map { book in
+            guard book.isEnabled != enabled else {
                 return book
             }
             return Book(
@@ -48,19 +64,16 @@ assertTrue(appState.books.first(where: { $0.id == bookTwoID })?.isEnabled == tru
 
 toggleCalls.removeAll()
 appState.setAllBooksEnabled(true)
-assertEqual(toggleCalls.count, 1, "Expected bulk enable to toggle only currently disabled books")
-assertEqual(toggleCalls[0].0, bookThreeID, "Expected bulk enable to target remaining disabled book")
-assertTrue(toggleCalls[0].1, "Expected bulk enable calls to pass enabled=true")
+assertEqual(toggleCalls.count, 0, "Expected bulk enable to avoid per-book toggle calls")
+assertEqual(bulkToggleCalls, [true], "Expected bulk enable to call setAllBooksEnabled once")
 assertTrue(appState.books.allSatisfy(\.isEnabled), "Expected all books enabled after bulk enable")
 
-toggleCalls.removeAll()
 appState.setAllBooksEnabled(true)
-assertEqual(toggleCalls.count, 0, "Expected no-op bulk enable when all books already enabled")
+assertEqual(bulkToggleCalls, [true], "Expected no-op bulk enable when all books already enabled")
 
-toggleCalls.removeAll()
 appState.setAllBooksEnabled(false)
-assertEqual(toggleCalls.count, 3, "Expected bulk disable to toggle every enabled book")
-assertTrue(toggleCalls.allSatisfy { $0.1 == false }, "Expected all bulk disable calls to pass enabled=false")
+assertEqual(toggleCalls.count, 0, "Expected bulk disable to avoid per-book toggle calls")
+assertEqual(bulkToggleCalls, [true, false], "Expected bulk disable to call setAllBooksEnabled once")
 assertTrue(appState.books.allSatisfy { !$0.isEnabled }, "Expected all books disabled after bulk disable")
 
 print("verify_t32_main passed")

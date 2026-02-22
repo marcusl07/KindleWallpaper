@@ -12,8 +12,6 @@ enum ClippingsParser {
         return formatter
     }()
 
-    private(set) static var parseErrorCount = 0
-
     struct ExtractedChunk: Equatable {
         let titleLine: String
         let metadataLine: String
@@ -93,28 +91,19 @@ enum ClippingsParser {
 
     static func parseKindleDate(_ string: String) -> Date? {
         let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let date = kindleDateFormatter.date(from: trimmed) else {
-            parseErrorCount += 1
-            return nil
-        }
-        return date
+        return kindleDateFormatter.date(from: trimmed)
     }
 
     static func computeDedupeKey(bookId: UUID, location: String?, quoteText: String) -> String {
         DedupeKeyBuilder.makeKey(bookId: bookId, location: location, quoteText: quoteText)
     }
 
-    static func resetParseErrorCount() {
-        parseErrorCount = 0
-    }
-
     static func parseClippings(fileURL: URL) -> (highlights: [Highlight], books: [Book], parseErrorCount: Int) {
-        resetParseErrorCount()
-
         guard let rawContents = try? String(contentsOf: fileURL, encoding: .utf8) else {
-            return (highlights: [], books: [], parseErrorCount: parseErrorCount)
+            return (highlights: [], books: [], parseErrorCount: 0)
         }
 
+        var parseErrorCount = 0
         let chunks = splitRawEntries(rawContents)
         let extractedChunks = extractEntryFields(from: chunks)
 
@@ -136,7 +125,10 @@ enum ClippingsParser {
                 continue
             }
 
-            let metadataFields = parseMetadataFields(from: extractedChunk.metadataLine)
+            let metadataFields = parseMetadataFields(
+                from: extractedChunk.metadataLine,
+                parseErrorCount: &parseErrorCount
+            )
             let dedupeKey = computeDedupeKey(
                 bookId: bookRecord.id,
                 location: metadataFields.location,
@@ -261,7 +253,10 @@ enum ClippingsParser {
         return (value: content, range: fullRange)
     }
 
-    private static func parseMetadataFields(from metadataLine: String) -> (location: String?, dateAdded: Date?) {
+    private static func parseMetadataFields(
+        from metadataLine: String,
+        parseErrorCount: inout Int
+    ) -> (location: String?, dateAdded: Date?) {
         let segments = metadataLine.split(separator: "|", omittingEmptySubsequences: false).map {
             $0.trimmingCharacters(in: .whitespacesAndNewlines)
         }
@@ -283,11 +278,19 @@ enum ClippingsParser {
                 let rawDate = String(segment[addedOnRange.upperBound...])
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 if !rawDate.isEmpty {
-                    dateAdded = parseKindleDate(rawDate)
+                    dateAdded = parseKindleDate(rawDate, parseErrorCount: &parseErrorCount)
                 }
             }
         }
 
         return (location: location, dateAdded: dateAdded)
+    }
+
+    private static func parseKindleDate(_ string: String, parseErrorCount: inout Int) -> Date? {
+        guard let date = parseKindleDate(string) else {
+            parseErrorCount += 1
+            return nil
+        }
+        return date
     }
 }

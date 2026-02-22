@@ -17,6 +17,7 @@ struct VerifyT20 {
         testHandleMountedVolumePublishesSuccessStatus()
         testHandleMountedVolumePublishesLibraryUpToDateStatus()
         testHandleMountedVolumePublishesFailureStatus()
+        testHandleMountedVolumeRejectsOversizedClippingsFile()
         testMountListenerRegistersAndStopsObservingNotifications()
         print("T20 verification passed")
     }
@@ -31,7 +32,7 @@ struct VerifyT20 {
             findClippingsFile: { _ in nil },
             importFile: { _ in
                 importCallCount += 1
-                return VolumeWatcher.ImportPayload(newHighlightCount: 0, error: nil)
+                return VolumeWatcher.ImportPayload(newHighlightCount: 0, error: nil, parseWarningCount: 0)
             },
             publishImportStatus: { status in
                 publishedStatuses.append(status)
@@ -54,7 +55,7 @@ struct VerifyT20 {
             findClippingsFile: { _ in clippingsURL },
             importFile: { url in
                 importedURL = url
-                return VolumeWatcher.ImportPayload(newHighlightCount: 2, error: nil)
+                return VolumeWatcher.ImportPayload(newHighlightCount: 2, error: nil, parseWarningCount: 2)
             },
             publishImportStatus: { status in
                 publishedStatus = status
@@ -70,8 +71,8 @@ struct VerifyT20 {
         expect(publishedStatus.isError == false, "Expected success status to be non-error")
         expect(publishedStatus.message.hasPrefix("Last synced: "), "Expected success message prefix")
         expect(
-            publishedStatus.message.hasSuffix("2 new highlights added"),
-            "Expected success message to include new highlight count"
+            publishedStatus.message.hasSuffix("2 new highlights added (2 parse warnings)"),
+            "Expected success message to include new highlight count and parse warning count"
         )
     }
 
@@ -84,7 +85,7 @@ struct VerifyT20 {
             volumeURL,
             findClippingsFile: { _ in clippingsURL },
             importFile: { _ in
-                VolumeWatcher.ImportPayload(newHighlightCount: 0, error: nil)
+                VolumeWatcher.ImportPayload(newHighlightCount: 0, error: nil, parseWarningCount: 1)
             },
             publishImportStatus: { status in
                 publishedStatus = status
@@ -92,8 +93,11 @@ struct VerifyT20 {
         )
 
         expect(
-            publishedStatus == VolumeWatcher.ImportStatus(message: "Library up to date", isError: false),
-            "Expected up-to-date message when no new highlights are imported"
+            publishedStatus == VolumeWatcher.ImportStatus(
+                message: "Library up to date (1 parse warning)",
+                isError: false
+            ),
+            "Expected parse warning suffix when no new highlights are imported"
         )
     }
 
@@ -101,7 +105,7 @@ struct VerifyT20 {
         let fixedDate = Date(timeIntervalSince1970: 0)
 
         let resultOne = VolumeWatcher.makeImportStatus(
-            from: VolumeWatcher.ImportPayload(newHighlightCount: 0, error: "Could not read file"),
+            from: VolumeWatcher.ImportPayload(newHighlightCount: 0, error: "Could not read file", parseWarningCount: 0),
             now: fixedDate
         )
         expect(
@@ -110,12 +114,52 @@ struct VerifyT20 {
         )
 
         let resultTwo = VolumeWatcher.makeImportStatus(
-            from: VolumeWatcher.ImportPayload(newHighlightCount: 0, error: "Import failed: malformed clipping"),
+            from: VolumeWatcher.ImportPayload(newHighlightCount: 0, error: "Import failed: malformed clipping", parseWarningCount: 0),
             now: fixedDate
         )
         expect(
             resultTwo == VolumeWatcher.ImportStatus(message: "Import failed: malformed clipping", isError: true),
             "Expected pre-prefixed errors to avoid duplicate prefixes"
+        )
+    }
+
+    private static func testHandleMountedVolumeRejectsOversizedClippingsFile() {
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("kindlewall-t20-\(UUID().uuidString)", isDirectory: true)
+        let clippingsURL = tempRoot.appendingPathComponent("My Clippings.txt", isDirectory: false)
+
+        do {
+            try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+            try Data(repeating: 0x61, count: 21 * 1024 * 1024).write(to: clippingsURL)
+        } catch {
+            fail("Failed to create oversized clippings fixture: \(error)")
+        }
+        defer {
+            try? FileManager.default.removeItem(at: tempRoot)
+        }
+
+        var importCalled = false
+        var publishedStatus: VolumeWatcher.ImportStatus?
+
+        VolumeWatcher.handleMountedVolume(
+            tempRoot,
+            findClippingsFile: { _ in clippingsURL },
+            importFile: { _ in
+                importCalled = true
+                return VolumeWatcher.ImportPayload(newHighlightCount: 0, error: nil, parseWarningCount: 0)
+            },
+            publishImportStatus: { status in
+                publishedStatus = status
+            }
+        )
+
+        expect(importCalled == false, "Expected oversized file to be rejected before import is attempted")
+        expect(
+            publishedStatus == VolumeWatcher.ImportStatus(
+                message: "Import failed: clippings file is larger than 20 MB.",
+                isError: true
+            ),
+            "Expected oversized file to surface explicit size-limit error"
         )
     }
 
@@ -138,10 +182,13 @@ struct VerifyT20 {
                 return clippingsURL
             },
             importFile: { _ in
-                VolumeWatcher.ImportPayload(newHighlightCount: 1, error: nil)
+                VolumeWatcher.ImportPayload(newHighlightCount: 1, error: nil, parseWarningCount: 0)
             },
             publishImportStatus: { status in
                 publishedStatuses.append(status)
+            },
+            dispatchWork: { work in
+                work()
             },
             now: { Date(timeIntervalSince1970: 1_700_000_100) }
         )

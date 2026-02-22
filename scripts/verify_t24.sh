@@ -114,7 +114,8 @@ func testRotateWallpaperHappyPathCallsInOrderAndUpdatesState() throws {
         }
     )
 
-    appState.rotateWallpaper()
+    let didRotate = appState.rotateWallpaper()
+    assertEqual(didRotate, true, "Expected rotateWallpaper to report success when a highlight is selected")
 
     assertEqual(
         calls,
@@ -164,7 +165,8 @@ func testRotateWallpaperSkipsWorkWhenNoHighlightIsAvailable() throws {
         }
     )
 
-    appState.rotateWallpaper()
+    let didRotate = appState.rotateWallpaper()
+    assertEqual(didRotate, false, "Expected rotateWallpaper to report failure when no highlight is available")
 
     assertEqual(loadBackgroundCallCount, 0, "Expected no background load when no highlight is available")
     assertEqual(generateCallCount, 0, "Expected no wallpaper generation when no highlight is available")
@@ -196,7 +198,8 @@ func testRotateWallpaperPassesNilBackgroundToGenerator() throws {
         now: { Date(timeIntervalSince1970: 1_735_910_000) }
     )
 
-    appState.rotateWallpaper()
+    let didRotate = appState.rotateWallpaper()
+    assertEqual(didRotate, true, "Expected rotateWallpaper to report success when generation runs")
     assertEqual(passedBackgroundURL != nil, true, "Expected generateWallpaper to be called")
     assertEqual(passedBackgroundURL!, nil, "Expected nil background URL to flow into generator")
 }
@@ -237,7 +240,8 @@ func testRotateWallpaperReentrancyGuardPreventsNestedWork() throws {
         }
     )
 
-    appState.rotateWallpaper()
+    let didRotate = appState.rotateWallpaper()
+    assertEqual(didRotate, true, "Expected outer rotateWallpaper call to report success")
 
     assertEqual(pickCallCount, 1, "Expected nested rotateWallpaper call to be ignored while rotation is in progress")
     assertEqual(generateCallCount, 1, "Expected nested rotateWallpaper call to skip generation")

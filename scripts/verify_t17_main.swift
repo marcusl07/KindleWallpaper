@@ -61,7 +61,7 @@ struct VerifyT17Main {
 
         let coordinator = ImportCoordinator(
             parseClippings: { _ in
-                (highlights: parsedHighlights, books: parsedBooks, parseErrorCount: 0)
+                (highlights: parsedHighlights, books: parsedBooks, parseErrorCount: 2)
             },
             upsertBook: { book in
                 upsertedBooks.append(book)
@@ -83,6 +83,7 @@ struct VerifyT17Main {
 
         assertEqual(result.newHighlightCount, 3, "Import should report the DB count delta")
         assertTrue(result.error == nil, "Successful import should not return an error")
+        assertEqual(result.parseWarningCount, 2, "Expected parse warning count to propagate from parser output")
         assertEqual(upsertedBooks.count, 2, "Should upsert each parsed book once")
         assertEqual(insertedHighlights.count, 3, "Should attempt to insert all parsed highlights")
         assertEqual(totalCountCalls, 2, "Should read total counts before and after import")
@@ -139,7 +140,7 @@ struct VerifyT17Main {
 
         let coordinator = ImportCoordinator(
             parseClippings: { _ in
-                (highlights: parsedHighlights, books: [parsedBook], parseErrorCount: 0)
+                (highlights: parsedHighlights, books: [parsedBook], parseErrorCount: 1)
             },
             upsertBook: { _ in storedBookID },
             insertHighlightIfNew: { _ in
@@ -156,6 +157,7 @@ struct VerifyT17Main {
         assertEqual(insertedAttempts, 3, "Coordinator should pass all parsed highlights to the DB dedupe layer")
         assertEqual(result.newHighlightCount, 1, "New highlight count should use DB before/after totals")
         assertTrue(result.error == nil, "Count-delta based dedupe should still be a successful import")
+        assertEqual(result.parseWarningCount, 1, "Expected parse warning count to propagate for deduped imports too")
     }
 
     private static func testImportReturnsErrorForMissingFile() {
@@ -190,6 +192,7 @@ struct VerifyT17Main {
 
         assertEqual(result.newHighlightCount, 0, "Missing file should not report new highlights")
         assertTrue(result.error != nil, "Missing file should return an error")
+        assertEqual(result.parseWarningCount, 0, "Missing file should not report parse warnings")
         assertTrue(
             parseCalled == false && upsertCalled == false && insertCalled == false && countCalled == false,
             "Missing file path should short-circuit before parsing or DB calls"

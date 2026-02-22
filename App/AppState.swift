@@ -8,6 +8,7 @@ final class AppState: ObservableObject {
     typealias SetWallpaper = (URL) -> Void
     typealias MarkHighlightShown = (UUID) -> Void
     typealias SetBookEnabled = (UUID, Bool) -> Void
+    typealias SetAllBooksEnabled = (Bool) -> Void
     typealias FetchAllBooks = () -> [Book]
     typealias FetchTotalHighlightCount = () -> Int
     typealias Now = () -> Date
@@ -27,6 +28,7 @@ final class AppState: ObservableObject {
     private let setWallpaper: SetWallpaper
     private let markHighlightShown: MarkHighlightShown
     private let setBookEnabledAction: SetBookEnabled
+    private let setAllBooksEnabledAction: SetAllBooksEnabled
     private let fetchAllBooks: FetchAllBooks
     private let fetchTotalHighlightCount: FetchTotalHighlightCount
     private let now: Now
@@ -46,6 +48,7 @@ final class AppState: ObservableObject {
         setWallpaper: @escaping SetWallpaper,
         markHighlightShown: @escaping MarkHighlightShown,
         setBookEnabled: @escaping SetBookEnabled = { _, _ in },
+        setAllBooksEnabled: @escaping SetAllBooksEnabled = { _ in },
         fetchAllBooks: @escaping FetchAllBooks = { [] },
         fetchTotalHighlightCount: @escaping FetchTotalHighlightCount = { 0 },
         now: @escaping Now = Date.init
@@ -64,14 +67,16 @@ final class AppState: ObservableObject {
         self.setWallpaper = setWallpaper
         self.markHighlightShown = markHighlightShown
         self.setBookEnabledAction = setBookEnabled
+        self.setAllBooksEnabledAction = setAllBooksEnabled
         self.fetchAllBooks = fetchAllBooks
         self.fetchTotalHighlightCount = fetchTotalHighlightCount
         self.now = now
     }
 
-    func rotateWallpaper() {
+    @discardableResult
+    func rotateWallpaper() -> Bool {
         guard !isRotationInProgress else {
-            return
+            return false
         }
 
         isRotationInProgress = true
@@ -80,7 +85,7 @@ final class AppState: ObservableObject {
         }
 
         guard let highlight = pickNextHighlight() else {
-            return
+            return false
         }
 
         let backgroundURL = loadBackgroundImageURL()
@@ -92,6 +97,7 @@ final class AppState: ObservableObject {
         userDefaults.lastChangedAt = changedAt
         lastChangedAt = changedAt
         currentQuotePreview = highlight.quoteText
+        return true
     }
 
     func setImportStatus(_ message: String, isError: Bool) {
@@ -117,9 +123,10 @@ final class AppState: ObservableObject {
     }
 
     func setAllBooksEnabled(_ enabled: Bool) {
-        for book in books where book.isEnabled != enabled {
-            setBookEnabledAction(book.id, enabled)
+        guard books.contains(where: { $0.isEnabled != enabled }) else {
+            return
         }
+        setAllBooksEnabledAction(enabled)
         books = fetchAllBooks()
     }
 
@@ -157,6 +164,7 @@ extension AppState {
             },
             markHighlightShown: DatabaseManager.markHighlightShown(id:),
             setBookEnabled: DatabaseManager.setBookEnabled(id:enabled:),
+            setAllBooksEnabled: DatabaseManager.setAllBooksEnabled(enabled:),
             fetchAllBooks: DatabaseManager.fetchAllBooks,
             fetchTotalHighlightCount: DatabaseManager.totalHighlightCount
         )

@@ -1,11 +1,8 @@
 import Foundation
 
 func testParsesExpectedKindleDateFormat() {
-    ClippingsParser.resetParseErrorCount()
-
     let parsed = ClippingsParser.parseKindleDate("Wednesday, May 7, 2025 11:04:04 PM")
     assertTrue(parsed != nil, "Expected valid Kindle date to parse")
-    assertEqual(ClippingsParser.parseErrorCount, 0, "Successful parse must not increment parseErrorCount")
 
     guard let parsed else {
         return
@@ -24,29 +21,19 @@ func testParsesExpectedKindleDateFormat() {
 }
 
 func testParsesTrimmedInput() {
-    ClippingsParser.resetParseErrorCount()
-
     let parsed = ClippingsParser.parseKindleDate("  Wednesday, May 7, 2025 11:04:04 PM  \n")
     assertTrue(parsed != nil, "Expected parser to handle trimmed whitespace")
-    assertEqual(ClippingsParser.parseErrorCount, 0, "Trimmed valid parse should not increment parseErrorCount")
 }
 
-func testInvalidDateIncrementsParseErrorCount() {
-    ClippingsParser.resetParseErrorCount()
-
+func testInvalidDateReturnsNil() {
     let parsed = ClippingsParser.parseKindleDate("not-a-kindle-date")
     assertTrue(parsed == nil, "Invalid date input should return nil")
-    assertEqual(ClippingsParser.parseErrorCount, 1, "Single invalid parse should increment parseErrorCount once")
 }
 
-func testMultipleFailuresAccumulateCount() {
-    ClippingsParser.resetParseErrorCount()
-
-    _ = ClippingsParser.parseKindleDate("Wednesday, May 7, 2025 11:04:04 PM")
-    _ = ClippingsParser.parseKindleDate("bad input one")
-    _ = ClippingsParser.parseKindleDate("Thursday May 8 2025")
-
-    assertEqual(ClippingsParser.parseErrorCount, 2, "Only failing parses should increase parseErrorCount")
+func testMultipleInvalidInputsRemainStateless() {
+    let first = ClippingsParser.parseKindleDate("bad input one")
+    let second = ClippingsParser.parseKindleDate("Thursday May 8 2025")
+    assertTrue(first == nil && second == nil, "Invalid inputs should consistently return nil without shared parser state")
 }
 
 func assertEqual<T: Equatable>(_ actual: T, _ expected: T, _ message: String) {
@@ -65,6 +52,6 @@ func assertTrue(_ condition: Bool, _ message: String) {
 
 testParsesExpectedKindleDateFormat()
 testParsesTrimmedInput()
-testInvalidDateIncrementsParseErrorCount()
-testMultipleFailuresAccumulateCount()
+testInvalidDateReturnsNil()
+testMultipleInvalidInputsRemainStateless()
 print("T14 verification passed")

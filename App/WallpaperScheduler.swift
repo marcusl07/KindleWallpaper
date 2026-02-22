@@ -20,7 +20,7 @@ private final class FoundationWallpaperSchedulerTimer: WallpaperSchedulerTimer {
 }
 
 final class WallpaperScheduler {
-    typealias RotateWallpaper = () -> Void
+    typealias RotateWallpaper = () -> Bool
     typealias DateProvider = () -> Date
     typealias RepeatingTimerFactory = (_ interval: TimeInterval, _ handler: @escaping () -> Void) -> WallpaperSchedulerTimer
 
@@ -133,7 +133,6 @@ final class WallpaperScheduler {
         }
 
         rotateWallpaper()
-        userDefaults.lastChangedAt = now()
     }
 
     static func shouldRotateEveryThirtyMinutes(now: Date, lastChangedAt: Date?) -> Bool {

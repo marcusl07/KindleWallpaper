@@ -16,6 +16,11 @@ if ! rg -q 'static func setBookEnabled\(id: UUID, enabled: Bool\)' "$database_fi
   exit 1
 fi
 
+if ! rg -q 'static func setAllBooksEnabled\(enabled: Bool\)' "$database_file"; then
+  echo "setAllBooksEnabled(enabled:) signature is missing"
+  exit 1
+fi
+
 if ! rg -q 'UPDATE books' "$database_file"; then
   echo "setBookEnabled does not update books"
   exit 1
@@ -33,6 +38,11 @@ fi
 
 if ! rg -q 'if enabled \{' "$database_file"; then
   echo "setBookEnabled does not branch on enabled state"
+  exit 1
+fi
+
+if ! rg -q 'UPDATE books' "$database_file"; then
+  echo "setAllBooksEnabled does not update books"
   exit 1
 fi
 

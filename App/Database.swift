@@ -186,6 +186,44 @@ enum DatabaseManager {
         }
     }
 
+    static func setAllBooksEnabled(enabled: Bool) {
+        do {
+            try shared.write { database in
+                if enabled {
+                    try database.execute(
+                        sql: """
+                        UPDATE highlights
+                        SET lastShownAt = NULL
+                        WHERE bookId IN (
+                            SELECT id
+                            FROM books
+                            WHERE isEnabled = 0
+                        )
+                        """
+                    )
+
+                    try database.execute(
+                        sql: """
+                        UPDATE books
+                        SET isEnabled = 1
+                        WHERE isEnabled = 0
+                        """
+                    )
+                } else {
+                    try database.execute(
+                        sql: """
+                        UPDATE books
+                        SET isEnabled = 0
+                        WHERE isEnabled = 1
+                        """
+                    )
+                }
+            }
+        } catch {
+            fatalError("Failed to set all books enabled state: \(error)")
+        }
+    }
+
     static func pickNextHighlight() -> Highlight? {
         do {
             return try shared.write { database in
@@ -286,12 +324,10 @@ enum DatabaseManager {
                         books.title,
                         books.author,
                         books.isEnabled,
-                        (
-                            SELECT COUNT(*)
-                            FROM highlights
-                            WHERE highlights.bookId = books.id
-                        ) AS highlightCount
+                        COUNT(highlights.id) AS highlightCount
                     FROM books
+                    LEFT JOIN highlights ON highlights.bookId = books.id
+                    GROUP BY books.id, books.title, books.author, books.isEnabled
                     ORDER BY books.title COLLATE NOCASE ASC
                     """
                 )

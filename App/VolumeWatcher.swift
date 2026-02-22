@@ -127,9 +127,12 @@ enum VolumeWatcher {
 
 #if canImport(AppKit)
 extension VolumeWatcher {
+    private static let maxImportFileSizeBytes: Int64 = 20 * 1024 * 1024
+
     struct ImportPayload: Equatable {
         let newHighlightCount: Int
         let error: String?
+        let parseWarningCount: Int
     }
 
     struct ImportStatus: Equatable {
@@ -140,6 +143,7 @@ extension VolumeWatcher {
     typealias FindClippingsFile = (URL) -> URL?
     typealias ImportFile = (URL) -> ImportPayload
     typealias PublishImportStatus = (ImportStatus) -> Void
+    typealias DispatchWork = (@escaping () -> Void) -> Void
 
     final class MountListener {
         private let notificationCenter: NotificationCenter
@@ -148,6 +152,7 @@ extension VolumeWatcher {
         private let findClippingsFile: FindClippingsFile
         private let importFile: ImportFile
         private let publishImportStatus: PublishImportStatus
+        private let dispatchWork: DispatchWork
         private let now: () -> Date
         private var observer: NSObjectProtocol?
 
@@ -160,6 +165,9 @@ extension VolumeWatcher {
             },
             importFile: @escaping ImportFile,
             publishImportStatus: @escaping PublishImportStatus,
+            dispatchWork: @escaping DispatchWork = { work in
+                DispatchQueue.global(qos: .utility).async(execute: work)
+            },
             now: @escaping () -> Date = Date.init
         ) {
             self.notificationCenter = notificationCenter
@@ -168,6 +176,7 @@ extension VolumeWatcher {
             self.findClippingsFile = findClippingsFile
             self.importFile = importFile
             self.publishImportStatus = publishImportStatus
+            self.dispatchWork = dispatchWork
             self.now = now
         }
 
@@ -203,13 +212,15 @@ extension VolumeWatcher {
                 return
             }
 
-            VolumeWatcher.handleMountedVolume(
-                volumeURL,
-                findClippingsFile: findClippingsFile,
-                importFile: importFile,
-                publishImportStatus: publishImportStatus,
-                now: now
-            )
+            dispatchWork { [findClippingsFile, importFile, publishImportStatus, now] in
+                VolumeWatcher.handleMountedVolume(
+                    volumeURL,
+                    findClippingsFile: findClippingsFile,
+                    importFile: importFile,
+                    publishImportStatus: publishImportStatus,
+                    now: now
+                )
+            }
         }
     }
 
@@ -224,6 +235,15 @@ extension VolumeWatcher {
             return
         }
 
+        if let sizeLimitError = importSizeLimitErrorMessage(for: clippingsURL, fileManager: .default) {
+            let status = makeImportStatus(
+                from: ImportPayload(newHighlightCount: 0, error: sizeLimitError, parseWarningCount: 0),
+                now: now()
+            )
+            publishImportStatus(status)
+            return
+        }
+
         let importResult = importFile(clippingsURL)
         let status = makeImportStatus(from: importResult, now: now())
         publishImportStatus(status)
@@ -235,13 +255,15 @@ extension VolumeWatcher {
         }
 
         guard result.newHighlightCount > 0 else {
-            return ImportStatus(message: "Library up to date", isError: false)
+            let warningSuffix = parseWarningSuffix(for: result.parseWarningCount)
+            return ImportStatus(message: "Library up to date\(warningSuffix)", isError: false)
         }
 
         let timestamp = importStatusDateFormatter.string(from: now)
         let highlightNoun = result.newHighlightCount == 1 ? "highlight" : "highlights"
+        let warningSuffix = parseWarningSuffix(for: result.parseWarningCount)
         return ImportStatus(
-            message: "Last synced: \(timestamp) - \(result.newHighlightCount) new \(highlightNoun) added",
+            message: "Last synced: \(timestamp) - \(result.newHighlightCount) new \(highlightNoun) added\(warningSuffix)",
             isError: false
         )
     }
@@ -266,6 +288,31 @@ extension VolumeWatcher {
 
         return "Import failed: \(trimmedError)"
     }
+
+    private static func parseWarningSuffix(for parseWarningCount: Int) -> String {
+        guard parseWarningCount > 0 else {
+            return ""
+        }
+        let noun = parseWarningCount == 1 ? "parse warning" : "parse warnings"
+        return " (\(parseWarningCount) \(noun))"
+    }
+
+    private static func importSizeLimitErrorMessage(for clippingsURL: URL, fileManager: FileManager) -> String? {
+        guard
+            let attributes = try? fileManager.attributesOfItem(atPath: clippingsURL.path),
+            let fileSizeNumber = attributes[.size] as? NSNumber
+        else {
+            return nil
+        }
+
+        let sizeInBytes = fileSizeNumber.int64Value
+        guard sizeInBytes > maxImportFileSizeBytes else {
+            return nil
+        }
+
+        let maxSizeInMegabytes = maxImportFileSizeBytes / (1024 * 1024)
+        return "Import failed: clippings file is larger than \(maxSizeInMegabytes) MB."
+    }
 }
 #endif
 
@@ -281,7 +328,8 @@ extension VolumeWatcher.MountListener {
                 let result = importFile(at: clippingsURL)
                 return VolumeWatcher.ImportPayload(
                     newHighlightCount: result.newHighlightCount,
-                    error: result.error
+                    error: result.error,
+                    parseWarningCount: result.parseWarningCount
                 )
             },
             publishImportStatus: publishImportStatus

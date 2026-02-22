@@ -19,7 +19,7 @@ struct KindleWallApp: App {
         _appState = StateObject(wrappedValue: appState)
 
         wallpaperScheduler = WallpaperScheduler(rotateWallpaper: { [weak appState] in
-            appState?.rotateWallpaper()
+            appState?.rotateWallpaper() ?? false
         })
 
         #if canImport(AppKit)
@@ -36,8 +36,7 @@ struct KindleWallApp: App {
 
     var body: some Scene {
         Settings {
-            Text("KindleWall")
-                .frame(width: 320, height: 120)
+            SettingsView()
                 .environmentObject(appState)
         }
     }
@@ -71,7 +70,7 @@ struct KindleWallApp: App {
         #else
         let listener = VolumeWatcher.MountListener(
             importFile: { _ in
-                VolumeWatcher.ImportPayload(newHighlightCount: 0, error: nil)
+                VolumeWatcher.ImportPayload(newHighlightCount: 0, error: nil, parseWarningCount: 0)
             },
             publishImportStatus: { status in
                 DispatchQueue.main.async {
