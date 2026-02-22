@@ -101,15 +101,7 @@ enum ClippingsParser {
     }
 
     static func computeDedupeKey(bookId: UUID, location: String?, quoteText: String) -> String {
-        let normalizedBookID = bookId.uuidString.lowercased()
-        let normalizedQuotePrefix = String(normalizedDedupeComponent(quoteText).prefix(50))
-        let normalizedLocation = normalizedDedupeComponent(location ?? "")
-
-        if normalizedLocation.isEmpty {
-            return "\(normalizedBookID)|\(normalizedQuotePrefix)"
-        }
-
-        return "\(normalizedBookID)|\(normalizedLocation)|\(normalizedQuotePrefix)"
+        DedupeKeyBuilder.makeKey(bookId: bookId, location: location, quoteText: quoteText)
     }
 
     static func resetParseErrorCount() {
@@ -248,10 +240,6 @@ enum ClippingsParser {
 
     private static func collapseWhitespace(in string: String) -> String {
         string.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
-    }
-
-    private static func normalizedDedupeComponent(_ value: String) -> String {
-        collapseWhitespace(in: value).lowercased()
     }
 
     private static func finalParenthesizedGroup(in line: String) -> (value: String, range: Range<String.Index>)? {

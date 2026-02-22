@@ -56,8 +56,8 @@ if ! rg -q 'private static func computeDedupeKey\(for highlight: Highlight\) -> 
   exit 1
 fi
 
-if ! rg -q 'split\(whereSeparator: \{ \$0\.isWhitespace \}\)' "$database_file"; then
-  echo "Dedupe normalization is missing whitespace collapsing"
+if ! rg -q 'DedupeKeyBuilder\.makeKey' "$database_file"; then
+  echo "insertHighlightIfNew does not use shared dedupe key computation"
   exit 1
 fi
 

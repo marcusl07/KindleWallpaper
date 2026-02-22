@@ -55,11 +55,7 @@ enum DatabaseManager {
     }()
 
     private static func makeDatabaseURL() throws -> URL {
-        let fileManager = FileManager.default
-        let appSupportURL = fileManager.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library", isDirectory: true)
-            .appendingPathComponent("Application Support", isDirectory: true)
-            .appendingPathComponent("KindleWall", isDirectory: true)
+        let appSupportURL = AppSupportPaths.kindleWallDirectory(fileManager: .default)
         return appSupportURL.appendingPathComponent("highlights.db", isDirectory: false)
     }
 
@@ -342,16 +338,11 @@ enum DatabaseManager {
     }
 
     private static func computeDedupeKey(for highlight: Highlight) -> String {
-        let normalizedLocation = normalizedDedupeComponent(highlight.location ?? "")
-        let normalizedQuotePrefix = String(normalizedDedupeComponent(highlight.quoteText).prefix(50))
-        return "\(highlight.bookId.uuidString.lowercased())|\(normalizedLocation)|\(normalizedQuotePrefix)"
-    }
-
-    private static func normalizedDedupeComponent(_ value: String) -> String {
-        value
-            .lowercased()
-            .split(whereSeparator: { $0.isWhitespace })
-            .joined(separator: " ")
+        DedupeKeyBuilder.makeKey(
+            bookId: highlight.bookId,
+            location: highlight.location,
+            quoteText: highlight.quoteText
+        )
     }
 
     private static func iso8601String(from date: Date?) -> String? {

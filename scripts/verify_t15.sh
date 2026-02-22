@@ -15,6 +15,7 @@ OUTPUT_BIN="$BUILD_DIR/verify_t15"
 swiftc \
   -module-cache-path "$MODULE_CACHE_DIR" \
   Models/Book.swift \
+  Models/DedupeKeyBuilder.swift \
   Models/Highlight.swift \
   Parsing/ClippingsParser.swift \
   "$BUILD_DIR/main.swift" \
