@@ -1,0 +1,34 @@
+name: KindleWall
+options:
+  createIntermediateGroups: true
+  xcodeVersion: "15.4"
+  objectVersion: 56
+settings:
+  base:
+    SWIFT_VERSION: 5.0
+    MACOSX_DEPLOYMENT_TARGET: 13.0
+    DEVELOPMENT_TEAM: ""
+packages:
+  GRDB:
+    url: https://github.com/groue/GRDB.swift.git
+    from: 6.0.0
+targets:
+  KindleWall:
+    type: application
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - App
+      - Models
+    info:
+      path: App/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.marcuslo.KindleWall
+        PRODUCT_NAME: KindleWall
+        GENERATE_INFOPLIST_FILE: NO
+    dependencies:
+      - package: GRDB
+        product: GRDB
+    scheme:
+      testTargets: []
