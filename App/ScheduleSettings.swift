@@ -4,7 +4,18 @@ extension UserDefaults {
     private enum ScheduleKeys {
         static let dailyHour = "scheduleDailyHour"
         static let dailyMinute = "scheduleDailyMinute"
+        static let lastChangedAt = "lastChangedAt"
     }
+
+    private static let lastChangedAtParsers: [ISO8601DateFormatter] = {
+        let withFractionalSeconds = ISO8601DateFormatter()
+        withFractionalSeconds.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        let withoutFractionalSeconds = ISO8601DateFormatter()
+        withoutFractionalSeconds.formatOptions = [.withInternetDateTime]
+
+        return [withFractionalSeconds, withoutFractionalSeconds]
+    }()
 
     var scheduleDailyHour: Int {
         get {
@@ -27,6 +38,44 @@ extension UserDefaults {
         }
         set {
             set(Self.normalizedDailyMinute(newValue), forKey: ScheduleKeys.dailyMinute)
+        }
+    }
+
+    var lastChangedAt: Date? {
+        get {
+            guard let rawValue = object(forKey: ScheduleKeys.lastChangedAt) else {
+                return nil
+            }
+
+            if let date = rawValue as? Date {
+                return date
+            }
+
+            if let timestamp = rawValue as? NSNumber {
+                return Date(timeIntervalSince1970: timestamp.doubleValue)
+            }
+
+            if let string = rawValue as? String {
+                if let timestamp = Double(string) {
+                    return Date(timeIntervalSince1970: timestamp)
+                }
+
+                for parser in Self.lastChangedAtParsers {
+                    if let parsedDate = parser.date(from: string) {
+                        return parsedDate
+                    }
+                }
+            }
+
+            return nil
+        }
+        set {
+            guard let newValue else {
+                removeObject(forKey: ScheduleKeys.lastChangedAt)
+                return
+            }
+
+            set(newValue.timeIntervalSince1970, forKey: ScheduleKeys.lastChangedAt)
         }
     }
 
