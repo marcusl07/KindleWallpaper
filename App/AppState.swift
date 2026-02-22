@@ -160,7 +160,7 @@ extension AppState {
                 wallpaperGenerator.generateWallpaper(highlight: highlight, backgroundURL: backgroundURL)
             },
             setWallpaper: { imageURL in
-                setWallpaper(imageURL: imageURL)
+                WallpaperSetter.setWallpaper(imageURL: imageURL)
             },
             markHighlightShown: DatabaseManager.markHighlightShown(id:),
             setBookEnabled: DatabaseManager.setBookEnabled(id:enabled:),

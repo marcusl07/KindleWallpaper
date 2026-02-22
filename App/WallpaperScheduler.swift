@@ -132,7 +132,7 @@ final class WallpaperScheduler {
             isRotating = false
         }
 
-        rotateWallpaper()
+        _ = rotateWallpaper()
     }
 
     static func shouldRotateEveryThirtyMinutes(now: Date, lastChangedAt: Date?) -> Bool {
