@@ -14,12 +14,14 @@
 		7067D38042A1BC59897C1BAE /* BackgroundImageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 766BDB43991580ED0548AE8A /* BackgroundImageStore.swift */; };
 		B91FD28C7AEC1D1726DD6E98 /* ScheduleSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7722C3B4FB0A66E04C7BB28 /* ScheduleSettings.swift */; };
 		C06D7617B1725A8B722A3626 /* ClippingsParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7702F347CAD3C65FDA7851 /* ClippingsParser.swift */; };
+		C11C4AA58645E3A2602523DC /* VolumeWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 653DF17A62F70DE93E169341 /* VolumeWatcher.swift */; };
 		E9181E2AB7C4C596E1EAD8AD /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 9551A09A2327039A1281BEA5 /* GRDB */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		126D2BED290D16D70E707B68 /* Database.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Database.swift; sourceTree = "<group>"; };
 		1D7702F347CAD3C65FDA7851 /* ClippingsParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClippingsParser.swift; sourceTree = "<group>"; };
+		653DF17A62F70DE93E169341 /* VolumeWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VolumeWatcher.swift; sourceTree = "<group>"; };
 		67306A31618FE6581F9F81F4 /* KindleWallApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KindleWallApp.swift; sourceTree = "<group>"; };
 		67E7F15FCB23FBD77BC647C6 /* Book.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Book.swift; sourceTree = "<group>"; };
 		766BDB43991580ED0548AE8A /* BackgroundImageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundImageStore.swift; sourceTree = "<group>"; };
@@ -67,6 +69,7 @@
 				931DFDD6D12D8887EA968760 /* Info.plist */,
 				67306A31618FE6581F9F81F4 /* KindleWallApp.swift */,
 				E7722C3B4FB0A66E04C7BB28 /* ScheduleSettings.swift */,
+				653DF17A62F70DE93E169341 /* VolumeWatcher.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -158,6 +161,7 @@
 				630FD92E3719C965D0208253 /* Highlight.swift in Sources */,
 				0F47113C8F5C5C3A9CDF9C42 /* KindleWallApp.swift in Sources */,
 				B91FD28C7AEC1D1726DD6E98 /* ScheduleSettings.swift in Sources */,
+				C11C4AA58645E3A2602523DC /* VolumeWatcher.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
