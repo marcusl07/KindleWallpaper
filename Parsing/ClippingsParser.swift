@@ -20,6 +20,16 @@ enum ClippingsParser {
         let quoteBody: String
     }
 
+    private struct ParsedBookKey: Hashable {
+        let title: String
+        let author: String
+    }
+
+    private struct ParsedBookRecord {
+        let id: UUID
+        var highlightCount: Int
+    }
+
     static func splitRawEntries(_ raw: String) -> [String] {
         let normalized = raw.replacingOccurrences(of: "\r\n", with: "\n")
         var chunks: [String] = []
@@ -106,6 +116,77 @@ enum ClippingsParser {
         parseErrorCount = 0
     }
 
+    static func parseClippings(fileURL: URL) -> (highlights: [Highlight], books: [Book], parseErrorCount: Int) {
+        resetParseErrorCount()
+
+        guard let rawContents = try? String(contentsOf: fileURL, encoding: .utf8) else {
+            return (highlights: [], books: [], parseErrorCount: parseErrorCount)
+        }
+
+        let chunks = splitRawEntries(rawContents)
+        let extractedChunks = extractEntryFields(from: chunks)
+
+        var booksByKey: [ParsedBookKey: ParsedBookRecord] = [:]
+        var bookOrder: [ParsedBookKey] = []
+        var highlights: [Highlight] = []
+        var seenDedupeKeys = Set<String>()
+
+        for extractedChunk in extractedChunks {
+            let cleanedBook = cleanTitleAndAuthor(from: extractedChunk.titleLine)
+            let bookKey = ParsedBookKey(title: cleanedBook.title, author: cleanedBook.author)
+
+            if booksByKey[bookKey] == nil {
+                booksByKey[bookKey] = ParsedBookRecord(id: UUID(), highlightCount: 0)
+                bookOrder.append(bookKey)
+            }
+
+            guard let bookRecord = booksByKey[bookKey] else {
+                continue
+            }
+
+            let metadataFields = parseMetadataFields(from: extractedChunk.metadataLine)
+            let dedupeKey = computeDedupeKey(
+                bookId: bookRecord.id,
+                location: metadataFields.location,
+                quoteText: extractedChunk.quoteBody
+            )
+
+            guard seenDedupeKeys.insert(dedupeKey).inserted else {
+                continue
+            }
+
+            booksByKey[bookKey]?.highlightCount += 1
+            highlights.append(
+                Highlight(
+                    id: UUID(),
+                    bookId: bookRecord.id,
+                    quoteText: extractedChunk.quoteBody,
+                    bookTitle: cleanedBook.title,
+                    author: cleanedBook.author,
+                    location: metadataFields.location,
+                    dateAdded: metadataFields.dateAdded,
+                    lastShownAt: nil
+                )
+            )
+        }
+
+        let books = bookOrder.compactMap { bookKey -> Book? in
+            guard let bookRecord = booksByKey[bookKey] else {
+                return nil
+            }
+
+            return Book(
+                id: bookRecord.id,
+                title: bookKey.title,
+                author: bookKey.author,
+                isEnabled: true,
+                highlightCount: bookRecord.highlightCount
+            )
+        }
+
+        return (highlights: highlights, books: books, parseErrorCount: parseErrorCount)
+    }
+
     private static func extractEntryFields(from chunk: String) -> ExtractedChunk? {
         let lines = chunk
             .split(separator: "\n", omittingEmptySubsequences: false)
@@ -190,5 +271,35 @@ enum ClippingsParser {
 
         let fullRange = openingParen..<line.index(after: closingParen)
         return (value: content, range: fullRange)
+    }
+
+    private static func parseMetadataFields(from metadataLine: String) -> (location: String?, dateAdded: Date?) {
+        let segments = metadataLine.split(separator: "|", omittingEmptySubsequences: false).map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        var location: String?
+        var dateAdded: Date?
+
+        for segment in segments {
+            if segment.hasPrefix("Location ") {
+                let rawLocation = String(segment.dropFirst("Location ".count))
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !rawLocation.isEmpty {
+                    location = rawLocation
+                }
+                continue
+            }
+
+            if let addedOnRange = segment.range(of: "Added on ") {
+                let rawDate = String(segment[addedOnRange.upperBound...])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !rawDate.isEmpty {
+                    dateAdded = parseKindleDate(rawDate)
+                }
+            }
+        }
+
+        return (location: location, dateAdded: dateAdded)
     }
 }

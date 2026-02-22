@@ -14,6 +14,8 @@ OUTPUT_BIN="$BUILD_DIR/verify_t12"
 
 swiftc \
   -module-cache-path "$MODULE_CACHE_DIR" \
+  Models/Book.swift \
+  Models/Highlight.swift \
   Parsing/ClippingsParser.swift \
   "$BUILD_DIR/main.swift" \
   -o "$OUTPUT_BIN"
