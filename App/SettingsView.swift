@@ -13,7 +13,7 @@ struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 importSectionPlaceholder
-                booksSectionPlaceholder
+                booksSection
                 backgroundSection
                 scheduleSectionPlaceholder
                 aboutSectionPlaceholder
@@ -31,10 +31,55 @@ struct SettingsView: View {
         }
     }
 
-    private var booksSectionPlaceholder: some View {
+    private var booksSection: some View {
         sectionContainer(title: "Books") {
-            Text("Books section coming next.")
-                .foregroundStyle(.secondary)
+            HStack(spacing: 12) {
+                Button("Select All") {
+                    appState.setAllBooksEnabled(true)
+                }
+                .disabled(appState.books.isEmpty || appState.books.allSatisfy(\.isEnabled))
+
+                Button("Deselect All") {
+                    appState.setAllBooksEnabled(false)
+                }
+                .disabled(appState.books.isEmpty || appState.books.allSatisfy { !$0.isEnabled })
+            }
+
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 8) {
+                    if appState.books.isEmpty {
+                        Text("No books imported yet.")
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        ForEach(appState.books) { book in
+                            Toggle(isOn: bindingForBook(book)) {
+                                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                    Text(book.title)
+                                        .font(.body.weight(.medium))
+                                    Text(book.author)
+                                        .foregroundStyle(.secondary)
+                                    Spacer(minLength: 8)
+                                    Text("\(book.highlightCount) \(book.highlightCount == 1 ? "highlight" : "highlights")")
+                                        .font(.callout)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .toggleStyle(.checkbox)
+                        }
+                    }
+                }
+                .padding(8)
+            }
+            .frame(maxHeight: 220)
+            .background(Color.gray.opacity(0.06))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            if allBooksDeselectedWarningVisible {
+                Text("All books are deselected. Wallpaper rotation has no active quote pool.")
+                    .font(.callout)
+                    .foregroundStyle(.orange)
+            }
         }
     }
 
@@ -153,5 +198,23 @@ struct SettingsView: View {
             backgroundImageError = "Failed to set background image: \(error.localizedDescription)"
         }
         #endif
+    }
+
+    private var allBooksDeselectedWarningVisible: Bool {
+        !appState.books.isEmpty && appState.books.allSatisfy { !$0.isEnabled }
+    }
+
+    private func bindingForBook(_ book: Book) -> Binding<Bool> {
+        Binding(
+            get: {
+                appState.books.first(where: { $0.id == book.id })?.isEnabled ?? book.isEnabled
+            },
+            set: { enabled in
+                guard appState.books.first(where: { $0.id == book.id })?.isEnabled != enabled else {
+                    return
+                }
+                appState.setBookEnabled(id: book.id, enabled: enabled)
+            }
+        )
     }
 }

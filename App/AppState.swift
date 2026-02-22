@@ -7,6 +7,7 @@ final class AppState: ObservableObject {
     typealias GenerateWallpaper = (Highlight, URL?) -> URL
     typealias SetWallpaper = (URL) -> Void
     typealias MarkHighlightShown = (UUID) -> Void
+    typealias SetBookEnabled = (UUID, Bool) -> Void
     typealias FetchAllBooks = () -> [Book]
     typealias FetchTotalHighlightCount = () -> Int
     typealias Now = () -> Date
@@ -25,6 +26,7 @@ final class AppState: ObservableObject {
     private let generateWallpaper: GenerateWallpaper
     private let setWallpaper: SetWallpaper
     private let markHighlightShown: MarkHighlightShown
+    private let setBookEnabledAction: SetBookEnabled
     private let fetchAllBooks: FetchAllBooks
     private let fetchTotalHighlightCount: FetchTotalHighlightCount
     private let now: Now
@@ -43,6 +45,7 @@ final class AppState: ObservableObject {
         generateWallpaper: @escaping GenerateWallpaper,
         setWallpaper: @escaping SetWallpaper,
         markHighlightShown: @escaping MarkHighlightShown,
+        setBookEnabled: @escaping SetBookEnabled = { _, _ in },
         fetchAllBooks: @escaping FetchAllBooks = { [] },
         fetchTotalHighlightCount: @escaping FetchTotalHighlightCount = { 0 },
         now: @escaping Now = Date.init
@@ -60,6 +63,7 @@ final class AppState: ObservableObject {
         self.generateWallpaper = generateWallpaper
         self.setWallpaper = setWallpaper
         self.markHighlightShown = markHighlightShown
+        self.setBookEnabledAction = setBookEnabled
         self.fetchAllBooks = fetchAllBooks
         self.fetchTotalHighlightCount = fetchTotalHighlightCount
         self.now = now
@@ -107,6 +111,18 @@ final class AppState: ObservableObject {
         books = fetchAllBooks()
     }
 
+    func setBookEnabled(id: UUID, enabled: Bool) {
+        setBookEnabledAction(id, enabled)
+        books = fetchAllBooks()
+    }
+
+    func setAllBooksEnabled(_ enabled: Bool) {
+        for book in books where book.isEnabled != enabled {
+            setBookEnabledAction(book.id, enabled)
+        }
+        books = fetchAllBooks()
+    }
+
     func refreshScheduleState() {
         activeScheduleMode = userDefaults.rotationScheduleMode
         lastChangedAt = userDefaults.lastChangedAt
@@ -140,6 +156,7 @@ extension AppState {
                 setWallpaper(imageURL: imageURL)
             },
             markHighlightShown: DatabaseManager.markHighlightShown(id:),
+            setBookEnabled: DatabaseManager.setBookEnabled(id:enabled:),
             fetchAllBooks: DatabaseManager.fetchAllBooks,
             fetchTotalHighlightCount: DatabaseManager.totalHighlightCount
         )
