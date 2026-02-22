@@ -22,6 +22,8 @@ targets:
       - Models
     info:
       path: App/Info.plist
+      properties:
+        LSUIElement: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.marcuslo.KindleWall
