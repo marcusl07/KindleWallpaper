@@ -325,6 +325,22 @@ enum DatabaseManager {
         }
     }
 
+    static func totalHighlightCount() -> Int {
+        do {
+            return try shared.read { database in
+                try Int.fetchOne(
+                    database,
+                    sql: """
+                    SELECT COUNT(*)
+                    FROM highlights
+                    """
+                ) ?? 0
+            }
+        } catch {
+            fatalError("Failed to fetch total highlight count: \(error)")
+        }
+    }
+
     private static func computeDedupeKey(for highlight: Highlight) -> String {
         let normalizedLocation = normalizedDedupeComponent(highlight.location ?? "")
         let normalizedQuotePrefix = String(normalizedDedupeComponent(highlight.quoteText).prefix(50))
