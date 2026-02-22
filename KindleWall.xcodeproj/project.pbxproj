@@ -9,12 +9,14 @@
 /* Begin PBXBuildFile section */
 		006BFF281CE13CB5B2AA67E6 /* Book.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67E7F15FCB23FBD77BC647C6 /* Book.swift */; };
 		0F47113C8F5C5C3A9CDF9C42 /* KindleWallApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67306A31618FE6581F9F81F4 /* KindleWallApp.swift */; };
+		154FAA67B9134B920BB2E402 /* Database.swift in Sources */ = {isa = PBXBuildFile; fileRef = 126D2BED290D16D70E707B68 /* Database.swift */; };
 		630FD92E3719C965D0208253 /* Highlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86F9EA5F3C2418D8AA0D9365 /* Highlight.swift */; };
 		B91FD28C7AEC1D1726DD6E98 /* ScheduleSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7722C3B4FB0A66E04C7BB28 /* ScheduleSettings.swift */; };
 		E9181E2AB7C4C596E1EAD8AD /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 9551A09A2327039A1281BEA5 /* GRDB */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		126D2BED290D16D70E707B68 /* Database.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Database.swift; sourceTree = "<group>"; };
 		67306A31618FE6581F9F81F4 /* KindleWallApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KindleWallApp.swift; sourceTree = "<group>"; };
 		67E7F15FCB23FBD77BC647C6 /* Book.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Book.swift; sourceTree = "<group>"; };
 		811E26389F17F084542DAAF7 /* KindleWall.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KindleWall.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -47,6 +49,7 @@
 		34D11B167C7ACAEF878BFE92 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				126D2BED290D16D70E707B68 /* Database.swift */,
 				931DFDD6D12D8887EA968760 /* Info.plist */,
 				67306A31618FE6581F9F81F4 /* KindleWallApp.swift */,
 				E7722C3B4FB0A66E04C7BB28 /* ScheduleSettings.swift */,
@@ -135,6 +138,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				006BFF281CE13CB5B2AA67E6 /* Book.swift in Sources */,
+				154FAA67B9134B920BB2E402 /* Database.swift in Sources */,
 				630FD92E3719C965D0208253 /* Highlight.swift in Sources */,
 				0F47113C8F5C5C3A9CDF9C42 /* KindleWallApp.swift in Sources */,
 				B91FD28C7AEC1D1726DD6E98 /* ScheduleSettings.swift in Sources */,
