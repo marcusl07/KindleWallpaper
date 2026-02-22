@@ -190,6 +190,78 @@ enum DatabaseManager {
         }
     }
 
+    static func pickNextHighlight() -> Highlight? {
+        do {
+            return try shared.write { database in
+                let activePoolCount = try Int.fetchOne(
+                    database,
+                    sql: """
+                    SELECT COUNT(*)
+                    FROM highlights
+                    WHERE bookId IN (SELECT id FROM books WHERE isEnabled = 1)
+                    """
+                ) ?? 0
+
+                guard activePoolCount > 0 else {
+                    return nil
+                }
+
+                var eligibleCount = try Int.fetchOne(
+                    database,
+                    sql: """
+                    SELECT COUNT(*)
+                    FROM highlights
+                    WHERE bookId IN (SELECT id FROM books WHERE isEnabled = 1)
+                      AND lastShownAt IS NULL
+                    """
+                ) ?? 0
+
+                if eligibleCount == 0 {
+                    try database.execute(
+                        sql: """
+                        UPDATE highlights
+                        SET lastShownAt = NULL
+                        WHERE bookId IN (SELECT id FROM books WHERE isEnabled = 1)
+                        """
+                    )
+
+                    eligibleCount = try Int.fetchOne(
+                        database,
+                        sql: """
+                        SELECT COUNT(*)
+                        FROM highlights
+                        WHERE bookId IN (SELECT id FROM books WHERE isEnabled = 1)
+                          AND lastShownAt IS NULL
+                        """
+                    ) ?? 0
+                }
+
+                guard eligibleCount > 0 else {
+                    return nil
+                }
+
+                let randomOffset = Int.random(in: 0..<eligibleCount)
+                guard let row = try Row.fetchOne(
+                    database,
+                    sql: """
+                    SELECT id, bookId, quoteText, bookTitle, author, location, dateAdded, lastShownAt
+                    FROM highlights
+                    WHERE bookId IN (SELECT id FROM books WHERE isEnabled = 1)
+                      AND lastShownAt IS NULL
+                    LIMIT 1 OFFSET ?
+                    """,
+                    arguments: [randomOffset]
+                ) else {
+                    fatalError("Failed to fetch highlight at random offset \(randomOffset)")
+                }
+
+                return highlight(from: row)
+            }
+        } catch {
+            fatalError("Failed to pick next highlight: \(error)")
+        }
+    }
+
     private static func computeDedupeKey(for highlight: Highlight) -> String {
         let normalizedLocation = normalizedDedupeComponent(highlight.location ?? "")
         let normalizedQuotePrefix = String(normalizedDedupeComponent(highlight.quoteText).prefix(50))
@@ -208,5 +280,35 @@ enum DatabaseManager {
             return nil
         }
         return iso8601Formatter.string(from: date)
+    }
+
+    private static func highlight(from row: Row) -> Highlight {
+        guard
+            let idValue: String = row["id"],
+            let id = UUID(uuidString: idValue)
+        else {
+            fatalError("Invalid highlight id in database row")
+        }
+
+        guard
+            let bookIDValue: String = row["bookId"],
+            let bookID = UUID(uuidString: bookIDValue)
+        else {
+            fatalError("Invalid highlight bookId in database row")
+        }
+
+        let dateAddedValue: String? = row["dateAdded"]
+        let lastShownAtValue: String? = row["lastShownAt"]
+
+        return Highlight(
+            id: id,
+            bookId: bookID,
+            quoteText: row["quoteText"],
+            bookTitle: row["bookTitle"],
+            author: row["author"],
+            location: row["location"],
+            dateAdded: dateAddedValue.flatMap { iso8601Formatter.date(from: $0) },
+            lastShownAt: lastShownAtValue.flatMap { iso8601Formatter.date(from: $0) }
+        )
     }
 }
