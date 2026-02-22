@@ -10,7 +10,6 @@ struct KindleWallApp: App {
 
     #if canImport(AppKit)
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    private let statusItemController: StatusItemController
     private let mountListener: VolumeWatcher.MountListener?
     #endif
 
@@ -23,14 +22,11 @@ struct KindleWallApp: App {
         })
 
         #if canImport(AppKit)
-        statusItemController = StatusItemController(
-            appState: appState,
-            openSettings: Self.openSettingsWindow,
-            rotateWallpaper: { [weak appState] in
-                appState?.rotateWallpaper()
-            }
-        )
         mountListener = Self.makeMountListener(appState: appState)
+        appDelegate.configure(
+            appState: appState,
+            openSettings: Self.openSettingsWindow
+        )
         #endif
     }
 
@@ -96,8 +92,41 @@ struct KindleWallApp: App {
 
 #if canImport(AppKit)
 private final class AppDelegate: NSObject, NSApplicationDelegate {
+    private weak var appState: AppState?
+    private var openSettings: (() -> Void)?
+    private var statusItemController: StatusItemController?
+    private var hasFinishedLaunching = false
+
+    func configure(appState: AppState, openSettings: @escaping () -> Void) {
+        self.appState = appState
+        self.openSettings = openSettings
+
+        if hasFinishedLaunching {
+            installStatusItemIfNeeded()
+        }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        hasFinishedLaunching = true
+        installStatusItemIfNeeded()
+    }
+
+    private func installStatusItemIfNeeded() {
+        guard statusItemController == nil else {
+            return
+        }
+        guard let appState, let openSettings else {
+            return
+        }
+
+        statusItemController = StatusItemController(
+            appState: appState,
+            openSettings: openSettings,
+            rotateWallpaper: { [weak appState] in
+                appState?.rotateWallpaper()
+            }
+        )
     }
 }
 
