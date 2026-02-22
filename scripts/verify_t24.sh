@@ -325,6 +325,7 @@ swiftc \
   "$ROOT_DIR/App/ScheduleSettings.swift" \
   "$ROOT_DIR/App/AppState.swift" \
   "$ROOT_DIR/Models/Highlight.swift" \
+  "$ROOT_DIR/Models/Book.swift" \
   "$TMP_DIR/main.swift" \
   -o "$TMP_DIR/t24_runner"
 

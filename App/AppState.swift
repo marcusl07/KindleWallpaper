@@ -7,9 +7,16 @@ final class AppState: ObservableObject {
     typealias GenerateWallpaper = (Highlight, URL?) -> URL
     typealias SetWallpaper = (URL) -> Void
     typealias MarkHighlightShown = (UUID) -> Void
+    typealias FetchAllBooks = () -> [Book]
+    typealias FetchTotalHighlightCount = () -> Int
     typealias Now = () -> Date
 
     @Published private(set) var currentQuotePreview: String
+    @Published private(set) var importStatus: String
+    @Published private(set) var importError: String?
+    @Published private(set) var totalHighlightCount: Int
+    @Published private(set) var books: [Book]
+    @Published private(set) var activeScheduleMode: RotationScheduleMode
     @Published private(set) var lastChangedAt: Date?
 
     private let userDefaults: UserDefaults
@@ -18,27 +25,43 @@ final class AppState: ObservableObject {
     private let generateWallpaper: GenerateWallpaper
     private let setWallpaper: SetWallpaper
     private let markHighlightShown: MarkHighlightShown
+    private let fetchAllBooks: FetchAllBooks
+    private let fetchTotalHighlightCount: FetchTotalHighlightCount
     private let now: Now
     private var isRotationInProgress = false
 
     init(
         userDefaults: UserDefaults = .standard,
         currentQuotePreview: String = "",
+        importStatus: String = "",
+        importError: String? = nil,
+        totalHighlightCount: Int? = nil,
+        books: [Book]? = nil,
+        activeScheduleMode: RotationScheduleMode? = nil,
         pickNextHighlight: @escaping PickNextHighlight,
         loadBackgroundImageURL: @escaping LoadBackgroundImageURL,
         generateWallpaper: @escaping GenerateWallpaper,
         setWallpaper: @escaping SetWallpaper,
         markHighlightShown: @escaping MarkHighlightShown,
+        fetchAllBooks: @escaping FetchAllBooks = { [] },
+        fetchTotalHighlightCount: @escaping FetchTotalHighlightCount = { 0 },
         now: @escaping Now = Date.init
     ) {
         self.userDefaults = userDefaults
         self.currentQuotePreview = currentQuotePreview
+        self.importStatus = importStatus
+        self.importError = importError
+        self.totalHighlightCount = totalHighlightCount ?? fetchTotalHighlightCount()
+        self.books = books ?? fetchAllBooks()
+        self.activeScheduleMode = activeScheduleMode ?? userDefaults.rotationScheduleMode
         self.lastChangedAt = userDefaults.lastChangedAt
         self.pickNextHighlight = pickNextHighlight
         self.loadBackgroundImageURL = loadBackgroundImageURL
         self.generateWallpaper = generateWallpaper
         self.setWallpaper = setWallpaper
         self.markHighlightShown = markHighlightShown
+        self.fetchAllBooks = fetchAllBooks
+        self.fetchTotalHighlightCount = fetchTotalHighlightCount
         self.now = now
     }
 
@@ -66,6 +89,38 @@ final class AppState: ObservableObject {
         lastChangedAt = changedAt
         currentQuotePreview = highlight.quoteText
     }
+
+    func setImportStatus(_ message: String, isError: Bool) {
+        let normalizedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        if isError {
+            importStatus = ""
+            importError = normalizedMessage.isEmpty ? "Import failed: unknown error." : normalizedMessage
+            return
+        }
+
+        importStatus = normalizedMessage
+        importError = nil
+    }
+
+    func refreshLibraryState() {
+        totalHighlightCount = fetchTotalHighlightCount()
+        books = fetchAllBooks()
+    }
+
+    func refreshScheduleState() {
+        activeScheduleMode = userDefaults.rotationScheduleMode
+        lastChangedAt = userDefaults.lastChangedAt
+    }
+
+    func refreshAllState() {
+        refreshLibraryState()
+        refreshScheduleState()
+    }
+
+    func setActiveScheduleMode(_ mode: RotationScheduleMode) {
+        userDefaults.rotationScheduleMode = mode
+        activeScheduleMode = mode
+    }
 }
 
 #if canImport(GRDB)
@@ -84,7 +139,9 @@ extension AppState {
             setWallpaper: { imageURL in
                 setWallpaper(imageURL: imageURL)
             },
-            markHighlightShown: DatabaseManager.markHighlightShown(id:)
+            markHighlightShown: DatabaseManager.markHighlightShown(id:),
+            fetchAllBooks: DatabaseManager.fetchAllBooks,
+            fetchTotalHighlightCount: DatabaseManager.totalHighlightCount
         )
     }
 }
