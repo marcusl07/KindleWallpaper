@@ -1,7 +1,57 @@
 import Foundation
 
+enum RotationScheduleMode: String, CaseIterable {
+    case manual
+    case daily
+    case onLaunch
+    case every30Minutes
+
+    static func fromStoredValue(_ value: Any?) -> RotationScheduleMode? {
+        if let stringValue = value as? String {
+            return fromStoredString(stringValue)
+        }
+
+        if let number = value as? NSNumber {
+            return fromStoredIndex(number.intValue)
+        }
+
+        return nil
+    }
+
+    private static func fromStoredString(_ value: String) -> RotationScheduleMode? {
+        switch value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "manual":
+            return .manual
+        case "daily":
+            return .daily
+        case "onlaunch", "on_launch":
+            return .onLaunch
+        case "every30minutes", "every30min", "every_30_minutes":
+            return .every30Minutes
+        default:
+            return nil
+        }
+    }
+
+    private static func fromStoredIndex(_ value: Int) -> RotationScheduleMode? {
+        switch value {
+        case 0:
+            return .manual
+        case 1:
+            return .daily
+        case 2:
+            return .onLaunch
+        case 3:
+            return .every30Minutes
+        default:
+            return nil
+        }
+    }
+}
+
 extension UserDefaults {
     private enum ScheduleKeys {
+        static let rotationMode = "rotationScheduleMode"
         static let dailyHour = "scheduleDailyHour"
         static let dailyMinute = "scheduleDailyMinute"
         static let lastChangedAt = "lastChangedAt"
@@ -38,6 +88,15 @@ extension UserDefaults {
         }
         set {
             set(Self.normalizedDailyMinute(newValue), forKey: ScheduleKeys.dailyMinute)
+        }
+    }
+
+    var rotationScheduleMode: RotationScheduleMode {
+        get {
+            RotationScheduleMode.fromStoredValue(object(forKey: ScheduleKeys.rotationMode)) ?? .daily
+        }
+        set {
+            set(newValue.rawValue, forKey: ScheduleKeys.rotationMode)
         }
     }
 
