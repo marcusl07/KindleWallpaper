@@ -62,4 +62,39 @@ enum DatabaseManager {
             try database.execute(sql: createHighlightsTableSQL)
         }
     }
+
+    static func upsertBook(_ book: Book) -> UUID {
+        do {
+            return try shared.write { database in
+                try database.execute(
+                    sql: """
+                    INSERT OR IGNORE INTO books (id, title, author, isEnabled)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    arguments: [book.id.uuidString, book.title, book.author, book.isEnabled ? 1 : 0]
+                )
+
+                guard let storedBookID = try String.fetchOne(
+                    database,
+                    sql: """
+                    SELECT id
+                    FROM books
+                    WHERE title = ? AND author = ?
+                    LIMIT 1
+                    """,
+                    arguments: [book.title, book.author]
+                ) else {
+                    fatalError("Failed to find book row after upsert for title '\(book.title)' and author '\(book.author)'")
+                }
+
+                guard let uuid = UUID(uuidString: storedBookID) else {
+                    fatalError("Invalid UUID stored for book id '\(storedBookID)'")
+                }
+
+                return uuid
+            }
+        } catch {
+            fatalError("Failed to upsert book: \(error)")
+        }
+    }
 }
