@@ -14,7 +14,7 @@ struct SettingsView: View {
             importSection
             booksSection
             backgroundSection
-            scheduleSectionPlaceholder
+            scheduleSection
             aboutSectionPlaceholder
         }
         .padding(20)
@@ -111,9 +111,38 @@ struct SettingsView: View {
         }
     }
 
-    private var scheduleSectionPlaceholder: some View {
+    private var scheduleSection: some View {
         sectionContainer(title: "Rotation Schedule") {
-            Text("Rotation schedule section coming next.")
+            Picker("Change wallpaper:", selection: scheduleModeBinding) {
+                Text("Manual only")
+                    .tag(RotationScheduleMode.manual)
+                Text("Daily at set time")
+                    .tag(RotationScheduleMode.daily)
+                Text("On app launch")
+                    .tag(RotationScheduleMode.onLaunch)
+                Text("Every 30 minutes")
+                    .tag(RotationScheduleMode.every30Minutes)
+            }
+            #if canImport(AppKit)
+            .pickerStyle(.radioGroup)
+            #endif
+
+            if appState.activeScheduleMode == .daily {
+                DatePicker(
+                    "Daily time:",
+                    selection: dailyScheduleTimeBinding,
+                    displayedComponents: .hourAndMinute
+                )
+                #if canImport(AppKit)
+                .datePickerStyle(.field)
+                #endif
+            }
+
+            Text("Last changed: \(formattedLastChangedAt)")
+                .font(.callout)
+
+            Text("Timed rotation requires the app to be running.")
+                .font(.callout)
                 .foregroundStyle(.secondary)
         }
     }
@@ -181,6 +210,51 @@ struct SettingsView: View {
     private func refreshBackgroundThumbnail() {
         let store = BackgroundImageStore()
         backgroundImageURL = store.loadBackgroundImageURL()
+    }
+
+    private var scheduleModeBinding: Binding<RotationScheduleMode> {
+        Binding(
+            get: {
+                appState.activeScheduleMode
+            },
+            set: { newMode in
+                appState.setActiveScheduleMode(newMode)
+            }
+        )
+    }
+
+    private var dailyScheduleTimeBinding: Binding<Date> {
+        Binding(
+            get: {
+                timeOnlyDate(
+                    hour: UserDefaults.standard.scheduleDailyHour,
+                    minute: UserDefaults.standard.scheduleDailyMinute
+                )
+            },
+            set: { newValue in
+                let components = Calendar.current.dateComponents([.hour, .minute], from: newValue)
+                UserDefaults.standard.scheduleDailyHour = components.hour ?? 9
+                UserDefaults.standard.scheduleDailyMinute = components.minute ?? 0
+            }
+        )
+    }
+
+    private var formattedLastChangedAt: String {
+        guard let lastChangedAt = appState.lastChangedAt else {
+            return "Never"
+        }
+        return lastChangedAt.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    private func timeOnlyDate(hour: Int, minute: Int) -> Date {
+        let clampedHour = min(max(hour, 0), 23)
+        let clampedMinute = min(max(minute, 0), 59)
+        let calendar = Calendar.current
+        var components = calendar.dateComponents([.year, .month, .day], from: Date())
+        components.hour = clampedHour
+        components.minute = clampedMinute
+        components.second = 0
+        return calendar.date(from: components) ?? Date()
     }
 
     private func chooseBackgroundImage() {
