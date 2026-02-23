@@ -8,6 +8,7 @@ struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
     @State private var backgroundImageURL: URL? = nil
     @State private var backgroundImageError: String? = nil
+    @State private var isHoveringBooksList: Bool = false
     private let booksListHeight: CGFloat = 220
 
     var body: some View {
@@ -22,6 +23,7 @@ struct SettingsView: View {
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
+        .scrollDisabled(isHoveringBooksList)
         .frame(minWidth: 680, maxWidth: .infinity, minHeight: 520, maxHeight: .infinity, alignment: .topLeading)
         .onAppear(perform: refreshBackgroundThumbnail)
     }
@@ -90,6 +92,12 @@ struct SettingsView: View {
             }
             .listStyle(.inset)
             .frame(minHeight: booksListHeight, idealHeight: booksListHeight, maxHeight: booksListHeight)
+            .onHover { isHovering in
+                isHoveringBooksList = isHovering
+            }
+            .onDisappear {
+                isHoveringBooksList = false
+            }
 
             if allBooksDeselectedWarningVisible {
                 Text("All books are deselected. Wallpaper rotation has no active quote pool.")
