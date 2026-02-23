@@ -2,6 +2,11 @@ untracked files from parallel agents: if you encounter untracked files you did n
 tracked changes from parallel agents: if git status shows modified tracked files you did not touch, do not commit them, do not ask about them. use git add <your specific files> to stage only your own work and commit that alone.
 
 whenever you finish an atomic task and verify it works thru testing, commit and push to the repo.
+task tracking workflow:
+- `tasks-active.txt` is the only task list agents should use as working context.
+- when a task is completed, run `scripts/archive_task.sh <TASK_ID>` to move it out of `tasks-active.txt` and append it to `tasks-archive.txt`.
+- do not leave completed tasks in `tasks-active.txt`.
+- keep `tasks-archive.txt` as history/reference only.
 when you make a mistake add it here so you dont do it again.- mistake logged (2026-02-21): avoid using xcodebuild-based verification in this sandbox; use deterministic project-file verification scripts unless elevated execution is explicitly needed.
 - mistake logged (2026-02-22): when compiling Swift in this sandbox, set `swiftc -module-cache-path` to a writable temp directory and use `main.swift` for top-level executable verification code.
 - mistake logged (2026-02-22): when using `main.swift` for verification executables in this sandbox, do not use `@main`; run tests via top-level execution.
