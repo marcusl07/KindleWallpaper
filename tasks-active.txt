@@ -1,0 +1,107 @@
+# KindleWall — Active Tasks
+
+This file is the working context for agents. When an item is completed, move it to tasks-archive.txt.
+
+---
+
+## Phase 10 — Stabilization, Reliability, and Performance
+
+**T40 — Create `SettingsWindowCoordinator` boundary**
+Extract settings-window lifecycle management out of `AppDelegate` into a dedicated coordinator that owns create/show/reuse/teardown behavior for the settings window.
+
+**T41 — Fix settings window persistence across app deactivation**
+Ensure the settings window remains open (non-key but visible) when user clicks away to another app and only closes when explicitly closed by user.
+
+**T42 — Introduce explicit rotation outcomes**
+Refactor wallpaper rotation orchestration into a boundary that returns explicit outcomes (e.g., success, no-active-pool, wallpaper-apply-failure) instead of relying on implicit side effects.
+
+**T43 — Use unique wallpaper artifact paths per rotation**
+Replace static `current_wallpaper.png` reuse with unique output names per rotation (timestamp/UUID) and add bounded cleanup to avoid unbounded file growth.
+
+**T44 — Serialize books mutation flow in `AppState`**
+Create a single serialized mutation path for per-book toggle and bulk toggle operations to prevent overlapping writes/refetch races.
+
+**T45 — Add deterministic in-flight UI state for books controls**
+Expose mutation-in-progress state and disable/re-enable book checkboxes and Select All/Deselect All controls deterministically during commit.
+
+**T46 — Enforce main-thread ownership for UI state/controllers**
+Apply `@MainActor` boundaries to UI-facing state and controllers (`AppState`, delegate/controller surfaces) and make background-to-main hops explicit.
+
+**T47 — DRY mount-listener status publishing logic**
+Remove duplicated import-status publish/update closures in `KindleWallApp.makeMountListener` by extracting a single shared main-thread publisher path.
+
+**T48 — Add settings window lifecycle tests**
+Add behavioral verification for settings open/reopen/deactivate semantics to prevent regressions where the window disappears on focus loss.
+
+**T49 — Add rapid books-interaction reliability tests**
+Add deterministic tests covering repeated checkbox clicks plus Select All/Deselect All sequences to validate serialized mutation behavior.
+
+**T50 — Add repeated Next Quote wallpaper update tests**
+Add tests ensuring successive Next Quote actions generate distinct wallpaper output identities and invoke wallpaper apply each time.
+
+**T51 — Add rotation outcome/error propagation tests**
+Add tests for success and failure outcomes (including no active pool and wallpaper apply failure) and verify UI-visible status propagation.
+
+**T52 — Optimize highlight-pick query path**
+Add/validate database indexing for active-pool selection (`bookId`, `lastShownAt`) and verify pick-next-highlight query efficiency at larger library sizes.
+
+**T53 — Move wallpaper generation/set flow off UI interaction path**
+Run expensive wallpaper compose/write work on a dedicated background executor while publishing state changes safely back on main.
+
+**T54 — Cache decoded background image with invalidation**
+Add background image decode cache keyed by source path + mtime and invalidate when user changes background image.
+
+
+---
+
+## Open Agent Handoff Bugs
+
+### H2 — Settings window closes on app deactivation
+Reported by user after opening settings from menu bar.
+
+Current observed behavior:
+- Clicking away causes the settings window to disappear.
+- User must reopen settings from the menu bar status item each time.
+
+Expected behavior:
+- Settings window remains open after losing focus.
+- Window should close only when explicitly closed by user.
+
+Repro steps:
+1. Open settings from menu bar.
+2. Click another app/window.
+3. Observe settings window disappears instead of remaining as a normal background window.
+
+Candidate areas to inspect:
+- `App/KindleWallApp.swift` custom settings window lifecycle in `AppDelegate`.
+- Window configuration flags/levels/collection behavior.
+- Any implicit close/hide behavior tied to app activation policy (`.accessory`).
+
+Acceptance criteria:
+- Settings window remains visible (non-key) after app deactivation.
+- User can bring it back to front without recreating state.
+
+### H4 — Non-blocking runtime log noise (`fopen` cache invalidation)
+Reported by user during app runtime; appears non-fatal.
+
+Observed logs:
+- `fopen failed for data file: errno = 2 (No such file or directory)`
+- `Errors found! Invalidating cache...`
+
+Current observed behavior:
+- Logs appear in console, but user has not observed an immediate app crash tied to these messages.
+
+Expected behavior:
+- Ideally no repeated noisy system/file warnings in normal runtime, or warnings should be understood/documented as benign.
+
+Repro context:
+1. Run app and interact with menu/settings.
+2. Observe periodic log output above in console.
+
+Candidate areas to inspect:
+- Startup/runtime file path usage around app support resources.
+- Any repeated image/font/data loading path that may point to missing files.
+- Distinguish app-generated logs from lower-level framework cache logs.
+
+Acceptance criteria:
+- Root cause identified as either benign framework noise (documented) or app path issue (fixed).

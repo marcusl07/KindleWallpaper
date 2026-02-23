@@ -1,0 +1,238 @@
+# KindleWall — Archived Completed Tasks
+
+This file contains completed tasks and resolved handoff bugs. Active work lives in tasks-active.txt.
+
+---
+
+## Phase 1 — Project Scaffold
+
+**T01 — Create Xcode project**
+Create a new macOS App target in Xcode. Set bundle ID, deployment target (macOS 13+). Configure `Info.plist` to suppress dock icon (`LSUIElement = YES`). Add `GRDB.swift` as a Swift Package dependency.
+
+**T02 — Define `Highlight` and `Book` Swift models**
+Implement `Highlight.swift` and `Book.swift` exactly as specced in the Data Model section. No logic — pure structs with the correct fields and types including optionals.
+
+---
+
+## Phase 2 — Storage
+
+**T03 — Initialise SQLite database**
+In `Database.swift`, open (or create) `highlights.db` in `~/Library/Application Support/KindleWall/`. Run the `CREATE TABLE IF NOT EXISTS` statements for `books` and `highlights` exactly as specced. Expose a shared `DatabaseQueue` instance.
+
+**T04 — Implement book upsert**
+Write a function `upsertBook(_ book: Book) -> UUID` that inserts a new row into `books` or, if `(title, author)` already exists, returns the existing `id`. Uses the `UNIQUE(title, author)` constraint with `INSERT OR IGNORE`.
+
+**T05 — Implement highlight insert with dedupe**
+Write a function `insertHighlightIfNew(_ highlight: Highlight)` that computes the `dedupeKey`, checks if it already exists in `highlights`, and inserts only if not present. Never throws on duplicate — silently skips.
+
+**T06 — Implement book enable/disable toggle**
+Write a function `setBookEnabled(id: UUID, enabled: Bool)` that updates `isEnabled` in the `books` table. When a book is toggled **on**, also set `lastShownAt = NULL` for all its highlights. When toggled **off**, no highlight changes needed.
+
+**T07 — Implement highlight query for wallpaper (COUNT + OFFSET)**
+Write a function `pickNextHighlight() -> Highlight?` that:
+1. Counts highlights where `bookId IN (enabled books) AND lastShownAt IS NULL`
+2. Picks `LIMIT 1 OFFSET Int.random(in: 0..<count)`
+3. If count is 0, resets `lastShownAt = NULL` for the entire active pool, then repeats
+Returns `nil` only if the active pool is empty (no enabled books with highlights).
+
+**T08 — Implement `markHighlightShown(id: UUID)`**
+Write a function that sets `lastShownAt` to the current ISO8601 timestamp (with timezone offset) for a given highlight ID.
+
+**T09 — Implement book list query**
+Write a function `fetchAllBooks() -> [Book]` that returns all rows from `books`, sorted alphabetically by title, with a derived `highlightCount` via a `COUNT` subquery or join.
+
+**T10 — Implement highlight count query**
+Write a function `totalHighlightCount() -> Int` returning the total row count of `highlights`. Used for the "N highlights in library" display.
+
+---
+
+## Phase 3 — Parsing
+
+**T11 — Implement `ClippingsParser`: chunk splitting**
+In `ClippingsParser.swift`, write the first stage of parsing: normalize `\r\n` → `\n`, split on lines that equal `==========` when trimmed, discard empty chunks. Return an array of raw string chunks. No field extraction yet — just clean splitting.
+
+**T12 — Implement `ClippingsParser`: per-chunk field extraction**
+For each chunk from T11: skip leading blank lines, find the title line (first non-blank), find the metadata line (first line starting with `- Your `), skip chunks where metadata doesn't contain `Your Highlight`, extract quote body (lines after first blank line following metadata), skip if body is empty.
+
+**T13 — Implement title and author cleaning**
+Write a function `cleanTitleAndAuthor(from titleLine: String) -> (title: String, author: String)` covering both formats: standard `Book Title (Author Name)` and verbose sideloaded `Book Title -- Author;Editor -- ...`. Extract title before first ` --` and author from final `(...)` group or first `--` segment as fallback.
+
+**T14 — Implement date parsing**
+Write a function `parseKindleDate(_ string: String) -> Date?` using `en_US_POSIX` locale, system timezone, and format `"EEEE, MMMM d, yyyy h:mm:ss a"`. Returns `nil` on failure. Track failures via a `parseErrorCount` counter. Never drop an entry due to date failure.
+
+**T15 — Implement dedupeKey computation**
+Write a function `computeDedupeKey(bookId: UUID, location: String?, quoteText: String) -> String` implementing the primary and fallback key logic: lowercase + whitespace-collapse both location and first 50 chars of text, join with `"|"` separators, prefix with `bookId`.
+
+**T16 — Wire full parse pipeline**
+Write the top-level function `parseClippings(fileURL: URL) -> (highlights: [Highlight], books: [Book], parseErrorCount: Int)` that calls T11–T15 in sequence and returns fully populated model objects ready for database insertion.
+
+---
+
+## Phase 4 — Import
+
+**T17 — Implement `ImportCoordinator`**
+Write a function `importFile(at url: URL) -> ImportResult` (where `ImportResult` carries new highlight count, error string if any) that: calls the parse pipeline (T16), upserts books (T04), inserts highlights (T05), and returns a result. This is the single entry point for both auto and manual import.
+
+**T18 — Implement `VolumeWatcher`: known path check**
+In `VolumeWatcher.swift`, write `findClippingsFile(on volume: URL) -> URL?` that tries the three known paths (`/documents/My Clippings.txt`, `/Documents/My Clippings.txt`, `/My Clippings.txt`) in order and returns the first hit.
+
+**T19 — Implement `VolumeWatcher`: bounded shallow search**
+Extend `findClippingsFile` with the fallback traversal: max depth 3, hard cap of 2000 directories and 1 second elapsed, skip hidden/system dirs (`.` prefix, `.Spotlight-V100`, `.Trashes`, `.fseventsd`, `.app` packages). Return immediately on a `documents`-path match; otherwise return best match after scan completes.
+
+**T20 — Implement `VolumeWatcher`: USB mount listener**
+Register for `NSWorkspace.didMountNotificationName`. On each mount event, call `findClippingsFile` (T18 + T19). If found, call `importFile` (T17) and update the import status in `AppState`.
+
+---
+
+## Phase 5 — Wallpaper Generation
+
+**T21 — Implement background image storage**
+Write functions to: copy a user-picked image file into `~/Library/Application Support/KindleWall/background.*`, store the path in `UserDefaults`, and retrieve it. Handle the no-image-set case (return `nil`).
+
+**T22 — Implement `WallpaperGenerator`: compose image**
+In `WallpaperGenerator.swift`, write `generateWallpaper(highlight: Highlight, backgroundURL: URL?) -> URL` that:
+- Loads the background image or creates a black `NSImage` at main screen resolution if no image
+- Draws a black overlay at 40% opacity over the full image
+- Renders the quote text centered, white, `NSFont.systemFont(ofSize: 36, weight: .regular)`, word-wrapped at 70% image width
+- Renders `"Book Title - Author"` below the quote, `NSFont.systemFont(ofSize: 20, weight: .light)`, white
+- Saves the composited result as PNG to `Application Support/KindleWall/current_wallpaper.png`
+- Returns the output URL
+
+**T23 — Implement wallpaper setter (all screens)**
+Write `setWallpaper(imageURL: URL)` that iterates `NSScreen.screens` and calls `NSWorkspace.shared.setDesktopImageURL(_:for:options:)` for each screen with the same image.
+
+**T24 — Wire wallpaper rotation trigger**
+Write `rotateWallpaper()` in `AppState` that: calls `pickNextHighlight()` (T07), calls `generateWallpaper` (T22), calls `setWallpaper` (T23), calls `markHighlightShown` (T08), updates `lastChangedAt` in `UserDefaults`, and updates the current quote preview in `AppState`.
+
+---
+
+## Phase 6 — Scheduling
+
+**T25 — Implement `WallpaperScheduler`**
+In `WallpaperScheduler.swift`, implement a scheduler that:
+- On init and every 60 seconds, checks the active schedule setting from `UserDefaults`
+- **Daily:** if `now >= todayScheduledTime` and `lastChangedAt < todayScheduledStart`, call `rotateWallpaper()`
+- **Every 30 min:** if `now - lastChangedAt >= 30 * 60`, call `rotateWallpaper()`
+- **On launch:** call `rotateWallpaper()` once on app start
+- **Manual:** do nothing (rotation only via "Next Quote" button)
+
+**T26 — Implement daily time UserDefaults storage**
+Write get/set helpers for `scheduleDailyHour: Int` (default 9) and `scheduleDailyMinute: Int` (default 0). Used by T25 and the Settings time picker.
+
+---
+
+## Phase 7 — App Shell
+
+**T27 — Implement `AppState`**
+Create `AppState.swift` as an `ObservableObject` holding: current highlight (quote preview text), import status string, import error string, total highlight count, all books list, active schedule setting, last changed timestamp. This is the single source of truth the UI binds to.
+
+**T28 — Implement `KindleWallApp` entry point**
+In `KindleWallApp.swift`, set up `@main`, create the `NSStatusItem` (menu bar icon), instantiate `AppState`, `VolumeWatcher`, and `WallpaperScheduler`. Suppress dock icon. Wire `AppState` as an `@EnvironmentObject`.
+
+---
+
+## Phase 8 — UI
+
+**T29 — Implement `MenuBarView`**
+Build the menu bar dropdown with: current quote preview (truncated to ~80 chars, non-interactive), "Next Quote" button (calls `rotateWallpaper()`), "Open Settings..." button, "Highlights in library: N" label, "Quit" button.
+
+**T30 — Implement Settings window shell**
+Create `SettingsView.swift` as a SwiftUI `View` inside a `Window` or `NSPanel`. Tabbed or sectioned layout with five sections: Import, Books, Background Image, Rotation Schedule, About. Wire to `AppState`.
+
+**T31 — Implement Settings: Import section**
+Render the import status line (success string or red failure string), total highlight count, and "Import My Clippings.txt..." button that opens an `NSOpenPanel` filtered to `.txt`, then calls `importFile` (T17) and refreshes `AppState`.
+
+**T32 — Implement Settings: Books section**
+Render a scrollable list of books from `AppState.books`, each row with a `Toggle`/checkbox, book title, author, and muted highlight count. "Select All" and "Deselect All" buttons. On toggle, call `setBookEnabled` (T06) and refresh `AppState.books`. Show inline warning if all books are deselected.
+
+**T33 — Implement Settings: Background Image section**
+Render the current background image as a thumbnail (or black placeholder with "No image — black background" text). "Change Image..." button opens `NSOpenPanel` filtered to image types (jpg, png, heic), copies selection to `Application Support`, updates `UserDefaults`, refreshes thumbnail.
+
+**T34 — Implement Settings: Rotation Schedule section**
+Render radio buttons/picker for Manual, Daily at set time, On app launch, Every 30 minutes. When "Daily at set time" selected, show a `DatePicker` (time-only) defaulting to 9:00 AM, saving hour/minute to `UserDefaults` via T26 helpers. Show "Last changed: [date/time]" and muted caveat note.
+
+**T35 — Implement Settings: About section**
+Render app name and version string (read from `Bundle.main.infoDictionary`).
+
+---
+
+## Phase 9 — Integration & Smoke Test
+
+**T36 — End-to-end smoke test: manual import → wallpaper**
+Manually verify: import a real `My Clippings.txt`, confirm highlight count updates, confirm books list populates, click "Next Quote", confirm wallpaper changes on all screens with correct text rendering.
+
+**T37 — End-to-end smoke test: USB auto-import**
+Plug in Kindle, confirm auto-detection fires, confirm import status updates in Settings, confirm new highlights appear in count.
+
+**T38 — Verify daily schedule logic**
+Set daily time to 1 minute in the future, wait, confirm wallpaper rotates exactly once. Relaunch app, confirm it does not rotate again (already fired today).
+
+**T39 — Verify book toggle pool behavior**
+Disable all but one book, confirm rotation only shows quotes from that book. Re-enable a book, confirm its quotes become eligible without wiping history of the already-active book.
+
+---
+---
+
+## Resolved Agent Handoff Bugs
+
+### ✅ H1 — Books toggles not applying from Settings UI
+Reported by user after successful auto-import.
+
+Current observed behavior:
+- Interaction is intermittent/flaky, not fully broken.
+- Individual book checkboxes in the **Books** section sometimes apply on first click, sometimes require multiple clicks, and sometimes ignore clicks entirely.
+- **Select All** and **Deselect All** also behave inconsistently (sometimes apply, sometimes no-op).
+- Additional observed pattern: only the first 3 checkboxes in the list reliably respond; rows below are often non-responsive.
+
+Expected behavior:
+- Individual checkbox toggles update `isEnabled` for that book immediately.
+- `Select All` enables all books.
+- `Deselect All` disables all books.
+- UI reflects persisted state after each action.
+
+Repro steps:
+1. Open app settings.
+2. Go to **Books** section with imported books present.
+3. Toggle any checkbox repeatedly and then use **Select All** / **Deselect All**.
+4. Observe inconsistent behavior (some clicks apply, some do nothing).
+5. Specifically test rows after the first 3 and observe they are frequently non-responsive.
+
+Candidate areas to inspect:
+- `App/SettingsView.swift` (`bindingForBook`, button actions, toggle list refresh behavior)
+- `App/AppState.swift` (`setBookEnabled`, `setAllBooksEnabled`, refresh flow)
+- `Database` write/read path for book enabled state persistence.
+- Row hit-testing/layout interactions in the scrollable books list (`ScrollView` + `LazyVStack` + row content structure).
+
+Acceptance criteria:
+- Toggle actions update UI and persisted DB state deterministically on every click.
+- Reopening settings shows the same enabled/disabled state.
+
+
+### ✅ H3 — "Next Quote" rotates once, then stops responding
+Reported by user after import and initial successful wallpaper update.
+
+Current observed behavior:
+- Clicking **Next Quote** updates wallpaper once.
+- Subsequent clicks do not produce additional wallpaper changes.
+- The menu's current-quote preview text does continue updating, even when wallpaper does not visibly change.
+
+Expected behavior:
+- Every click of **Next Quote** should attempt a fresh rotation immediately.
+- If no active quote pool exists, user should receive clear feedback; otherwise wallpaper should keep changing.
+
+Repro steps:
+1. Launch app with imported highlights available.
+2. Click **Next Quote** from menu bar; observe first wallpaper update succeeds.
+3. Click **Next Quote** again (multiple times).
+4. Observe no further wallpaper updates.
+
+Candidate areas to inspect:
+- `App/AppState.swift` (`rotateWallpaper` re-entrancy guard and state reset behavior)
+- `App/KindleWallApp.swift` action wiring from `StatusItemController` to `appState.rotateWallpaper()`
+- `App/WallpaperScheduler.swift`/manual-trigger interaction and shared guard state
+- `App/WallpaperGenerator.swift` + `App/WallpaperSetter.swift` failure paths that might silently block later updates.
+- Wallpaper file URL reuse/cache behavior (`current_wallpaper.png` reused across updates) vs forcing unique output URL per rotation.
+
+Acceptance criteria:
+- Repeated **Next Quote** clicks produce repeated wallpaper rotations when highlights are available.
+- Manual trigger remains responsive after first successful run.
