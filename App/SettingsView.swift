@@ -11,7 +11,7 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            importSectionPlaceholder
+            importSection
             booksSection
             backgroundSection
             scheduleSectionPlaceholder
@@ -22,9 +22,27 @@ struct SettingsView: View {
         .onAppear(perform: refreshBackgroundThumbnail)
     }
 
-    private var importSectionPlaceholder: some View {
+    private var importSection: some View {
         sectionContainer(title: "Import") {
-            Text("Import section coming next.")
+            Button("Import My Clippings.txt...") {
+                chooseClippingsFile()
+            }
+
+            if let importError = appState.importError, !importError.isEmpty {
+                Text(importError)
+                    .font(.callout)
+                    .foregroundStyle(.red)
+            } else if !appState.importStatus.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(appState.importStatus)
+                    .font(.callout)
+            } else {
+                Text("No imports yet.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+
+            Text("\(appState.totalHighlightCount) \(appState.totalHighlightCount == 1 ? "highlight" : "highlights") in library")
+                .font(.callout)
                 .foregroundStyle(.secondary)
         }
     }
@@ -187,6 +205,46 @@ struct SettingsView: View {
         } catch {
             backgroundImageError = "Failed to set background image: \(error.localizedDescription)"
         }
+        #endif
+    }
+
+    private func chooseClippingsFile() {
+        #if canImport(AppKit)
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        if let txtType = UTType(filenameExtension: "txt") {
+            panel.allowedContentTypes = [txtType]
+        } else {
+            panel.allowedContentTypes = [.plainText]
+        }
+        panel.title = "Import My Clippings.txt"
+        panel.prompt = "Import"
+
+        guard panel.runModal() == .OK, let selectedURL = panel.url else {
+            return
+        }
+
+        importClippingsFile(at: selectedURL)
+        #endif
+    }
+
+    private func importClippingsFile(at fileURL: URL) {
+        #if canImport(GRDB)
+        let result = importFile(at: fileURL)
+        let status = VolumeWatcher.makeImportStatus(
+            from: VolumeWatcher.ImportPayload(
+                newHighlightCount: result.newHighlightCount,
+                error: result.error,
+                parseWarningCount: result.parseWarningCount
+            ),
+            now: Date()
+        )
+        appState.setImportStatus(status.message, isError: status.isError)
+        appState.refreshLibraryState()
+        #else
+        appState.setImportStatus("Import unavailable in this build.", isError: true)
         #endif
     }
 
