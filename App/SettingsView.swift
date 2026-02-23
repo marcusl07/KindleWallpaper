@@ -156,11 +156,7 @@ struct SettingsView: View {
 
     #if canImport(AppKit)
     private func loadPreviewImage() -> NSImage? {
-        guard let backgroundImageURL else {
-            return nil
-        }
-
-        return NSImage(contentsOf: backgroundImageURL)
+        BackgroundImageLoader.shared.load(from: backgroundImageURL).image
     }
     #endif
 

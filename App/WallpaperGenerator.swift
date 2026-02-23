@@ -39,6 +39,7 @@ struct WallpaperGenerator {
     private let appSupportDirectoryProvider: () -> URL
     private let mainScreenPixelSizeProvider: () -> CGSize?
     private let mainScreenScaleProvider: () -> CGFloat?
+    private let backgroundImageLoader: BackgroundImageLoader
     private let retainedGeneratedFileCount: Int
 
     init(
@@ -58,12 +59,14 @@ struct WallpaperGenerator {
         mainScreenScaleProvider: @escaping () -> CGFloat? = {
             NSScreen.main?.backingScaleFactor
         },
+        backgroundImageLoader: BackgroundImageLoader = .shared,
         retainedGeneratedFileCount: Int = Constants.defaultRetainedGeneratedFiles
     ) {
         self.fileManager = fileManager
         self.appSupportDirectoryProvider = appSupportDirectoryProvider
         self.mainScreenPixelSizeProvider = mainScreenPixelSizeProvider
         self.mainScreenScaleProvider = mainScreenScaleProvider
+        self.backgroundImageLoader = backgroundImageLoader
         self.retainedGeneratedFileCount = max(retainedGeneratedFileCount, 1)
     }
 
@@ -139,11 +142,7 @@ struct WallpaperGenerator {
     }
 
     private func loadBackgroundImage(from url: URL?) -> NSImage? {
-        guard let url else {
-            return nil
-        }
-
-        return NSImage(contentsOf: url)
+        backgroundImageLoader.load(from: url).image
     }
 
     private func solidBlackImage(size: CGSize) -> NSImage {

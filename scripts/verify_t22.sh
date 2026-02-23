@@ -245,6 +245,7 @@ SWIFT
 swiftc \
   -module-cache-path "$TMP_DIR/module-cache" \
   App/AppSupportPaths.swift \
+  App/BackgroundImageStore.swift \
   App/WallpaperGenerator.swift \
   Models/Highlight.swift \
   "$TMP_DIR/main.swift" \

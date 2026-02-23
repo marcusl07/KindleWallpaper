@@ -236,3 +236,31 @@ Candidate areas to inspect:
 Acceptance criteria:
 - Repeated **Next Quote** clicks produce repeated wallpaper rotations when highlights are available.
 - Manual trigger remains responsive after first successful run.
+
+
+### ✅ H4 — Non-blocking runtime log noise (`fopen` cache invalidation)
+Reported by user during app runtime; appeared non-fatal.
+
+Observed logs:
+- `fopen failed for data file: errno = 2 (No such file or directory)`
+- `Errors found! Invalidating cache...`
+
+Root cause identified:
+- Repeated background-image decode attempts could hit missing/unreadable/invalid files from persisted paths.
+- Repeated decode attempts produced noisy lower-level framework messages.
+
+Implemented fix:
+- Added shared `BackgroundImageLoader` boundary with explicit outcomes:
+  - `noImageConfigured`
+  - `missingFile`
+  - `unreadableFile`
+  - `decodeFailed`
+  - `success`
+- Added one-time warning dedupe per `(failure kind, file path)` to avoid repeated runtime log spam.
+- Added in-memory decode cache keyed by path + file identity (`mtime`, `size`) with invalidation on file change.
+- Routed both settings-preview loading and wallpaper-generation loading through the same loader boundary.
+
+Verification:
+- Added deterministic `scripts/verify_h4.sh` coverage for missing/unreadable/decode-failed/success outcomes.
+- Added coverage that warnings are deduped and cache invalidates when file identity changes.
+- Added wallpaper-generator fallback-path coverage when background decode fails.
