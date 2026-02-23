@@ -76,6 +76,96 @@ assertEqual(toggleCalls.count, 0, "Expected bulk disable to avoid per-book toggl
 assertEqual(bulkToggleCalls, [true, false], "Expected bulk disable to call setAllBooksEnabled once")
 assertTrue(appState.books.allSatisfy { !$0.isEnabled }, "Expected all books disabled after bulk disable")
 
+// High-count regression coverage: verify mixed single/bulk toggles stay consistent across many rows.
+toggleCalls.removeAll()
+bulkToggleCalls.removeAll()
+
+let manyBookIDs = (0..<40).map { _ in UUID() }
+persistedBooks = manyBookIDs.enumerated().map { index, id in
+    Book(
+        id: id,
+        title: "Book \(index)",
+        author: "Author \(index)",
+        isEnabled: index.isMultiple(of: 2),
+        highlightCount: index + 1
+    )
+}
+
+let highCountState = AppState(
+    pickNextHighlight: { nil },
+    loadBackgroundImageURL: { nil },
+    generateWallpaper: { _, _ in URL(fileURLWithPath: "/tmp/unused.png") },
+    setWallpaper: { _ in },
+    markHighlightShown: { _ in },
+    setBookEnabled: { id, enabled in
+        toggleCalls.append((id, enabled))
+        persistedBooks = persistedBooks.map { book in
+            guard book.id == id else {
+                return book
+            }
+            return Book(
+                id: book.id,
+                title: book.title,
+                author: book.author,
+                isEnabled: enabled,
+                highlightCount: book.highlightCount
+            )
+        }
+    },
+    setAllBooksEnabled: { enabled in
+        bulkToggleCalls.append(enabled)
+        persistedBooks = persistedBooks.map { book in
+            guard book.isEnabled != enabled else {
+                return book
+            }
+            return Book(
+                id: book.id,
+                title: book.title,
+                author: book.author,
+                isEnabled: enabled,
+                highlightCount: book.highlightCount
+            )
+        }
+    },
+    fetchAllBooks: { persistedBooks },
+    fetchTotalHighlightCount: { persistedBooks.reduce(0) { $0 + $1.highlightCount } }
+)
+
+assertEqual(highCountState.books.count, 40, "Expected high-count state to load all books")
+
+let targetedIndexes = [0, 3, 10, 25, 39]
+for index in targetedIndexes {
+    let bookID = manyBookIDs[index]
+    let currentValue = highCountState.books.first(where: { $0.id == bookID })!.isEnabled
+    highCountState.setBookEnabled(id: bookID, enabled: !currentValue)
+    let updatedValue = highCountState.books.first(where: { $0.id == bookID })!.isEnabled
+    assertEqual(updatedValue, !currentValue, "Expected targeted book toggle to persist for index \(index)")
+}
+assertEqual(toggleCalls.count, targetedIndexes.count, "Expected one per-book mutation call per targeted toggle")
+
+let noOpID = manyBookIDs[7]
+let noOpValue = highCountState.books.first(where: { $0.id == noOpID })!.isEnabled
+highCountState.setBookEnabled(id: noOpID, enabled: noOpValue)
+assertEqual(toggleCalls.count, targetedIndexes.count, "Expected no-op per-book toggle to skip persistence call")
+
+highCountState.setAllBooksEnabled(false)
+assertTrue(highCountState.books.allSatisfy { !$0.isEnabled }, "Expected bulk disable to disable every book in high-count state")
+
+highCountState.setAllBooksEnabled(true)
+assertTrue(highCountState.books.allSatisfy(\.isEnabled), "Expected bulk enable to enable every book in high-count state")
+
+for index in stride(from: 1, to: manyBookIDs.count, by: 3) {
+    let bookID = manyBookIDs[index]
+    highCountState.setBookEnabled(id: bookID, enabled: false)
+}
+let expectedDisabledCount = Array(stride(from: 1, to: manyBookIDs.count, by: 3)).count
+let actualDisabledCount = highCountState.books.filter { !$0.isEnabled }.count
+assertEqual(actualDisabledCount, expectedDisabledCount, "Expected deterministic disabled count after mixed single toggles")
+
+highCountState.setAllBooksEnabled(true)
+assertTrue(highCountState.books.allSatisfy(\.isEnabled), "Expected final bulk enable to recover all rows to enabled")
+assertEqual(bulkToggleCalls, [false, true, true], "Expected two meaningful bulk mutations and one final recovery mutation")
+
 print("verify_t32_main passed")
 
 func assertEqual<T: Equatable>(_ actual: T, _ expected: T, _ message: String) {

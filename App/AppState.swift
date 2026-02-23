@@ -162,16 +162,21 @@ final class AppState: ObservableObject {
     }
 
     func setBookEnabled(id: UUID, enabled: Bool) {
-        setBookEnabledAction(id, enabled)
-        books = fetchAllBooks()
+        guard books.first(where: { $0.id == id })?.isEnabled != enabled else {
+            return
+        }
+        performBookMutation {
+            setBookEnabledAction(id, enabled)
+        }
     }
 
     func setAllBooksEnabled(_ enabled: Bool) {
         guard books.contains(where: { $0.isEnabled != enabled }) else {
             return
         }
-        setAllBooksEnabledAction(enabled)
-        books = fetchAllBooks()
+        performBookMutation {
+            setAllBooksEnabledAction(enabled)
+        }
     }
 
     func refreshScheduleState() {
@@ -187,6 +192,11 @@ final class AppState: ObservableObject {
     func setActiveScheduleMode(_ mode: RotationScheduleMode) {
         userDefaults.rotationScheduleMode = mode
         activeScheduleMode = mode
+    }
+
+    private func performBookMutation(_ mutation: () -> Void) {
+        mutation()
+        refreshLibraryState()
     }
 }
 

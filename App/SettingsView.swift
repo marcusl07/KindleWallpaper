@@ -10,17 +10,15 @@ struct SettingsView: View {
     @State private var backgroundImageError: String? = nil
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                importSectionPlaceholder
-                booksSection
-                backgroundSection
-                scheduleSectionPlaceholder
-                aboutSectionPlaceholder
-            }
-            .padding(20)
+        VStack(alignment: .leading, spacing: 20) {
+            importSectionPlaceholder
+            booksSection
+            backgroundSection
+            scheduleSectionPlaceholder
+            aboutSectionPlaceholder
         }
-        .frame(minWidth: 680, minHeight: 520)
+        .padding(20)
+        .frame(minWidth: 680, maxWidth: .infinity, minHeight: 520, maxHeight: .infinity, alignment: .topLeading)
         .onAppear(perform: refreshBackgroundThumbnail)
     }
 
@@ -45,35 +43,31 @@ struct SettingsView: View {
                 .disabled(appState.books.isEmpty || appState.books.allSatisfy { !$0.isEnabled })
             }
 
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 8) {
-                    if appState.books.isEmpty {
-                        Text("No books imported yet.")
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    } else {
-                        ForEach(appState.books) { book in
-                            Toggle(isOn: bindingForBook(book)) {
-                                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                                    Text(book.title)
-                                        .font(.body.weight(.medium))
-                                    Text(book.author)
-                                        .foregroundStyle(.secondary)
-                                    Spacer(minLength: 8)
-                                    Text("\(book.highlightCount) \(book.highlightCount == 1 ? "highlight" : "highlights")")
-                                        .font(.callout)
-                                        .foregroundStyle(.secondary)
-                                }
+            List {
+                if appState.books.isEmpty {
+                    Text("No books imported yet.")
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    ForEach(appState.books) { book in
+                        Toggle(isOn: bindingForBook(book)) {
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Text(book.title)
+                                    .font(.body.weight(.medium))
+                                Text(book.author)
+                                    .foregroundStyle(.secondary)
+                                Spacer(minLength: 8)
+                                Text("\(book.highlightCount) \(book.highlightCount == 1 ? "highlight" : "highlights")")
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
                             }
-                            .toggleStyle(.checkbox)
                         }
+                        .toggleStyle(.checkbox)
                     }
                 }
-                .padding(8)
             }
-            .frame(maxHeight: 220)
-            .background(Color.gray.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .listStyle(.inset)
+            .frame(height: 220)
 
             if allBooksDeselectedWarningVisible {
                 Text("All books are deselected. Wallpaper rotation has no active quote pool.")
@@ -207,10 +201,10 @@ struct SettingsView: View {
     private func bindingForBook(_ book: Book) -> Binding<Bool> {
         Binding(
             get: {
-                appState.books.first(where: { $0.id == book.id })?.isEnabled ?? book.isEnabled
+                book.isEnabled
             },
             set: { enabled in
-                guard appState.books.first(where: { $0.id == book.id })?.isEnabled != enabled else {
+                guard book.isEnabled != enabled else {
                     return
                 }
                 appState.setBookEnabled(id: book.id, enabled: enabled)
