@@ -12,6 +12,7 @@ import Foundation
 
 testApplyWallpapersUsesMatchingScreenIdentifiers()
 testApplyWallpapersSkipsScreensWithoutAssignment()
+testApplyWallpapersUsesResolvedScreenSnapshot()
 try testApplyWallpapersStopsOnError()
 print("T23 verification passed")
 
@@ -57,6 +58,33 @@ private func testApplyWallpapersSkipsScreensWithoutAssignment() {
     }
 
     expect(callCount == 0, "Expected no calls when no screen identifier matches an assignment")
+}
+
+private func testApplyWallpapersUsesResolvedScreenSnapshot() {
+    let assignments = [
+        WallpaperSetter.WallpaperAssignment(
+            screenIdentifier: "display-1",
+            imageURL: URL(fileURLWithPath: "/tmp/snapshot-a.png")
+        ),
+        WallpaperSetter.WallpaperAssignment(
+            screenIdentifier: "display-2",
+            imageURL: URL(fileURLWithPath: "/tmp/snapshot-b.png")
+        )
+    ]
+    let resolvedScreens: [WallpaperSetter.ResolvedScreen<Int>] = [
+        WallpaperSetter.ResolvedScreen(screen: 1, identifier: "display-1", pixelWidth: 1000, pixelHeight: 700),
+        WallpaperSetter.ResolvedScreen(screen: 2, identifier: "display-2", pixelWidth: 1400, pixelHeight: 900)
+    ]
+    var appliedScreens: [Int] = []
+
+    WallpaperSetter.applyWallpapers(
+        assignments: assignments,
+        resolvedScreens: resolvedScreens
+    ) { _, screen in
+        appliedScreens.append(screen)
+    }
+
+    expect(appliedScreens == [1, 2], "Expected snapshot-resolved screens to receive matched wallpapers")
 }
 
 private func testApplyWallpapersStopsOnError() throws {

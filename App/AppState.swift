@@ -2,20 +2,38 @@ import Combine
 import Foundation
 
 final class AppState: ObservableObject {
-    typealias WallpaperTarget = (
-        identifier: String,
-        pixelWidth: Int,
-        pixelHeight: Int,
-        backingScaleFactor: CGFloat
-    )
-    typealias GeneratedWallpaper = (targetIdentifier: String, fileURL: URL)
+    struct WallpaperTarget: Equatable {
+        let identifier: String
+        let pixelWidth: Int
+        let pixelHeight: Int
+        let backingScaleFactor: CGFloat
+    }
+
+    struct GeneratedWallpaper: Equatable {
+        let targetIdentifier: String
+        let fileURL: URL
+    }
+
+    struct WallpaperRotationPlan {
+        let targets: [WallpaperTarget]
+        private let applyGeneratedWallpapers: ([GeneratedWallpaper]) -> Void
+
+        init(targets: [WallpaperTarget], applyGeneratedWallpapers: @escaping ([GeneratedWallpaper]) -> Void) {
+            self.targets = targets
+            self.applyGeneratedWallpapers = applyGeneratedWallpapers
+        }
+
+        func apply(_ generatedWallpapers: [GeneratedWallpaper]) {
+            applyGeneratedWallpapers(generatedWallpapers)
+        }
+    }
+
     typealias PickNextHighlight = () -> Highlight?
     typealias LoadBackgroundImageURL = () -> URL?
     typealias GenerateWallpaper = (Highlight, URL?) -> URL
     typealias SetWallpaper = (URL) -> Void
-    typealias FetchWallpaperTargets = () -> [WallpaperTarget]
+    typealias PrepareWallpaperRotation = () -> WallpaperRotationPlan?
     typealias GenerateWallpapers = (Highlight, URL?, [WallpaperTarget]) -> [GeneratedWallpaper]
-    typealias SetWallpapers = ([GeneratedWallpaper]) -> Void
     typealias MarkHighlightShown = (UUID) -> Void
     typealias SetBookEnabled = (UUID, Bool) -> Void
     typealias SetAllBooksEnabled = (Bool) -> Void
@@ -36,9 +54,8 @@ final class AppState: ObservableObject {
     private let loadBackgroundImageURL: LoadBackgroundImageURL
     private let generateWallpaper: GenerateWallpaper
     private let setWallpaper: SetWallpaper
-    private let fetchWallpaperTargets: FetchWallpaperTargets?
+    private let prepareWallpaperRotation: PrepareWallpaperRotation?
     private let generateWallpapers: GenerateWallpapers?
-    private let setWallpapers: SetWallpapers?
     private let markHighlightShown: MarkHighlightShown
     private let setBookEnabledAction: SetBookEnabled
     private let setAllBooksEnabledAction: SetAllBooksEnabled
@@ -59,9 +76,8 @@ final class AppState: ObservableObject {
         loadBackgroundImageURL: @escaping LoadBackgroundImageURL,
         generateWallpaper: @escaping GenerateWallpaper,
         setWallpaper: @escaping SetWallpaper,
-        fetchWallpaperTargets: FetchWallpaperTargets? = nil,
+        prepareWallpaperRotation: PrepareWallpaperRotation? = nil,
         generateWallpapers: GenerateWallpapers? = nil,
-        setWallpapers: SetWallpapers? = nil,
         markHighlightShown: @escaping MarkHighlightShown,
         setBookEnabled: @escaping SetBookEnabled = { _, _ in },
         setAllBooksEnabled: @escaping SetAllBooksEnabled = { _ in },
@@ -81,9 +97,8 @@ final class AppState: ObservableObject {
         self.loadBackgroundImageURL = loadBackgroundImageURL
         self.generateWallpaper = generateWallpaper
         self.setWallpaper = setWallpaper
-        self.fetchWallpaperTargets = fetchWallpaperTargets
+        self.prepareWallpaperRotation = prepareWallpaperRotation
         self.generateWallpapers = generateWallpapers
-        self.setWallpapers = setWallpapers
         self.markHighlightShown = markHighlightShown
         self.setBookEnabledAction = setBookEnabled
         self.setAllBooksEnabledAction = setAllBooksEnabled
@@ -109,11 +124,11 @@ final class AppState: ObservableObject {
 
         let backgroundURL = loadBackgroundImageURL()
         if
-            let fetchWallpaperTargets,
+            let prepareWallpaperRotation,
             let generateWallpapers,
-            let setWallpapers
+            let rotationPlan = prepareWallpaperRotation()
         {
-            let targets = fetchWallpaperTargets()
+            let targets = rotationPlan.targets
             guard !targets.isEmpty else {
                 return false
             }
@@ -129,7 +144,7 @@ final class AppState: ObservableObject {
                 return false
             }
 
-            setWallpapers(generatedWallpapers)
+            rotationPlan.apply(generatedWallpapers)
         } else {
             let wallpaperURL = generateWallpaper(highlight, backgroundURL)
             setWallpaper(wallpaperURL)
@@ -216,14 +231,27 @@ extension AppState {
             setWallpaper: { imageURL in
                 WallpaperSetter.setWallpaper(imageURL: imageURL)
             },
-            fetchWallpaperTargets: {
-                WallpaperSetter.connectedScreenTargets().map { target in
-                    (
-                        identifier: target.identifier,
-                        pixelWidth: target.pixelWidth,
-                        pixelHeight: target.pixelHeight,
-                        backingScaleFactor: target.backingScaleFactor
+            prepareWallpaperRotation: {
+                let resolvedScreens = WallpaperSetter.resolvedConnectedScreens()
+                guard !resolvedScreens.isEmpty else {
+                    return nil
+                }
+                let targets = resolvedScreens.map { screen in
+                    WallpaperTarget(
+                        identifier: screen.identifier,
+                        pixelWidth: screen.pixelWidth,
+                        pixelHeight: screen.pixelHeight,
+                        backingScaleFactor: screen.backingScaleFactor
                     )
+                }
+                return WallpaperRotationPlan(targets: targets) { generatedWallpapers in
+                    let assignments = generatedWallpapers.map { generated in
+                        WallpaperSetter.WallpaperAssignment(
+                            screenIdentifier: generated.targetIdentifier,
+                            imageURL: generated.fileURL
+                        )
+                    }
+                    WallpaperSetter.setWallpapers(assignments: assignments, on: resolvedScreens)
                 }
             },
             generateWallpapers: { highlight, backgroundURL, targets in
@@ -240,17 +268,11 @@ extension AppState {
                     backgroundURL: backgroundURL,
                     targets: generatorTargets
                 ).map { generated in
-                    (targetIdentifier: generated.targetIdentifier, fileURL: generated.fileURL)
-                }
-            },
-            setWallpapers: { generatedWallpapers in
-                let assignments = generatedWallpapers.map { generated in
-                    WallpaperSetter.WallpaperAssignment(
-                        screenIdentifier: generated.targetIdentifier,
-                        imageURL: generated.fileURL
+                    GeneratedWallpaper(
+                        targetIdentifier: generated.targetIdentifier,
+                        fileURL: generated.fileURL
                     )
                 }
-                WallpaperSetter.setWallpapers(assignments: assignments)
             },
             markHighlightShown: DatabaseManager.markHighlightShown(id:),
             setBookEnabled: DatabaseManager.setBookEnabled(id:enabled:),

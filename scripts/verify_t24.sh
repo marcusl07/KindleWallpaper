@@ -257,8 +257,8 @@ func testRotateWallpaperUsesPerScreenPipelineWhenConfigured() throws {
     let highlight = sampleHighlight(quoteText: "Per-screen quote")
     let backgroundURL = URL(fileURLWithPath: "/tmp/background.jpg")
     let targets: [AppState.WallpaperTarget] = [
-        (identifier: "display-101", pixelWidth: 1400, pixelHeight: 900, backingScaleFactor: 1.0),
-        (identifier: "display-202", pixelWidth: 2400, pixelHeight: 1350, backingScaleFactor: 2.0)
+        AppState.WallpaperTarget(identifier: "display-101", pixelWidth: 1400, pixelHeight: 900, backingScaleFactor: 1.0),
+        AppState.WallpaperTarget(identifier: "display-202", pixelWidth: 2400, pixelHeight: 1350, backingScaleFactor: 2.0)
     ]
 
     var calls: [String] = []
@@ -284,9 +284,12 @@ func testRotateWallpaperUsesPerScreenPipelineWhenConfigured() throws {
         setWallpaper: { _ in
             legacySetCallCount += 1
         },
-        fetchWallpaperTargets: {
-            calls.append("targets")
-            return targets
+        prepareWallpaperRotation: {
+            calls.append("prepare")
+            return AppState.WallpaperRotationPlan(targets: targets) { generated in
+                calls.append("setMany")
+                appliedWallpapers = generated
+            }
         },
         generateWallpapers: { incomingHighlight, incomingBackgroundURL, incomingTargets in
             calls.append("generateMany")
@@ -294,15 +297,11 @@ func testRotateWallpaperUsesPerScreenPipelineWhenConfigured() throws {
             assertEqual(incomingBackgroundURL, backgroundURL, "Expected multi-screen generation to use loaded background")
             assertEqual(incomingTargets.count, targets.count, "Expected generation to receive all fetched targets")
             return incomingTargets.map { target in
-                (
+                AppState.GeneratedWallpaper(
                     targetIdentifier: target.identifier,
                     fileURL: URL(fileURLWithPath: "/tmp/\(target.identifier).png")
                 )
             }
-        },
-        setWallpapers: { generated in
-            calls.append("setMany")
-            appliedWallpapers = generated
         },
         markHighlightShown: { id in
             calls.append("mark")
@@ -321,7 +320,7 @@ func testRotateWallpaperUsesPerScreenPipelineWhenConfigured() throws {
     assertEqual(appliedWallpapers.count, 2, "Expected one generated wallpaper per target")
     assertEqual(Set(appliedWallpapers.map { $0.targetIdentifier }), Set(targets.map { $0.identifier }), "Expected generated wallpapers to cover all targets")
     assertEqual(markedID, highlight.id, "Expected highlight to be marked as shown after per-screen update")
-    assertEqual(calls, ["pick", "loadBackground", "targets", "generateMany", "setMany", "mark", "now"], "Expected per-screen pipeline orchestration order")
+    assertEqual(calls, ["pick", "loadBackground", "prepare", "generateMany", "setMany", "mark", "now"], "Expected per-screen pipeline orchestration order")
 }
 
 func testRotateWallpaperPerScreenPipelineRejectsIdentifierMismatch() throws {
@@ -339,19 +338,22 @@ func testRotateWallpaperPerScreenPipelineRejectsIdentifierMismatch() throws {
         loadBackgroundImageURL: { nil },
         generateWallpaper: { _, _ in URL(fileURLWithPath: "/tmp/legacy.png") },
         setWallpaper: { _ in },
-        fetchWallpaperTargets: {
-            [
-                (identifier: "display-1", pixelWidth: 1000, pixelHeight: 700, backingScaleFactor: 1.0),
-                (identifier: "display-2", pixelWidth: 1200, pixelHeight: 800, backingScaleFactor: 1.0)
+        prepareWallpaperRotation: {
+            let targets: [AppState.WallpaperTarget] = [
+                AppState.WallpaperTarget(identifier: "display-1", pixelWidth: 1000, pixelHeight: 700, backingScaleFactor: 1.0),
+                AppState.WallpaperTarget(identifier: "display-2", pixelWidth: 1200, pixelHeight: 800, backingScaleFactor: 1.0)
             ]
+            return AppState.WallpaperRotationPlan(targets: targets) { _ in
+                setWallpapersCallCount += 1
+            }
         },
         generateWallpapers: { _, _, _ in
             [
-                (targetIdentifier: "display-1", fileURL: URL(fileURLWithPath: "/tmp/display-1.png"))
+                AppState.GeneratedWallpaper(
+                    targetIdentifier: "display-1",
+                    fileURL: URL(fileURLWithPath: "/tmp/display-1.png")
+                )
             ]
-        },
-        setWallpapers: { _ in
-            setWallpapersCallCount += 1
         },
         markHighlightShown: { _ in
             markCallCount += 1
@@ -367,6 +369,87 @@ func testRotateWallpaperPerScreenPipelineRejectsIdentifierMismatch() throws {
     assertEqual(setWallpapersCallCount, 0, "Expected per-screen apply to be skipped on identifier mismatch")
     assertEqual(markCallCount, 0, "Expected markHighlightShown to be skipped on identifier mismatch")
     assertEqual(nowCallCount, 0, "Expected timestamp update to be skipped on identifier mismatch")
+}
+
+func testRotateWallpaperPerScreenPlanUsesSingleSnapshotForGenerateAndApply() throws {
+    let fixture = try Fixture.make()
+    defer { fixture.cleanup() }
+
+    let highlight = sampleHighlight(quoteText: "Snapshot quote")
+    var liveTargets: [AppState.WallpaperTarget] = [
+        AppState.WallpaperTarget(identifier: "display-1", pixelWidth: 1000, pixelHeight: 700, backingScaleFactor: 1.0),
+        AppState.WallpaperTarget(identifier: "display-2", pixelWidth: 1200, pixelHeight: 800, backingScaleFactor: 2.0)
+    ]
+    let expectedSnapshotIdentifiers = ["display-1", "display-2"]
+    var appliedIdentifiers: [String] = []
+    var calls: [String] = []
+
+    let appState = AppState(
+        userDefaults: fixture.defaults,
+        pickNextHighlight: {
+            calls.append("pick")
+            return highlight
+        },
+        loadBackgroundImageURL: {
+            calls.append("loadBackground")
+            return nil
+        },
+        generateWallpaper: { _, _ in
+            URL(fileURLWithPath: "/tmp/legacy.png")
+        },
+        setWallpaper: { _ in },
+        prepareWallpaperRotation: {
+            calls.append("prepare")
+            let snapshot = liveTargets
+            return AppState.WallpaperRotationPlan(targets: snapshot) { generatedWallpapers in
+                calls.append("apply")
+                appliedIdentifiers = generatedWallpapers.map { $0.targetIdentifier }
+            }
+        },
+        generateWallpapers: { _, _, incomingTargets in
+            calls.append("generateMany")
+            assertEqual(
+                incomingTargets.map { $0.identifier },
+                expectedSnapshotIdentifiers,
+                "Expected generation to use prepared snapshot targets"
+            )
+            // Simulate displays changing after preparation but before apply.
+            liveTargets = [
+                AppState.WallpaperTarget(identifier: "display-2", pixelWidth: 1200, pixelHeight: 800, backingScaleFactor: 2.0)
+            ]
+            return incomingTargets.map { target in
+                AppState.GeneratedWallpaper(
+                    targetIdentifier: target.identifier,
+                    fileURL: URL(fileURLWithPath: "/tmp/\(target.identifier).png")
+                )
+            }
+        },
+        markHighlightShown: { _ in
+            calls.append("mark")
+        },
+        now: {
+            calls.append("now")
+            return Date(timeIntervalSince1970: 1_735_940_000)
+        }
+    )
+
+    let didRotate = appState.rotateWallpaper()
+    assertEqual(didRotate, true, "Expected rotateWallpaper to succeed for snapshot smoke test")
+    assertEqual(
+        appliedIdentifiers,
+        expectedSnapshotIdentifiers,
+        "Expected apply step to use same prepared snapshot identifiers"
+    )
+    assertEqual(
+        liveTargets.map { $0.identifier },
+        ["display-2"],
+        "Expected live target set to diverge after generation for smoke test setup"
+    )
+    assertEqual(
+        calls,
+        ["pick", "loadBackground", "prepare", "generateMany", "apply", "mark", "now"],
+        "Expected per-screen snapshot orchestration order"
+    )
 }
 
 func sampleHighlight(id: UUID = UUID(), quoteText: String) -> Highlight {
@@ -438,6 +521,7 @@ do {
     try testRotateWallpaperReentrancyGuardPreventsNestedWork()
     try testRotateWallpaperUsesPerScreenPipelineWhenConfigured()
     try testRotateWallpaperPerScreenPipelineRejectsIdentifierMismatch()
+    try testRotateWallpaperPerScreenPlanUsesSingleSnapshotForGenerateAndApply()
     print("T24 verification passed")
 } catch {
     fputs("Verification failure: \(error)\n", stderr)

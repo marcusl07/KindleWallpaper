@@ -21,6 +21,37 @@ enum WallpaperSetter {
         }
     }
 
+    struct ResolvedScreen<Screen> {
+        let screen: Screen
+        let identifier: String
+        let pixelWidth: Int
+        let pixelHeight: Int
+        let backingScaleFactor: CGFloat
+
+        init(
+            screen: Screen,
+            identifier: String,
+            pixelWidth: Int,
+            pixelHeight: Int,
+            backingScaleFactor: CGFloat = 1.0
+        ) {
+            self.screen = screen
+            self.identifier = identifier
+            self.pixelWidth = pixelWidth
+            self.pixelHeight = pixelHeight
+            self.backingScaleFactor = backingScaleFactor
+        }
+
+        var target: ScreenTarget {
+            ScreenTarget(
+                identifier: identifier,
+                pixelWidth: pixelWidth,
+                pixelHeight: pixelHeight,
+                backingScaleFactor: backingScaleFactor
+            )
+        }
+    }
+
     struct WallpaperAssignment: Equatable {
         let screenIdentifier: String
         let imageURL: URL
@@ -28,17 +59,42 @@ enum WallpaperSetter {
 
     private static let screenNumberKey = NSDeviceDescriptionKey("NSScreenNumber")
 
-    static func connectedScreenTargets(
+    static func resolvedConnectedScreens(
         screensProvider: () -> [NSScreen] = { NSScreen.screens }
-    ) -> [ScreenTarget] {
+    ) -> [ResolvedScreen<NSScreen>] {
         screensProvider().enumerated().map { index, screen in
             let size = pixelSize(for: screen)
-            return ScreenTarget(
+            return ResolvedScreen(
+                screen: screen,
                 identifier: identifier(for: screen, fallbackIndex: index),
                 pixelWidth: size.width,
                 pixelHeight: size.height,
                 backingScaleFactor: normalizedScale(screen.backingScaleFactor)
             )
+        }
+    }
+
+    static func connectedScreenTargets(
+        screensProvider: () -> [NSScreen] = { NSScreen.screens }
+    ) -> [ScreenTarget] {
+        resolvedConnectedScreens(screensProvider: screensProvider).map(\.target)
+    }
+
+    static func setWallpapers(
+        assignments: [WallpaperAssignment],
+        on resolvedScreens: [ResolvedScreen<NSScreen>],
+        setDesktopImage: (URL, NSScreen) throws -> Void = { url, screen in
+            try NSWorkspace.shared.setDesktopImageURL(url, for: screen, options: [:])
+        }
+    ) {
+        do {
+            try applyWallpapers(
+                assignments: assignments,
+                resolvedScreens: resolvedScreens,
+                setDesktopImage: setDesktopImage
+            )
+        } catch {
+            fatalError("Failed to set wallpaper for targeted screens: \(error)")
         }
     }
 
@@ -52,10 +108,7 @@ enum WallpaperSetter {
         do {
             try applyWallpapers(
                 assignments: assignments,
-                screens: screensProvider(),
-                screenIdentifier: { screen, index in
-                    identifier(for: screen, fallbackIndex: index)
-                },
+                resolvedScreens: resolvedConnectedScreens(screensProvider: screensProvider),
                 setDesktopImage: setDesktopImage
             )
         } catch {
@@ -79,8 +132,7 @@ enum WallpaperSetter {
 
     static func applyWallpapers<Screen>(
         assignments: [WallpaperAssignment],
-        screens: [Screen],
-        screenIdentifier: (Screen, Int) -> String,
+        resolvedScreens: [ResolvedScreen<Screen>],
         setDesktopImage: (URL, Screen) throws -> Void
     ) rethrows {
         let urlsByIdentifier = Dictionary(
@@ -90,13 +142,33 @@ enum WallpaperSetter {
             uniquingKeysWith: { _, latest in latest }
         )
 
-        for (index, screen) in screens.enumerated() {
-            let identifier = screenIdentifier(screen, index)
-            guard let imageURL = urlsByIdentifier[identifier] else {
+        for resolvedScreen in resolvedScreens {
+            guard let imageURL = urlsByIdentifier[resolvedScreen.identifier] else {
                 continue
             }
-            try setDesktopImage(imageURL, screen)
+            try setDesktopImage(imageURL, resolvedScreen.screen)
         }
+    }
+
+    static func applyWallpapers<Screen>(
+        assignments: [WallpaperAssignment],
+        screens: [Screen],
+        screenIdentifier: (Screen, Int) -> String,
+        setDesktopImage: (URL, Screen) throws -> Void
+    ) rethrows {
+        let resolvedScreens = screens.enumerated().map { index, screen in
+            ResolvedScreen(
+                screen: screen,
+                identifier: screenIdentifier(screen, index),
+                pixelWidth: 1,
+                pixelHeight: 1
+            )
+        }
+        try applyWallpapers(
+            assignments: assignments,
+            resolvedScreens: resolvedScreens,
+            setDesktopImage: setDesktopImage
+        )
     }
 
     static func applyWallpaper<Screen>(
@@ -114,8 +186,13 @@ enum WallpaperSetter {
             return "display-\(screenNumber.uint32Value)"
         }
 
+        _ = fallbackIndex
         let frame = screen.frame
-        return "display-fallback-\(fallbackIndex)-\(Int(frame.width))x\(Int(frame.height))"
+        let originX = Int(frame.origin.x.rounded(.toNearestOrAwayFromZero))
+        let originY = Int(frame.origin.y.rounded(.toNearestOrAwayFromZero))
+        let width = Int(frame.width.rounded(.toNearestOrAwayFromZero))
+        let height = Int(frame.height.rounded(.toNearestOrAwayFromZero))
+        return "display-fallback-\(originX)x\(originY)-\(width)x\(height)"
     }
 
     private static func pixelSize(for screen: NSScreen) -> (width: Int, height: Int) {
