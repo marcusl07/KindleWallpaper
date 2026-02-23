@@ -82,14 +82,19 @@ struct KindleWallApp: App {
 }
 
 #if canImport(AppKit)
-private final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+private final class AppDelegate: NSObject, NSApplicationDelegate {
     private weak var appState: AppState?
     private var statusItemController: StatusItemController?
-    private var settingsWindowController: NSWindowController?
+    private var settingsWindowCoordinator: SettingsWindowCoordinator?
     private var hasFinishedLaunching = false
 
     func configure(appState: AppState) {
         self.appState = appState
+        if let settingsWindowCoordinator {
+            settingsWindowCoordinator.setAppState(appState)
+        } else {
+            settingsWindowCoordinator = SettingsWindowCoordinator(appState: appState)
+        }
 
         if hasFinishedLaunching {
             installStatusItemIfNeeded()
@@ -113,15 +118,28 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelega
         statusItemController = StatusItemController(
             appState: appState,
             openSettings: { [weak self] in
-                self?.openSettingsWindow()
+                self?.settingsWindowCoordinator?.showWindow()
             },
             rotateWallpaper: { [weak appState] in
                 appState?.rotateWallpaper()
             }
         )
     }
+}
 
-    private func openSettingsWindow() {
+private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
+    private weak var appState: AppState?
+    private var settingsWindowController: NSWindowController?
+
+    init(appState: AppState) {
+        self.appState = appState
+    }
+
+    func setAppState(_ appState: AppState) {
+        self.appState = appState
+    }
+
+    func showWindow() {
         NSApp.activate(ignoringOtherApps: true)
 
         if let existingWindow = settingsWindowController?.window {
@@ -137,16 +155,22 @@ private final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelega
             .environmentObject(appState)
         let hostingController = NSHostingController(rootView: settingsView)
         let window = NSWindow(contentViewController: hostingController)
-        window.title = "Settings"
-        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        window.setContentSize(NSSize(width: 760, height: 560))
-        window.center()
-        window.delegate = self
+        configure(window: window)
 
         let controller = NSWindowController(window: window)
         settingsWindowController = controller
         controller.showWindow(nil)
         window.makeKeyAndOrderFront(nil)
+    }
+
+    private func configure(window: NSWindow) {
+        window.title = "Settings"
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        window.setContentSize(NSSize(width: 760, height: 560))
+        window.center()
+        window.canHide = false
+        window.hidesOnDeactivate = false
+        window.delegate = self
     }
 
     func windowWillClose(_ notification: Notification) {
