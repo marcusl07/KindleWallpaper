@@ -8,16 +8,20 @@ struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
     @State private var backgroundImageURL: URL? = nil
     @State private var backgroundImageError: String? = nil
+    private let booksListHeight: CGFloat = 220
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            importSection
-            booksSection
-            backgroundSection
-            scheduleSection
-            aboutSection
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 20) {
+                importSection
+                booksSection
+                backgroundSection
+                scheduleSection
+                aboutSection
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .padding(20)
         .frame(minWidth: 680, maxWidth: .infinity, minHeight: 520, maxHeight: .infinity, alignment: .topLeading)
         .onAppear(perform: refreshBackgroundThumbnail)
     }
@@ -85,7 +89,7 @@ struct SettingsView: View {
                 }
             }
             .listStyle(.inset)
-            .frame(height: 220)
+            .frame(minHeight: booksListHeight, idealHeight: booksListHeight, maxHeight: booksListHeight)
 
             if allBooksDeselectedWarningVisible {
                 Text("All books are deselected. Wallpaper rotation has no active quote pool.")
