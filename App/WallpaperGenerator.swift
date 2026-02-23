@@ -6,6 +6,19 @@ struct WallpaperGenerator {
         let identifier: String
         let pixelWidth: Int
         let pixelHeight: Int
+        let backingScaleFactor: CGFloat
+
+        init(
+            identifier: String,
+            pixelWidth: Int,
+            pixelHeight: Int,
+            backingScaleFactor: CGFloat = 1.0
+        ) {
+            self.identifier = identifier
+            self.pixelWidth = pixelWidth
+            self.pixelHeight = pixelHeight
+            self.backingScaleFactor = backingScaleFactor
+        }
     }
 
     struct GeneratedWallpaper: Equatable {
@@ -17,11 +30,15 @@ struct WallpaperGenerator {
         static let generatedWallpapersDirectoryName = "generated-wallpapers"
         static let generatedWallpaperPrefix = "wallpaper_"
         static let defaultRetainedGeneratedFiles = 5
+        static let quoteFontSize: CGFloat = 36
+        static let attributionFontSize: CGFloat = 20
+        static let textSpacing: CGFloat = 24
     }
 
     private let fileManager: FileManager
     private let appSupportDirectoryProvider: () -> URL
     private let mainScreenPixelSizeProvider: () -> CGSize?
+    private let mainScreenScaleProvider: () -> CGFloat?
     private let retainedGeneratedFileCount: Int
 
     init(
@@ -38,11 +55,15 @@ struct WallpaperGenerator {
             let scale = screen.backingScaleFactor
             return CGSize(width: size.width * scale, height: size.height * scale)
         },
+        mainScreenScaleProvider: @escaping () -> CGFloat? = {
+            NSScreen.main?.backingScaleFactor
+        },
         retainedGeneratedFileCount: Int = Constants.defaultRetainedGeneratedFiles
     ) {
         self.fileManager = fileManager
         self.appSupportDirectoryProvider = appSupportDirectoryProvider
         self.mainScreenPixelSizeProvider = mainScreenPixelSizeProvider
+        self.mainScreenScaleProvider = mainScreenScaleProvider
         self.retainedGeneratedFileCount = max(retainedGeneratedFileCount, 1)
     }
 
@@ -51,7 +72,8 @@ struct WallpaperGenerator {
         let fallbackTarget = RenderTarget(
             identifier: "main",
             pixelWidth: Int(fallbackSize.width),
-            pixelHeight: Int(fallbackSize.height)
+            pixelHeight: Int(fallbackSize.height),
+            backingScaleFactor: normalizedDisplayScale(mainScreenScaleProvider() ?? 1.0)
         )
         let generatedWallpapers = generateWallpapers(
             highlight: highlight,
@@ -95,7 +117,8 @@ struct WallpaperGenerator {
             let composedImage = composeImage(
                 backgroundImage: backgroundImage,
                 size: outputSize,
-                highlight: highlight
+                highlight: highlight,
+                displayScaleFactor: normalizedDisplayScale(target.backingScaleFactor)
             )
             let outputFilename = outputFilename(
                 rotationID: rotationID,
@@ -130,34 +153,41 @@ struct WallpaperGenerator {
         }
     }
 
-    private func composeImage(backgroundImage: NSImage, size: CGSize, highlight: Highlight) -> NSImage {
+    private func composeImage(
+        backgroundImage: NSImage,
+        size: CGSize,
+        highlight: Highlight,
+        displayScaleFactor: CGFloat
+    ) -> NSImage {
         renderImage(size: size) { rect in
             backgroundImage.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1.0)
 
             NSColor.black.withAlphaComponent(0.4).setFill()
             rect.fill(using: .sourceOver)
 
-            drawTextOverlay(highlight: highlight, in: rect)
+            drawTextOverlay(highlight: highlight, in: rect, displayScaleFactor: displayScaleFactor)
         }
     }
 
-    private func drawTextOverlay(highlight: Highlight, in rect: NSRect) {
+    private func drawTextOverlay(highlight: Highlight, in rect: NSRect, displayScaleFactor: CGFloat) {
         let quoteText = highlight.quoteText.trimmingCharacters(in: .whitespacesAndNewlines)
         let quote = quoteText.isEmpty ? " " : quoteText
         let attribution = "\(highlight.bookTitle) - \(highlight.author)".trimmingCharacters(in: .whitespacesAndNewlines)
         let maxTextWidth = rect.width * 0.7
+        let quoteFontSize = Constants.quoteFontSize * displayScaleFactor
+        let attributionFontSize = Constants.attributionFontSize * displayScaleFactor
 
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.alignment = .center
         paragraphStyle.lineBreakMode = .byWordWrapping
 
         let quoteAttributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 36, weight: .regular),
+            .font: NSFont.systemFont(ofSize: quoteFontSize, weight: .regular),
             .foregroundColor: NSColor.white,
             .paragraphStyle: paragraphStyle
         ]
         let attributionAttributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 20, weight: .light),
+            .font: NSFont.systemFont(ofSize: attributionFontSize, weight: .light),
             .foregroundColor: NSColor.white,
             .paragraphStyle: paragraphStyle
         ]
@@ -174,7 +204,7 @@ struct WallpaperGenerator {
             attributes: attributionAttributes
         ).integral
 
-        let spacing: CGFloat = 24
+        let spacing = Constants.textSpacing * displayScaleFactor
         let totalHeight = quoteBounds.height + spacing + attributionBounds.height
         let baseY = (rect.height - totalHeight) / 2
 
@@ -329,5 +359,12 @@ struct WallpaperGenerator {
             width: max(size.width.rounded(.toNearestOrAwayFromZero), 1),
             height: max(size.height.rounded(.toNearestOrAwayFromZero), 1)
         )
+    }
+
+    private func normalizedDisplayScale(_ value: CGFloat) -> CGFloat {
+        guard value.isFinite else {
+            return 1.0
+        }
+        return max(value, 1.0)
     }
 }

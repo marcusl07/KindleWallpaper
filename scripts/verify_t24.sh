@@ -257,8 +257,8 @@ func testRotateWallpaperUsesPerScreenPipelineWhenConfigured() throws {
     let highlight = sampleHighlight(quoteText: "Per-screen quote")
     let backgroundURL = URL(fileURLWithPath: "/tmp/background.jpg")
     let targets: [AppState.WallpaperTarget] = [
-        (identifier: "display-101", pixelWidth: 1400, pixelHeight: 900),
-        (identifier: "display-202", pixelWidth: 2400, pixelHeight: 1350)
+        (identifier: "display-101", pixelWidth: 1400, pixelHeight: 900, backingScaleFactor: 1.0),
+        (identifier: "display-202", pixelWidth: 2400, pixelHeight: 1350, backingScaleFactor: 2.0)
     ]
 
     var calls: [String] = []
@@ -341,8 +341,8 @@ func testRotateWallpaperPerScreenPipelineRejectsIdentifierMismatch() throws {
         setWallpaper: { _ in },
         fetchWallpaperTargets: {
             [
-                (identifier: "display-1", pixelWidth: 1000, pixelHeight: 700),
-                (identifier: "display-2", pixelWidth: 1200, pixelHeight: 800)
+                (identifier: "display-1", pixelWidth: 1000, pixelHeight: 700, backingScaleFactor: 1.0),
+                (identifier: "display-2", pixelWidth: 1200, pixelHeight: 800, backingScaleFactor: 1.0)
             ]
         },
         generateWallpapers: { _, _, _ in

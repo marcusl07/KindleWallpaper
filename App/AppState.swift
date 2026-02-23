@@ -2,7 +2,12 @@ import Combine
 import Foundation
 
 final class AppState: ObservableObject {
-    typealias WallpaperTarget = (identifier: String, pixelWidth: Int, pixelHeight: Int)
+    typealias WallpaperTarget = (
+        identifier: String,
+        pixelWidth: Int,
+        pixelHeight: Int,
+        backingScaleFactor: CGFloat
+    )
     typealias GeneratedWallpaper = (targetIdentifier: String, fileURL: URL)
     typealias PickNextHighlight = () -> Highlight?
     typealias LoadBackgroundImageURL = () -> URL?
@@ -203,7 +208,12 @@ extension AppState {
             },
             fetchWallpaperTargets: {
                 WallpaperSetter.connectedScreenTargets().map { target in
-                    (identifier: target.identifier, pixelWidth: target.pixelWidth, pixelHeight: target.pixelHeight)
+                    (
+                        identifier: target.identifier,
+                        pixelWidth: target.pixelWidth,
+                        pixelHeight: target.pixelHeight,
+                        backingScaleFactor: target.backingScaleFactor
+                    )
                 }
             },
             generateWallpapers: { highlight, backgroundURL, targets in
@@ -211,7 +221,8 @@ extension AppState {
                     WallpaperGenerator.RenderTarget(
                         identifier: target.identifier,
                         pixelWidth: target.pixelWidth,
-                        pixelHeight: target.pixelHeight
+                        pixelHeight: target.pixelHeight,
+                        backingScaleFactor: target.backingScaleFactor
                     )
                 }
                 return wallpaperGenerator.generateWallpapers(

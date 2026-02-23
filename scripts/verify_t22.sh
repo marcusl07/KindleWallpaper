@@ -45,6 +45,53 @@ func testGenerateWallpapersCreatesPerTargetFilesAndSizes() throws {
     }
 }
 
+func testGenerateWallpapersScalesTextByBackingScaleFactor() throws {
+    let fixture = try TestFixture.make()
+    defer { fixture.cleanup() }
+
+    let outputs = fixture.generator.generateWallpapers(
+        highlight: sampleHighlight(quote: "Scale-sensitive text"),
+        backgroundURL: nil,
+        targets: [
+            WallpaperGenerator.RenderTarget(
+                identifier: "scale-1x",
+                pixelWidth: 1200,
+                pixelHeight: 800,
+                backingScaleFactor: 1.0
+            ),
+            WallpaperGenerator.RenderTarget(
+                identifier: "scale-2x",
+                pixelWidth: 2400,
+                pixelHeight: 1600,
+                backingScaleFactor: 2.0
+            )
+        ],
+        rotationID: "rotation-scale"
+    )
+
+    let outputsByIdentifier = Dictionary(uniqueKeysWithValues: outputs.map { ($0.targetIdentifier, $0) })
+    guard
+        let oneX = outputsByIdentifier["scale-1x"],
+        let twoX = outputsByIdentifier["scale-2x"]
+    else {
+        throw NSError(
+            domain: "VerifyT22",
+            code: 4,
+            userInfo: [NSLocalizedDescriptionKey: "Missing generated wallpapers for scale verification"]
+        )
+    }
+
+    let oneXBrightPixels = try brightPixelCount(at: oneX.fileURL)
+    let twoXBrightPixels = try brightPixelCount(at: twoX.fileURL)
+    expect(oneXBrightPixels > 0, "Expected 1x output to contain bright text pixels")
+
+    let ratio = Double(twoXBrightPixels) / Double(oneXBrightPixels)
+    expect(
+        ratio > 2.5,
+        "Expected 2x target to render a larger text footprint, bright-pixel ratio was \(ratio)"
+    )
+}
+
 func testGenerateWallpapersUsesUniqueFilenameAcrossRotations() throws {
     let fixture = try TestFixture.make()
     defer { fixture.cleanup() }
@@ -119,6 +166,33 @@ func imageDimensions(at url: URL) throws -> (width: Int, height: Int) {
     return (bitmap.pixelsWide, bitmap.pixelsHigh)
 }
 
+func brightPixelCount(at url: URL) throws -> Int {
+    let data = try Data(contentsOf: url)
+    guard
+        let bitmap = NSBitmapImageRep(data: data),
+        let rawPixels = bitmap.bitmapData
+    else {
+        throw NSError(domain: "VerifyT22", code: 5, userInfo: [NSLocalizedDescriptionKey: "Failed to decode bitmap"])
+    }
+
+    let bytesPerPixel = max(bitmap.bitsPerPixel / 8, 4)
+    var brightCount = 0
+    for y in 0..<bitmap.pixelsHigh {
+        for x in 0..<bitmap.pixelsWide {
+            let offset = (y * bitmap.bytesPerRow) + (x * bytesPerPixel)
+            let red = rawPixels[offset]
+            let green = rawPixels[offset + 1]
+            let blue = rawPixels[offset + 2]
+
+            if red >= 220 && green >= 220 && blue >= 220 {
+                brightCount += 1
+            }
+        }
+    }
+
+    return brightCount
+}
+
 func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
     if !condition() {
         fputs("Verification failure: \(message)\n", stderr)
@@ -158,6 +232,7 @@ struct TestFixture {
 
 do {
     try testGenerateWallpapersCreatesPerTargetFilesAndSizes()
+    try testGenerateWallpapersScalesTextByBackingScaleFactor()
     try testGenerateWallpapersUsesUniqueFilenameAcrossRotations()
     try testCleanupRetainsLastFiveGeneratedFiles()
     print("T22 verification passed")

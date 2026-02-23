@@ -6,6 +6,19 @@ enum WallpaperSetter {
         let identifier: String
         let pixelWidth: Int
         let pixelHeight: Int
+        let backingScaleFactor: CGFloat
+
+        init(
+            identifier: String,
+            pixelWidth: Int,
+            pixelHeight: Int,
+            backingScaleFactor: CGFloat = 1.0
+        ) {
+            self.identifier = identifier
+            self.pixelWidth = pixelWidth
+            self.pixelHeight = pixelHeight
+            self.backingScaleFactor = backingScaleFactor
+        }
     }
 
     struct WallpaperAssignment: Equatable {
@@ -23,7 +36,8 @@ enum WallpaperSetter {
             return ScreenTarget(
                 identifier: identifier(for: screen, fallbackIndex: index),
                 pixelWidth: size.width,
-                pixelHeight: size.height
+                pixelHeight: size.height,
+                backingScaleFactor: normalizedScale(screen.backingScaleFactor)
             )
         }
     }
@@ -110,6 +124,13 @@ enum WallpaperSetter {
         let width = max(Int((size.width * scale).rounded(.toNearestOrAwayFromZero)), 1)
         let height = max(Int((size.height * scale).rounded(.toNearestOrAwayFromZero)), 1)
         return (width, height)
+    }
+
+    private static func normalizedScale(_ value: CGFloat) -> CGFloat {
+        guard value.isFinite else {
+            return 1.0
+        }
+        return max(value, 1.0)
     }
 }
 
