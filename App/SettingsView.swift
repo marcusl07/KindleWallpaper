@@ -15,7 +15,7 @@ struct SettingsView: View {
             booksSection
             backgroundSection
             scheduleSection
-            aboutSectionPlaceholder
+            aboutSection
         }
         .padding(20)
         .frame(minWidth: 680, maxWidth: .infinity, minHeight: 520, maxHeight: .infinity, alignment: .topLeading)
@@ -147,9 +147,11 @@ struct SettingsView: View {
         }
     }
 
-    private var aboutSectionPlaceholder: some View {
+    private var aboutSection: some View {
         sectionContainer(title: "About") {
-            Text("About section coming next.")
+            Text("KindleWall")
+                .font(.headline)
+            Text("Version \(appVersionDisplay)")
                 .foregroundStyle(.secondary)
         }
     }
@@ -244,6 +246,23 @@ struct SettingsView: View {
             return "Never"
         }
         return lastChangedAt.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    private var appVersionDisplay: String {
+        let info = Bundle.main.infoDictionary ?? [:]
+        let shortVersion = info["CFBundleShortVersionString"] as? String
+        let buildVersion = info["CFBundleVersion"] as? String
+
+        switch (shortVersion?.trimmingCharacters(in: .whitespacesAndNewlines), buildVersion?.trimmingCharacters(in: .whitespacesAndNewlines)) {
+        case let (short?, build?) where !short.isEmpty && !build.isEmpty:
+            return "\(short) (\(build))"
+        case let (short?, _) where !short.isEmpty:
+            return short
+        case let (_, build?) where !build.isEmpty:
+            return build
+        default:
+            return "Unknown"
+        }
     }
 
     private func timeOnlyDate(hour: Int, minute: Int) -> Date {
