@@ -317,3 +317,8 @@ Add/validate database indexing for active-pool selection (`bookId`, `lastShownAt
 Remove duplicated import-status publish/update closures in `KindleWallApp.makeMountListener` by extracting a single shared main-thread publisher path.
 
 
+
+**T44 — Serialize books mutation flow in `AppState`**
+Create a single serialized mutation path for per-book toggle and bulk toggle operations to prevent overlapping writes/refetch races.
+
+

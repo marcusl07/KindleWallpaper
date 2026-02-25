@@ -83,6 +83,7 @@ final class AppState: ObservableObject {
     private let fetchTotalHighlightCount: FetchTotalHighlightCount
     private let now: Now
     private var isRotationInProgress = false
+    private let bookMutationLock = NSLock()
 
     init(
         userDefaults: UserDefaults = .standard,
@@ -210,20 +211,22 @@ final class AppState: ObservableObject {
     }
 
     func setBookEnabled(id: UUID, enabled: Bool) {
-        guard books.first(where: { $0.id == id })?.isEnabled != enabled else {
-            return
-        }
         performBookMutation {
+            guard books.first(where: { $0.id == id })?.isEnabled != enabled else {
+                return false
+            }
             setBookEnabledAction(id, enabled)
+            return true
         }
     }
 
     func setAllBooksEnabled(_ enabled: Bool) {
-        guard books.contains(where: { $0.isEnabled != enabled }) else {
-            return
-        }
         performBookMutation {
+            guard books.contains(where: { $0.isEnabled != enabled }) else {
+                return false
+            }
             setAllBooksEnabledAction(enabled)
+            return true
         }
     }
 
@@ -242,8 +245,15 @@ final class AppState: ObservableObject {
         activeScheduleMode = mode
     }
 
-    private func performBookMutation(_ mutation: () -> Void) {
-        mutation()
+    private func performBookMutation(_ mutation: () -> Bool) {
+        bookMutationLock.lock()
+        defer {
+            bookMutationLock.unlock()
+        }
+
+        guard mutation() else {
+            return
+        }
         refreshLibraryState()
     }
 }
