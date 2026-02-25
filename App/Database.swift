@@ -48,6 +48,11 @@ enum DatabaseManager {
     ON highlights(bookId);
     """
 
+    private static let createHighlightsBookIDLastShownAtIndexSQL = """
+    CREATE INDEX IF NOT EXISTS idx_highlights_bookId_lastShownAt
+    ON highlights(bookId, lastShownAt);
+    """
+
     private static let iso8601Formatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -68,6 +73,7 @@ enum DatabaseManager {
             try database.execute(sql: createBooksTableSQL)
             try database.execute(sql: createHighlightsTableSQL)
             try database.execute(sql: createHighlightsBookIDIndexSQL)
+            try database.execute(sql: createHighlightsBookIDLastShownAtIndexSQL)
         }
     }
 
