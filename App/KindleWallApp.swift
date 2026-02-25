@@ -147,16 +147,21 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
     private var settingsWindowController: NSWindowController?
     private var booksWindowController: NSWindowController?
     private var booksWindowObserver: NSObjectProtocol?
+    private var appDidResignActiveObserver: NSObjectProtocol?
 
     init(appState: AppState) {
         self.appState = appState
         super.init()
         installBooksWindowObserver()
+        installAppDeactivationObserver()
     }
 
     deinit {
         if let booksWindowObserver {
             NotificationCenter.default.removeObserver(booksWindowObserver)
+        }
+        if let appDidResignActiveObserver {
+            NotificationCenter.default.removeObserver(appDidResignActiveObserver)
         }
     }
 
@@ -177,6 +182,40 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
             NSLog("[ShowBooksDebug] observer received .kindleWallShowBooksWindow")
             self?.showBooksWindow()
         }
+    }
+
+    private func installAppDeactivationObserver() {
+        guard appDidResignActiveObserver == nil else {
+            return
+        }
+
+        appDidResignActiveObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.restoreWindowVisibilityAfterAppDeactivation()
+        }
+    }
+
+    private func restoreWindowVisibilityAfterAppDeactivation() {
+        restoreVisibilityIfNeeded(for: settingsWindowController?.window)
+        restoreVisibilityIfNeeded(for: booksWindowController?.window)
+    }
+
+    private func restoreVisibilityIfNeeded(for window: NSWindow?) {
+        guard let window else {
+            return
+        }
+        guard !window.isVisible else {
+            return
+        }
+        guard !window.isMiniaturized else {
+            return
+        }
+
+        // Keep utility windows open after focus leaves this accessory app.
+        window.orderFront(nil)
     }
 
     func showWindow() {
