@@ -65,16 +65,9 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            #if canImport(AppKit)
-            ShowBooksNSButton {
-                BooksWindowPresentation.requestShowWindow()
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            #else
             Button("Show Books...") {
-                BooksWindowPresentation.requestShowWindow()
+                presentBooksWindowDirectly()
             }
-            #endif
         }
     }
 
@@ -327,6 +320,31 @@ struct SettingsView: View {
     private var enabledBookCount: Int {
         appState.books.filter(\.isEnabled).count
     }
+
+    private func presentBooksWindowDirectly() {
+        #if canImport(AppKit)
+        NSLog("[ShowBooksDebug] direct button action entered")
+        let booksView = BooksListView()
+            .environmentObject(appState)
+        let hostingController = NSHostingController(rootView: booksView)
+        let window = NSWindow(contentViewController: hostingController)
+        window.title = "Books"
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        window.setContentSize(NSSize(width: 760, height: 560))
+        window.center()
+        window.canHide = false
+        window.hidesOnDeactivate = false
+
+        let controller = NSWindowController(window: window)
+        DirectBooksWindowStore.windowController = controller
+        NSApp.activate(ignoringOtherApps: true)
+        controller.showWindow(nil)
+        window.makeKeyAndOrderFront(nil)
+        NSLog("[ShowBooksDebug] direct button action didShowWindow")
+        #else
+        BooksWindowPresentation.requestShowWindow()
+        #endif
+    }
 }
 
 enum BooksWindowPresentation {
@@ -341,41 +359,8 @@ extension Notification.Name {
 }
 
 #if canImport(AppKit)
-private struct ShowBooksNSButton: NSViewRepresentable {
-    let action: () -> Void
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(action: action)
-    }
-
-    func makeNSView(context: Context) -> NSButton {
-        let button = NSButton(
-            title: "Show Books...",
-            target: context.coordinator,
-            action: #selector(Coordinator.buttonPressed(_:))
-        )
-        button.bezelStyle = .rounded
-        button.setButtonType(.momentaryPushIn)
-        button.isBordered = true
-        return button
-    }
-
-    func updateNSView(_ nsView: NSButton, context: Context) {
-        context.coordinator.action = action
-    }
-
-    final class Coordinator: NSObject {
-        var action: () -> Void
-
-        init(action: @escaping () -> Void) {
-            self.action = action
-        }
-
-        @objc func buttonPressed(_ sender: NSButton) {
-            NSLog("[ShowBooksDebug] ShowBooksNSButton.buttonPressed")
-            action()
-        }
-    }
+private enum DirectBooksWindowStore {
+    static var windowController: NSWindowController?
 }
 #endif
 
