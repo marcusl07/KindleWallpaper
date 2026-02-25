@@ -65,9 +65,16 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            #if canImport(AppKit)
+            ShowBooksNSButton {
+                BooksWindowPresentation.requestShowWindow()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            #else
             Button("Show Books...") {
                 BooksWindowPresentation.requestShowWindow()
             }
+            #endif
         }
     }
 
@@ -332,6 +339,45 @@ enum BooksWindowPresentation {
 extension Notification.Name {
     static let kindleWallShowBooksWindow = Notification.Name("kindleWallShowBooksWindow")
 }
+
+#if canImport(AppKit)
+private struct ShowBooksNSButton: NSViewRepresentable {
+    let action: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(action: action)
+    }
+
+    func makeNSView(context: Context) -> NSButton {
+        let button = NSButton(
+            title: "Show Books...",
+            target: context.coordinator,
+            action: #selector(Coordinator.buttonPressed(_:))
+        )
+        button.bezelStyle = .rounded
+        button.setButtonType(.momentaryPushIn)
+        button.isBordered = true
+        return button
+    }
+
+    func updateNSView(_ nsView: NSButton, context: Context) {
+        context.coordinator.action = action
+    }
+
+    final class Coordinator: NSObject {
+        var action: () -> Void
+
+        init(action: @escaping () -> Void) {
+            self.action = action
+        }
+
+        @objc func buttonPressed(_ sender: NSButton) {
+            NSLog("[ShowBooksDebug] ShowBooksNSButton.buttonPressed")
+            action()
+        }
+    }
+}
+#endif
 
 struct BooksListView: View {
     @EnvironmentObject private var appState: AppState
