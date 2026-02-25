@@ -12,6 +12,11 @@ struct SettingsView: View {
     var body: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 20) {
+                Button("Show Books...") {
+                    presentBooksWindowDirectly()
+                }
+                .border(Color.red)
+
                 importSection
                 booksSection
                 backgroundSection
@@ -63,10 +68,6 @@ struct SettingsView: View {
                 Text("\(enabledBookCount) of \(appState.books.count) books enabled")
                     .font(.callout)
                     .foregroundStyle(.secondary)
-            }
-
-            Button("Show Books...") {
-                presentBooksWindowDirectly()
             }
         }
     }
