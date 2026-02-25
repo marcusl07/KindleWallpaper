@@ -21,9 +21,6 @@ Expose mutation-in-progress state and disable/re-enable book checkboxes and Sele
 **T46 — Enforce main-thread ownership for UI state/controllers**
 Apply `@MainActor` boundaries to UI-facing state and controllers (`AppState`, delegate/controller surfaces) and make background-to-main hops explicit.
 
-**T47 — DRY mount-listener status publishing logic**
-Remove duplicated import-status publish/update closures in `KindleWallApp.makeMountListener` by extracting a single shared main-thread publisher path.
-
 **T48 — Add settings window lifecycle tests**
 Add behavioral verification for settings open/reopen/deactivate semantics to prevent regressions where the window disappears on focus loss.
 
@@ -35,9 +32,6 @@ Add tests ensuring successive Next Quote actions generate distinct wallpaper out
 
 **T51 — Add rotation outcome/error propagation tests**
 Add tests for success and failure outcomes (including no active pool and wallpaper apply failure) and verify UI-visible status propagation.
-
-**T52 — Optimize highlight-pick query path**
-Add/validate database indexing for active-pool selection (`bookId`, `lastShownAt`) and verify pick-next-highlight query efficiency at larger library sizes.
 
 **T53 — Move wallpaper generation/set flow off UI interaction path**
 Run expensive wallpaper compose/write work on a dedicated background executor while publishing state changes safely back on main.

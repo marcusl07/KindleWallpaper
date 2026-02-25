@@ -62,24 +62,23 @@ struct KindleWallApp: App {
 
     #if canImport(AppKit)
     private static func makeMountListener(appState: AppState) -> VolumeWatcher.MountListener? {
-        #if canImport(GRDB)
-        let listener = VolumeWatcher.MountListener.live(publishImportStatus: { status in
+        let publishImportStatusOnMain: VolumeWatcher.PublishImportStatus = { status in
             DispatchQueue.main.async {
                 appState.setImportStatus(status.message, isError: status.isError)
                 appState.refreshLibraryState()
             }
-        })
+        }
+
+        #if canImport(GRDB)
+        let listener = VolumeWatcher.MountListener.live(
+            publishImportStatus: publishImportStatusOnMain
+        )
         #else
         let listener = VolumeWatcher.MountListener(
             importFile: { _ in
                 VolumeWatcher.ImportPayload(newHighlightCount: 0, error: nil, parseWarningCount: 0)
             },
-            publishImportStatus: { status in
-                DispatchQueue.main.async {
-                    appState.setImportStatus(status.message, isError: status.isError)
-                    appState.refreshLibraryState()
-                }
-            }
+            publishImportStatus: publishImportStatusOnMain
         )
         #endif
 
