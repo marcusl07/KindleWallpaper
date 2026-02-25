@@ -154,7 +154,7 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
 
         let settingsView = SettingsView(
             showBooksAction: { [weak self] in
-                self?.showBooksWindow()
+                self?.showBooksWindow() ?? false
             }
         )
             .environmentObject(appState)
@@ -168,16 +168,16 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
         window.makeKeyAndOrderFront(nil)
     }
 
-    private func showBooksWindow() {
+    private func showBooksWindow() -> Bool {
         NSApp.activate(ignoringOtherApps: true)
 
         if let existingWindow = booksWindowController?.window {
             existingWindow.makeKeyAndOrderFront(nil)
-            return
+            return true
         }
 
         guard let appState else {
-            return
+            return false
         }
 
         let booksView = SettingsView(
@@ -195,6 +195,7 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
         booksWindowController = controller
         controller.showWindow(nil)
         window.makeKeyAndOrderFront(nil)
+        return true
     }
 
     private func configureSettingsWindow(_ window: NSWindow) {

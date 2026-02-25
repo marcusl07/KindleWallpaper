@@ -10,7 +10,7 @@ struct SettingsView: View {
         case books
     }
 
-    private let showBooksAction: (() -> Void)?
+    private let showBooksAction: (() -> Bool)?
     private let closeBooksAction: (() -> Void)?
 
     @EnvironmentObject private var appState: AppState
@@ -20,7 +20,7 @@ struct SettingsView: View {
 
     init(
         startInBooks: Bool = false,
-        showBooksAction: (() -> Void)? = nil,
+        showBooksAction: (() -> Bool)? = nil,
         closeBooksAction: (() -> Void)? = nil
     ) {
         self.showBooksAction = showBooksAction
@@ -146,9 +146,8 @@ struct SettingsView: View {
             }
 
             Button("Show Books...") {
-                if let showBooksAction {
-                    showBooksAction()
-                } else {
+                let handled = showBooksAction?() ?? false
+                if !handled {
                     route = .books
                 }
             }
