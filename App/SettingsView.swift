@@ -12,7 +12,6 @@ struct SettingsView: View {
     var body: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 20) {
-                importSection
                 booksSection
                 backgroundSection
                 scheduleSection
