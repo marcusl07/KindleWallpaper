@@ -22,7 +22,10 @@ struct SettingsView: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .frame(minWidth: 680, maxWidth: .infinity, minHeight: 520, maxHeight: .infinity, alignment: .topLeading)
-        .onAppear(perform: refreshBackgroundThumbnail)
+        .onAppear {
+            NSLog("[ShowBooksDebug] SettingsView.onAppear")
+            refreshBackgroundThumbnail()
+        }
     }
 
     private var importSection: some View {

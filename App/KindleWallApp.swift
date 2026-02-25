@@ -118,6 +118,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func showSettingsWindowFromCommand() {
+        NSLog("[ShowBooksDebug] AppDelegate.showSettingsWindowFromCommand invoked")
         settingsWindowCoordinator?.showWindow()
     }
 
@@ -179,17 +180,21 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
     }
 
     func showWindow() {
+        NSLog("[ShowBooksDebug] SettingsWindowCoordinator.showWindow entered")
         NSApp.activate(ignoringOtherApps: true)
 
         if let existingWindow = settingsWindowController?.window {
+            NSLog("[ShowBooksDebug] SettingsWindowCoordinator.showWindow branch=reuseExisting")
             existingWindow.makeKeyAndOrderFront(nil)
             return
         }
 
         guard let appState else {
+            NSLog("[ShowBooksDebug] SettingsWindowCoordinator.showWindow branch=appStateNil")
             return
         }
 
+        NSLog("[ShowBooksDebug] SettingsWindowCoordinator.showWindow branch=createNew")
         let settingsView = SettingsView()
             .environmentObject(appState)
         let hostingController = NSHostingController(rootView: settingsView)
