@@ -140,6 +140,10 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
         self.appState = appState
     }
 
+    private func logShowBooksTrace(_ message: String) {
+        print("[ShowBooksTrace][SettingsWindowCoordinator] \(message)")
+    }
+
     func showWindow() {
         NSApp.activate(ignoringOtherApps: true)
 
@@ -154,7 +158,14 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
 
         let settingsView = SettingsView(
             showBooksAction: { [weak self] in
-                self?.showBooksWindow() ?? false
+                guard let self else {
+                    print("[ShowBooksTrace][SettingsWindowCoordinator] showBooksAction closure invoked but coordinator is nil")
+                    return false
+                }
+                self.logShowBooksTrace("showBooksAction closure invoked from SettingsView")
+                let handled = self.showBooksWindow()
+                self.logShowBooksTrace("showBooksAction closure returning handled=\(handled)")
+                return handled
             }
         )
             .environmentObject(appState)
@@ -169,20 +180,26 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
     }
 
     private func showBooksWindow() -> Bool {
+        logShowBooksTrace("showBooksWindow entered")
         NSApp.activate(ignoringOtherApps: true)
+        logShowBooksTrace("NSApp activated for books window presentation")
 
         if let existingWindow = booksWindowController?.window {
+            logShowBooksTrace("Existing books window found, bringing to front")
             existingWindow.makeKeyAndOrderFront(nil)
             return true
         }
 
         guard let appState else {
+            logShowBooksTrace("Cannot open books window: appState is nil")
             return false
         }
+        logShowBooksTrace("Creating new books window")
 
         let booksView = SettingsView(
             startInBooks: true,
             closeBooksAction: { [weak self] in
+                print("[ShowBooksTrace][SettingsWindowCoordinator] closeBooksAction invoked, closing books window")
                 self?.booksWindowController?.close()
             }
         )
@@ -190,11 +207,13 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
         let hostingController = NSHostingController(rootView: booksView)
         let window = NSWindow(contentViewController: hostingController)
         configureBooksWindow(window)
+        logShowBooksTrace("Configured books window")
 
         let controller = NSWindowController(window: window)
         booksWindowController = controller
         controller.showWindow(nil)
         window.makeKeyAndOrderFront(nil)
+        logShowBooksTrace("Books window shown and ordered front")
         return true
     }
 

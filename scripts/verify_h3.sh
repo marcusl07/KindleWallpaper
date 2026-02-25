@@ -29,7 +29,8 @@ require_pattern "$APP_FILE" "private[[:space:]]+func[[:space:]]+showBooksWindow\
 require_pattern "$APP_FILE" "startInBooks:[[:space:]]*true" "books window opens directly in books view"
 require_pattern "$APP_FILE" "closeBooksAction:[[:space:]]*\\{[[:space:]]*\\[weak[[:space:]]+self\\]" "books window close callback wiring"
 require_pattern "$APP_FILE" "showBooksAction:[[:space:]]*\\{[[:space:]]*\\[weak[[:space:]]+self\\][[:space:]]+in" "settings-to-books closure wiring"
-require_pattern "$APP_FILE" "self\\?\\.showBooksWindow\\(\\)[[:space:]]*\\?\\?[[:space:]]*false" "settings-to-books success/failure bridge"
+require_pattern "$APP_FILE" "let[[:space:]]+handled[[:space:]]*=[[:space:]]*self\\.showBooksWindow\\(\\)" "settings-to-books success/failure bridge"
+require_pattern "$APP_FILE" "return[[:space:]]+handled" "settings-to-books handled return"
 require_pattern "$APP_FILE" "booksWindowController\\?[[:space:]]*\\.[[:space:]]*window[[:space:]]*===[[:space:]]*closedWindow" "books window close cleanup"
 
 swiftc -frontend -parse "$SETTINGS_FILE"

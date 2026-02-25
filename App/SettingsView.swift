@@ -28,6 +28,10 @@ struct SettingsView: View {
         _route = State(initialValue: startInBooks ? .books : .main)
     }
 
+    private func logShowBooksTrace(_ message: String) {
+        print("[ShowBooksTrace][SettingsView] \(message)")
+    }
+
     var body: some View {
         Group {
             switch route {
@@ -146,9 +150,15 @@ struct SettingsView: View {
             }
 
             Button("Show Books...") {
+                logShowBooksTrace("Tap received. route=\(route) hasShowBooksAction=\(showBooksAction != nil)")
                 let handled = showBooksAction?() ?? false
+                logShowBooksTrace("Closure result handled=\(handled)")
                 if !handled {
+                    logShowBooksTrace("Falling back to in-view route transition -> books")
                     route = .books
+                    logShowBooksTrace("Route now \(route)")
+                } else {
+                    logShowBooksTrace("External books presentation handled the tap")
                 }
             }
         }
