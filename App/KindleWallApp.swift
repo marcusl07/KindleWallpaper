@@ -111,6 +111,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSLog("[ShowBooksDebug] applicationDidFinishLaunching")
         NSApp.setActivationPolicy(.accessory)
         hasFinishedLaunching = true
         installStatusItemIfNeeded()
@@ -172,7 +173,7 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            print("[ShowBooksDebug] observer received .kindleWallShowBooksWindow")
+            NSLog("[ShowBooksDebug] observer received .kindleWallShowBooksWindow")
             self?.showBooksWindow()
         }
     }
@@ -202,21 +203,21 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
     }
 
     private func showBooksWindow() {
-        print("[ShowBooksDebug] showBooksWindow entered")
+        NSLog("[ShowBooksDebug] showBooksWindow entered")
         NSApp.activate(ignoringOtherApps: true)
 
         if let existingWindow = booksWindowController?.window {
-            print("[ShowBooksDebug] showBooksWindow branch=reuseExisting")
+            NSLog("[ShowBooksDebug] showBooksWindow branch=reuseExisting")
             existingWindow.makeKeyAndOrderFront(nil)
             return
         }
 
         guard let appState else {
-            print("[ShowBooksDebug] showBooksWindow branch=appStateNil")
+            NSLog("[ShowBooksDebug] showBooksWindow branch=appStateNil")
             return
         }
 
-        print("[ShowBooksDebug] showBooksWindow branch=createNew")
+        NSLog("[ShowBooksDebug] showBooksWindow branch=createNew")
         let booksView = BooksListView()
             .environmentObject(appState)
         let hostingController = NSHostingController(rootView: booksView)
