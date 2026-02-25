@@ -321,6 +321,7 @@ struct SettingsView: View {
 
 enum BooksWindowPresentation {
     static func requestShowWindow(notificationCenter: NotificationCenter = .default) {
+        print("[ShowBooksDebug] requestShowWindow posting .kindleWallShowBooksWindow")
         notificationCenter.post(name: .kindleWallShowBooksWindow, object: nil)
     }
 }
