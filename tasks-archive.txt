@@ -264,3 +264,36 @@ Verification:
 - Added deterministic `scripts/verify_h4.sh` coverage for missing/unreadable/decode-failed/success outcomes.
 - Added coverage that warnings are deduped and cache invalidates when file identity changes.
 - Added wallpaper-generator fallback-path coverage when background decode fails.
+
+
+### ✅ H3 (Books UI) — "Show Books..." button does nothing
+Reported by user from the settings/library UI.
+
+Current observed behavior:
+- Clicking `Show Books...` had no visible effect.
+- No books list window/panel appeared.
+
+Expected behavior:
+- Clicking `Show Books...` opens the books management view/window.
+- If already open, clicking should bring it to front.
+
+Repro steps:
+1. Open the UI section that shows `21 of 23 books enabled`.
+2. Click `Show Books...`.
+3. Observe that nothing opens or changes.
+
+Root cause:
+- `Show Books...` only toggled local in-view route state.
+- In menu-bar usage, users expected window/panel presentation behavior, not an in-place route transition.
+
+Implemented fix:
+- Added injected settings actions in `SettingsView`:
+  - `showBooksAction` for deterministic books presentation.
+  - `closeBooksAction` for standalone books-window dismiss.
+- Updated `SettingsWindowCoordinator` to own and reuse a dedicated books window controller.
+- Wired `Show Books...` in the settings window to open/focus that books window.
+- Kept route-based in-view books navigation as fallback when no coordinator action is provided.
+
+Verification:
+- Added `scripts/verify_h3.sh` for wiring checks across `SettingsView` and `SettingsWindowCoordinator`.
+- Verified parse correctness for modified Swift files.

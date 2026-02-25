@@ -130,6 +130,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
 private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
     private weak var appState: AppState?
     private var settingsWindowController: NSWindowController?
+    private var booksWindowController: NSWindowController?
 
     init(appState: AppState) {
         self.appState = appState
@@ -151,11 +152,15 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
             return
         }
 
-        let settingsView = SettingsView()
+        let settingsView = SettingsView(
+            showBooksAction: { [weak self] in
+                self?.showBooksWindow()
+            }
+        )
             .environmentObject(appState)
         let hostingController = NSHostingController(rootView: settingsView)
         let window = NSWindow(contentViewController: hostingController)
-        configure(window: window)
+        configureSettingsWindow(window)
 
         let controller = NSWindowController(window: window)
         settingsWindowController = controller
@@ -163,8 +168,47 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
         window.makeKeyAndOrderFront(nil)
     }
 
-    private func configure(window: NSWindow) {
+    private func showBooksWindow() {
+        NSApp.activate(ignoringOtherApps: true)
+
+        if let existingWindow = booksWindowController?.window {
+            existingWindow.makeKeyAndOrderFront(nil)
+            return
+        }
+
+        guard let appState else {
+            return
+        }
+
+        let booksView = SettingsView(
+            startInBooks: true,
+            closeBooksAction: { [weak self] in
+                self?.booksWindowController?.close()
+            }
+        )
+            .environmentObject(appState)
+        let hostingController = NSHostingController(rootView: booksView)
+        let window = NSWindow(contentViewController: hostingController)
+        configureBooksWindow(window)
+
+        let controller = NSWindowController(window: window)
+        booksWindowController = controller
+        controller.showWindow(nil)
+        window.makeKeyAndOrderFront(nil)
+    }
+
+    private func configureSettingsWindow(_ window: NSWindow) {
         window.title = "Settings"
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        window.setContentSize(NSSize(width: 760, height: 560))
+        window.center()
+        window.canHide = false
+        window.hidesOnDeactivate = false
+        window.delegate = self
+    }
+
+    private func configureBooksWindow(_ window: NSWindow) {
+        window.title = "Books"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.setContentSize(NSSize(width: 760, height: 560))
         window.center()
@@ -177,10 +221,13 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
         guard let closedWindow = notification.object as? NSWindow else {
             return
         }
-        guard settingsWindowController?.window === closedWindow else {
+        if settingsWindowController?.window === closedWindow {
+            settingsWindowController = nil
             return
         }
-        settingsWindowController = nil
+        if booksWindowController?.window === closedWindow {
+            booksWindowController = nil
+        }
     }
 }
 

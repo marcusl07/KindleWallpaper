@@ -10,10 +10,23 @@ struct SettingsView: View {
         case books
     }
 
+    private let showBooksAction: (() -> Void)?
+    private let closeBooksAction: (() -> Void)?
+
     @EnvironmentObject private var appState: AppState
     @State private var backgroundImageURL: URL? = nil
     @State private var backgroundImageError: String? = nil
-    @State private var route: SettingsRoute = .main
+    @State private var route: SettingsRoute
+
+    init(
+        startInBooks: Bool = false,
+        showBooksAction: (() -> Void)? = nil,
+        closeBooksAction: (() -> Void)? = nil
+    ) {
+        self.showBooksAction = showBooksAction
+        self.closeBooksAction = closeBooksAction
+        _route = State(initialValue: startInBooks ? .books : .main)
+    }
 
     var body: some View {
         Group {
@@ -45,8 +58,14 @@ struct SettingsView: View {
     private var booksManagementContent: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Button("Back") {
-                    route = .main
+                if let closeBooksAction {
+                    Button("Done") {
+                        closeBooksAction()
+                    }
+                } else {
+                    Button("Back") {
+                        route = .main
+                    }
                 }
                 Spacer()
                 Text("Books")
@@ -127,7 +146,11 @@ struct SettingsView: View {
             }
 
             Button("Show Books...") {
-                route = .books
+                if let showBooksAction {
+                    showBooksAction()
+                } else {
+                    route = .books
+                }
             }
         }
     }
