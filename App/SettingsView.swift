@@ -12,11 +12,6 @@ struct SettingsView: View {
     var body: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 20) {
-                Button("Show Books...") {
-                    presentBooksWindowDirectly()
-                }
-                .border(Color.red)
-
                 importSection
                 booksSection
                 backgroundSection
@@ -69,7 +64,13 @@ struct SettingsView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
+
+            Button("Show Books...") {
+                presentBooksWindowDirectly()
+            }
+            .border(Color.red)
         }
+        .border(Color.blue)
     }
 
     private var backgroundSection: some View {
