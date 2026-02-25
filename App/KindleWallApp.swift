@@ -144,17 +144,36 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
     private weak var appState: AppState?
     private var settingsWindowController: NSWindowController?
     private var booksWindowController: NSWindowController?
+    private var booksWindowObserver: NSObjectProtocol?
 
     init(appState: AppState) {
         self.appState = appState
+        super.init()
+        installBooksWindowObserver()
+    }
+
+    deinit {
+        if let booksWindowObserver {
+            NotificationCenter.default.removeObserver(booksWindowObserver)
+        }
     }
 
     func setAppState(_ appState: AppState) {
         self.appState = appState
     }
 
-    private func logShowBooksTrace(_ message: String) {
-        print("[ShowBooksTrace][SettingsWindowCoordinator] \(message)")
+    private func installBooksWindowObserver() {
+        guard booksWindowObserver == nil else {
+            return
+        }
+
+        booksWindowObserver = NotificationCenter.default.addObserver(
+            forName: .kindleWallShowBooksWindow,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.showBooksWindow()
+        }
     }
 
     func showWindow() {
@@ -169,18 +188,7 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
             return
         }
 
-        let settingsView = SettingsView(
-            showBooksAction: { [weak self] in
-                guard let self else {
-                    print("[ShowBooksTrace][SettingsWindowCoordinator] showBooksAction closure invoked but coordinator is nil")
-                    return false
-                }
-                self.logShowBooksTrace("showBooksAction closure invoked from SettingsView")
-                let handled = self.showBooksWindow()
-                self.logShowBooksTrace("showBooksAction closure returning handled=\(handled)")
-                return handled
-            }
-        )
+        let settingsView = SettingsView()
             .environmentObject(appState)
         let hostingController = NSHostingController(rootView: settingsView)
         let window = NSWindow(contentViewController: hostingController)
@@ -192,42 +200,28 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
         window.makeKeyAndOrderFront(nil)
     }
 
-    private func showBooksWindow() -> Bool {
-        logShowBooksTrace("showBooksWindow entered")
+    private func showBooksWindow() {
         NSApp.activate(ignoringOtherApps: true)
-        logShowBooksTrace("NSApp activated for books window presentation")
 
         if let existingWindow = booksWindowController?.window {
-            logShowBooksTrace("Existing books window found, bringing to front")
             existingWindow.makeKeyAndOrderFront(nil)
-            return true
+            return
         }
 
         guard let appState else {
-            logShowBooksTrace("Cannot open books window: appState is nil")
-            return false
+            return
         }
-        logShowBooksTrace("Creating new books window")
 
-        let booksView = SettingsView(
-            startInBooks: true,
-            closeBooksAction: { [weak self] in
-                print("[ShowBooksTrace][SettingsWindowCoordinator] closeBooksAction invoked, closing books window")
-                self?.booksWindowController?.close()
-            }
-        )
+        let booksView = BooksListView()
             .environmentObject(appState)
         let hostingController = NSHostingController(rootView: booksView)
         let window = NSWindow(contentViewController: hostingController)
         configureBooksWindow(window)
-        logShowBooksTrace("Configured books window")
 
         let controller = NSWindowController(window: window)
         booksWindowController = controller
         controller.showWindow(nil)
         window.makeKeyAndOrderFront(nil)
-        logShowBooksTrace("Books window shown and ordered front")
-        return true
     }
 
     private func configureSettingsWindow(_ window: NSWindow) {

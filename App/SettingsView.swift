@@ -5,47 +5,11 @@ import UniformTypeIdentifiers
 #endif
 
 struct SettingsView: View {
-    private enum SettingsRoute {
-        case main
-        case books
-    }
-
-    private let showBooksAction: (() -> Bool)?
-    private let closeBooksAction: (() -> Void)?
-
     @EnvironmentObject private var appState: AppState
     @State private var backgroundImageURL: URL? = nil
     @State private var backgroundImageError: String? = nil
-    @State private var route: SettingsRoute
-
-    init(
-        startInBooks: Bool = false,
-        showBooksAction: (() -> Bool)? = nil,
-        closeBooksAction: (() -> Void)? = nil
-    ) {
-        self.showBooksAction = showBooksAction
-        self.closeBooksAction = closeBooksAction
-        _route = State(initialValue: startInBooks ? .books : .main)
-    }
-
-    private func logShowBooksTrace(_ message: String) {
-        print("[ShowBooksTrace][SettingsView] \(message)")
-    }
 
     var body: some View {
-        Group {
-            switch route {
-            case .main:
-                mainSettingsContent
-            case .books:
-                booksManagementContent
-            }
-        }
-        .frame(minWidth: 680, maxWidth: .infinity, minHeight: 520, maxHeight: .infinity, alignment: .topLeading)
-        .onAppear(perform: refreshBackgroundThumbnail)
-    }
-
-    private var mainSettingsContent: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 20) {
                 importSection
@@ -57,59 +21,8 @@ struct SettingsView: View {
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-    }
-
-    private var booksManagementContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                if let closeBooksAction {
-                    Button("Done") {
-                        closeBooksAction()
-                    }
-                } else {
-                    Button("Back") {
-                        route = .main
-                    }
-                }
-                Spacer()
-                Text("Books")
-                    .font(.headline)
-            }
-
-            HStack(spacing: 12) {
-                Button("Select All") {
-                    appState.setAllBooksEnabled(true)
-                }
-                .disabled(appState.books.isEmpty || appState.books.allSatisfy(\.isEnabled))
-
-                Button("Deselect All") {
-                    appState.setAllBooksEnabled(false)
-                }
-                .disabled(appState.books.isEmpty || appState.books.allSatisfy { !$0.isEnabled })
-            }
-
-            List {
-                if appState.books.isEmpty {
-                    Text("No books imported yet.")
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else {
-                    ForEach(appState.books) { book in
-                        bookRow(book)
-                    }
-                }
-            }
-            .listStyle(.inset)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            if allBooksDeselectedWarningVisible {
-                Text("All books are deselected. Wallpaper rotation has no active quote pool.")
-                    .font(.callout)
-                    .foregroundStyle(.orange)
-            }
-        }
-        .padding(20)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(minWidth: 680, maxWidth: .infinity, minHeight: 520, maxHeight: .infinity, alignment: .topLeading)
+        .onAppear(perform: refreshBackgroundThumbnail)
     }
 
     private var importSection: some View {
@@ -150,16 +63,7 @@ struct SettingsView: View {
             }
 
             Button("Show Books...") {
-                logShowBooksTrace("Tap received. route=\(route) hasShowBooksAction=\(showBooksAction != nil)")
-                let handled = showBooksAction?() ?? false
-                logShowBooksTrace("Closure result handled=\(handled)")
-                if !handled {
-                    logShowBooksTrace("Falling back to in-view route transition -> books")
-                    route = .books
-                    logShowBooksTrace("Route now \(route)")
-                } else {
-                    logShowBooksTrace("External books presentation handled the tap")
-                }
+                BooksWindowPresentation.requestShowWindow()
             }
         }
     }
@@ -410,12 +314,67 @@ struct SettingsView: View {
         #endif
     }
 
-    private var allBooksDeselectedWarningVisible: Bool {
-        !appState.books.isEmpty && appState.books.allSatisfy { !$0.isEnabled }
-    }
-
     private var enabledBookCount: Int {
         appState.books.filter(\.isEnabled).count
+    }
+}
+
+enum BooksWindowPresentation {
+    static func requestShowWindow(notificationCenter: NotificationCenter = .default) {
+        notificationCenter.post(name: .kindleWallShowBooksWindow, object: nil)
+    }
+}
+
+extension Notification.Name {
+    static let kindleWallShowBooksWindow = Notification.Name("kindleWallShowBooksWindow")
+}
+
+struct BooksListView: View {
+    @EnvironmentObject private var appState: AppState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Books")
+                .font(.headline)
+
+            HStack(spacing: 12) {
+                Button("Select All") {
+                    appState.setAllBooksEnabled(true)
+                }
+                .disabled(appState.books.isEmpty || appState.books.allSatisfy(\.isEnabled))
+
+                Button("Deselect All") {
+                    appState.setAllBooksEnabled(false)
+                }
+                .disabled(appState.books.isEmpty || appState.books.allSatisfy { !$0.isEnabled })
+            }
+
+            List {
+                if appState.books.isEmpty {
+                    Text("No books imported yet.")
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    ForEach(appState.books) { book in
+                        bookRow(book)
+                    }
+                }
+            }
+            .listStyle(.inset)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            if allBooksDeselectedWarningVisible {
+                Text("All books are deselected. Wallpaper rotation has no active quote pool.")
+                    .font(.callout)
+                    .foregroundStyle(.orange)
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var allBooksDeselectedWarningVisible: Bool {
+        !appState.books.isEmpty && appState.books.allSatisfy { !$0.isEnabled }
     }
 
     private func bookRow(_ book: Book) -> some View {
@@ -437,10 +396,11 @@ struct SettingsView: View {
     private func bindingForBook(_ book: Book) -> Binding<Bool> {
         Binding(
             get: {
-                book.isEnabled
+                appState.books.first(where: { $0.id == book.id })?.isEnabled ?? false
             },
             set: { enabled in
-                guard book.isEnabled != enabled else {
+                let currentEnabled = appState.books.first(where: { $0.id == book.id })?.isEnabled ?? false
+                guard currentEnabled != enabled else {
                     return
                 }
                 appState.setBookEnabled(id: book.id, enabled: enabled)
