@@ -10,16 +10,14 @@ struct SettingsView: View {
     @State private var backgroundImageError: String? = nil
 
     var body: some View {
-        ScrollView(.vertical) {
-            VStack(alignment: .leading, spacing: 20) {
-                booksSection
-                backgroundSection
-                scheduleSection
-                aboutSection
-            }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+        VStack(alignment: .leading, spacing: 20) {
+            booksSection
+            backgroundSection
+            scheduleSection
+            aboutSection
         }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
         .frame(minWidth: 680, maxWidth: .infinity, minHeight: 520, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
             NSLog("[ShowBooksDebug] SettingsView.onAppear")
