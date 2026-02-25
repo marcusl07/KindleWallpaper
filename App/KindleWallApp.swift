@@ -29,9 +29,18 @@ struct KindleWallApp: App {
 
     var body: some Scene {
         Settings {
-            SettingsView()
-                .environmentObject(appState)
+            EmptyView()
         }
+        #if canImport(AppKit)
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Open Settings...") {
+                    appDelegate.showSettingsWindowFromCommand()
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
+        }
+        #endif
     }
 
     private static func makeAppState() -> AppState {
@@ -105,6 +114,10 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         hasFinishedLaunching = true
         installStatusItemIfNeeded()
+    }
+
+    func showSettingsWindowFromCommand() {
+        settingsWindowCoordinator?.showWindow()
     }
 
     private func installStatusItemIfNeeded() {
