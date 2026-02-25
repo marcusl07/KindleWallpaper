@@ -16,22 +16,42 @@ final class AppState: ObservableObject {
 
     struct WallpaperRotationPlan {
         let targets: [WallpaperTarget]
-        private let applyGeneratedWallpapers: ([GeneratedWallpaper]) -> Void
+        private let applyGeneratedWallpapers: ([GeneratedWallpaper]) throws -> Void
 
-        init(targets: [WallpaperTarget], applyGeneratedWallpapers: @escaping ([GeneratedWallpaper]) -> Void) {
+        init(targets: [WallpaperTarget], applyGeneratedWallpapers: @escaping ([GeneratedWallpaper]) throws -> Void) {
             self.targets = targets
             self.applyGeneratedWallpapers = applyGeneratedWallpapers
         }
 
-        func apply(_ generatedWallpapers: [GeneratedWallpaper]) {
-            applyGeneratedWallpapers(generatedWallpapers)
+        func apply(_ generatedWallpapers: [GeneratedWallpaper]) throws {
+            try applyGeneratedWallpapers(generatedWallpapers)
+        }
+    }
+
+    enum WallpaperApplyFailureReason: Equatable {
+        case noTargets
+        case generatedTargetMismatch
+        case applyError
+    }
+
+    enum WallpaperRotationOutcome: Equatable {
+        case success
+        case alreadyInProgress
+        case noActivePool
+        case wallpaperApplyFailure(WallpaperApplyFailureReason)
+
+        var didRotate: Bool {
+            if case .success = self {
+                return true
+            }
+            return false
         }
     }
 
     typealias PickNextHighlight = () -> Highlight?
     typealias LoadBackgroundImageURL = () -> URL?
     typealias GenerateWallpaper = (Highlight, URL?) -> URL
-    typealias SetWallpaper = (URL) -> Void
+    typealias SetWallpaper = (URL) throws -> Void
     typealias PrepareWallpaperRotation = () -> WallpaperRotationPlan?
     typealias GenerateWallpapers = (Highlight, URL?, [WallpaperTarget]) -> [GeneratedWallpaper]
     typealias MarkHighlightShown = (UUID) -> Void
@@ -109,8 +129,13 @@ final class AppState: ObservableObject {
 
     @discardableResult
     func rotateWallpaper() -> Bool {
+        rotateWallpaperWithOutcome().didRotate
+    }
+
+    @discardableResult
+    func rotateWallpaperWithOutcome() -> WallpaperRotationOutcome {
         guard !isRotationInProgress else {
-            return false
+            return .alreadyInProgress
         }
 
         isRotationInProgress = true
@@ -119,7 +144,7 @@ final class AppState: ObservableObject {
         }
 
         guard let highlight = pickNextHighlight() else {
-            return false
+            return .noActivePool
         }
 
         let backgroundURL = loadBackgroundImageURL()
@@ -130,7 +155,7 @@ final class AppState: ObservableObject {
         {
             let targets = rotationPlan.targets
             guard !targets.isEmpty else {
-                return false
+                return .wallpaperApplyFailure(.noTargets)
             }
 
             let generatedWallpapers = generateWallpapers(highlight, backgroundURL, targets)
@@ -141,13 +166,21 @@ final class AppState: ObservableObject {
                 generatedWallpapers.count == targets.count,
                 generatedIdentifiers == targetIdentifiers
             else {
-                return false
+                return .wallpaperApplyFailure(.generatedTargetMismatch)
             }
 
-            rotationPlan.apply(generatedWallpapers)
+            do {
+                try rotationPlan.apply(generatedWallpapers)
+            } catch {
+                return .wallpaperApplyFailure(.applyError)
+            }
         } else {
-            let wallpaperURL = generateWallpaper(highlight, backgroundURL)
-            setWallpaper(wallpaperURL)
+            do {
+                let wallpaperURL = generateWallpaper(highlight, backgroundURL)
+                try setWallpaper(wallpaperURL)
+            } catch {
+                return .wallpaperApplyFailure(.applyError)
+            }
         }
 
         markHighlightShown(highlight.id)
@@ -156,7 +189,7 @@ final class AppState: ObservableObject {
         userDefaults.lastChangedAt = changedAt
         lastChangedAt = changedAt
         currentQuotePreview = highlight.quoteText
-        return true
+        return .success
     }
 
     func setImportStatus(_ message: String, isError: Bool) {
@@ -229,7 +262,7 @@ extension AppState {
                 wallpaperGenerator.generateWallpaper(highlight: highlight, backgroundURL: backgroundURL)
             },
             setWallpaper: { imageURL in
-                WallpaperSetter.setWallpaper(imageURL: imageURL)
+                try WallpaperSetter.trySetWallpaper(imageURL: imageURL)
             },
             prepareWallpaperRotation: {
                 let resolvedScreens = WallpaperSetter.resolvedConnectedScreens()
@@ -251,7 +284,7 @@ extension AppState {
                             imageURL: generated.fileURL
                         )
                     }
-                    WallpaperSetter.setWallpapers(assignments: assignments, on: resolvedScreens)
+                    try WallpaperSetter.trySetWallpapers(assignments: assignments, on: resolvedScreens)
                 }
             },
             generateWallpapers: { highlight, backgroundURL, targets in

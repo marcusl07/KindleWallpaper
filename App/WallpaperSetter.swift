@@ -88,9 +88,9 @@ enum WallpaperSetter {
         }
     ) {
         do {
-            try applyWallpapers(
+            try trySetWallpapers(
                 assignments: assignments,
-                resolvedScreens: resolvedScreens,
+                on: resolvedScreens,
                 setDesktopImage: setDesktopImage
             )
         } catch {
@@ -106,14 +106,28 @@ enum WallpaperSetter {
         }
     ) {
         do {
-            try applyWallpapers(
+            try trySetWallpapers(
                 assignments: assignments,
-                resolvedScreens: resolvedConnectedScreens(screensProvider: screensProvider),
+                on: resolvedConnectedScreens(screensProvider: screensProvider),
                 setDesktopImage: setDesktopImage
             )
         } catch {
             fatalError("Failed to set wallpaper for targeted screens: \(error)")
         }
+    }
+
+    static func trySetWallpapers(
+        assignments: [WallpaperAssignment],
+        on resolvedScreens: [ResolvedScreen<NSScreen>],
+        setDesktopImage: (URL, NSScreen) throws -> Void = { url, screen in
+            try NSWorkspace.shared.setDesktopImageURL(url, for: screen, options: [:])
+        }
+    ) throws {
+        try applyWallpapers(
+            assignments: assignments,
+            resolvedScreens: resolvedScreens,
+            setDesktopImage: setDesktopImage
+        )
     }
 
     static func setWallpaper(
@@ -124,10 +138,24 @@ enum WallpaperSetter {
         }
     ) {
         do {
-            try applyWallpaper(imageURL: imageURL, screens: screensProvider(), setDesktopImage: setDesktopImage)
+            try trySetWallpaper(
+                imageURL: imageURL,
+                screensProvider: screensProvider,
+                setDesktopImage: setDesktopImage
+            )
         } catch {
             fatalError("Failed to set wallpaper for all screens: \(error)")
         }
+    }
+
+    static func trySetWallpaper(
+        imageURL: URL,
+        screensProvider: () -> [NSScreen] = { NSScreen.screens },
+        setDesktopImage: (URL, NSScreen) throws -> Void = { url, screen in
+            try NSWorkspace.shared.setDesktopImageURL(url, for: screen, options: [:])
+        }
+    ) throws {
+        try applyWallpaper(imageURL: imageURL, screens: screensProvider(), setDesktopImage: setDesktopImage)
     }
 
     static func applyWallpapers<Screen>(
