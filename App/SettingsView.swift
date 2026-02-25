@@ -51,23 +51,9 @@ struct SettingsView: View {
     }
 
     private var booksSection: some View {
-        sectionContainer(title: "Books") {
-            if appState.books.isEmpty {
-                Text("No books imported yet.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            } else {
-                Text("\(enabledBookCount) of \(appState.books.count) books enabled")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-
-            Button("Show Books...") {
-                presentBooksWindowDirectly()
-            }
-            .border(Color.red)
+        Button("Show Books...") {
+            presentBooksWindowDirectly()
         }
-        .border(Color.blue)
     }
 
     private var backgroundSection: some View {
