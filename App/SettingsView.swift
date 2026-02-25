@@ -10,14 +10,17 @@ struct SettingsView: View {
     @State private var backgroundImageError: String? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            booksSection
-            backgroundSection
-            scheduleSection
-            aboutSection
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 20) {
+                importSection
+                booksSection
+                backgroundSection
+                scheduleSection
+                aboutSection
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
         .frame(minWidth: 680, maxWidth: .infinity, minHeight: 520, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
             NSLog("[ShowBooksDebug] SettingsView.onAppear")
@@ -51,14 +54,21 @@ struct SettingsView: View {
     }
 
     private var booksSection: some View {
-        Button("Show Books...") {
-            presentBooksWindowDirectly()
+        sectionContainer(title: "Books") {
+            Text("\(enabledBookCount) of \(appState.books.count) books enabled")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+
+            Button("Show Books...") {
+                presentBooksWindowDirectly()
+            }
         }
     }
 
     private var backgroundSection: some View {
         sectionContainer(title: "Background Image") {
             backgroundPreview
+                .allowsHitTesting(false)
 
             if let backgroundImageError {
                 Text(backgroundImageError)
@@ -134,16 +144,22 @@ struct SettingsView: View {
     private var backgroundPreview: some View {
         #if canImport(AppKit)
         if let image = loadPreviewImage() {
-            Image(nsImage: image)
-                .resizable()
-                .scaledToFill()
-                .frame(height: 160)
-                .frame(maxWidth: .infinity)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.black.opacity(0.12), lineWidth: 1)
-                )
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.black.opacity(0.22))
+
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: 160)
+                    .padding(6)
+            }
+            .frame(height: 160)
+            .frame(maxWidth: .infinity)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.black.opacity(0.12), lineWidth: 1)
+            )
         } else {
             placeholderBackgroundPreview
         }
