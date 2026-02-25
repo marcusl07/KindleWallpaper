@@ -6,9 +6,6 @@ This file is the working context for agents. When an item is completed, move it 
 
 ## Phase 10 — Stabilization, Reliability, and Performance
 
-**T40 — Create `SettingsWindowCoordinator` boundary**
-Extract settings-window lifecycle management out of `AppDelegate` into a dedicated coordinator that owns create/show/reuse/teardown behavior for the settings window.
-
 **T41 — Fix settings window persistence across app deactivation**
 Ensure the settings window remains open (non-key but visible) when user clicks away to another app and only closes when explicitly closed by user.
 

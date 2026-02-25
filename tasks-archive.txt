@@ -297,3 +297,8 @@ Implemented fix:
 Verification:
 - Added `scripts/verify_h3.sh` for wiring checks across `SettingsView` and `SettingsWindowCoordinator`.
 - Verified parse correctness for modified Swift files.
+
+**T40 — Create `SettingsWindowCoordinator` boundary**
+Extract settings-window lifecycle management out of `AppDelegate` into a dedicated coordinator that owns create/show/reuse/teardown behavior for the settings window.
+
+
