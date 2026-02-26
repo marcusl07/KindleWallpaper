@@ -3,6 +3,7 @@ import SwiftUI
 import AppKit
 #endif
 
+#if !TESTING
 @main
 @MainActor
 struct KindleWallApp: App {
@@ -96,6 +97,7 @@ struct KindleWallApp: App {
 
     #endif
 }
+#endif
 
 #if canImport(AppKit)
 @MainActor
@@ -322,6 +324,74 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
         }
     }
 }
+
+#if TESTING
+@MainActor
+private extension SettingsWindowCoordinator {
+    func testCloseSettingsWindow() {
+        settingsWindowController?.window?.close()
+    }
+
+    var testSettingsWindowControllerIdentifier: ObjectIdentifier? {
+        settingsWindowController.map(ObjectIdentifier.init)
+    }
+
+    var testSettingsWindowIdentifier: ObjectIdentifier? {
+        settingsWindowController?.window.map(ObjectIdentifier.init)
+    }
+
+    var testIsSettingsWindowVisible: Bool {
+        settingsWindowController?.window?.isVisible ?? false
+    }
+}
+
+@MainActor
+struct SettingsWindowCoordinatorTestProbe {
+    private let retainedAppState: AppState
+    private let coordinator: SettingsWindowCoordinator
+
+    init(appState: AppState) {
+        _ = NSApplication.shared
+        retainedAppState = appState
+        coordinator = SettingsWindowCoordinator(appState: appState)
+    }
+
+    func showWindow() {
+        coordinator.showWindow()
+        flushMainRunLoop()
+    }
+
+    func closeSettingsWindow() {
+        coordinator.testCloseSettingsWindow()
+        flushMainRunLoop()
+    }
+
+    func simulateAppDeactivation() {
+        NotificationCenter.default.post(
+            name: NSApplication.didResignActiveNotification,
+            object: NSApp
+        )
+        flushMainRunLoop()
+    }
+
+    var settingsWindowControllerIdentifier: ObjectIdentifier? {
+        coordinator.testSettingsWindowControllerIdentifier
+    }
+
+    var settingsWindowIdentifier: ObjectIdentifier? {
+        coordinator.testSettingsWindowIdentifier
+    }
+
+    var isSettingsWindowVisible: Bool {
+        coordinator.testIsSettingsWindowVisible
+    }
+}
+
+@MainActor
+private func flushMainRunLoop() {
+    RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+}
+#endif
 
 @MainActor
 private final class StatusItemController: NSObject {

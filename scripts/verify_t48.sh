@@ -62,4 +62,25 @@ swiftc \
   "$ROOT_DIR/Models/Book.swift" \
   "$ROOT_DIR/Models/Highlight.swift"
 
+cp "$ROOT_DIR/scripts/verify_t48_main.swift" "$TMP_DIR/main.swift"
+
+swiftc \
+  -module-cache-path "$TMP_DIR/module-cache" \
+  -D TESTING \
+  "$TMP_DIR/main.swift" \
+  "$ROOT_DIR/App/ScheduleSettings.swift" \
+  "$ROOT_DIR/App/AppState.swift" \
+  "$ROOT_DIR/App/AppSupportPaths.swift" \
+  "$ROOT_DIR/App/BackgroundImageStore.swift" \
+  "$ROOT_DIR/App/SettingsView.swift" \
+  "$ROOT_DIR/App/MenuBarView.swift" \
+  "$ROOT_DIR/App/WallpaperScheduler.swift" \
+  "$ROOT_DIR/App/VolumeWatcher.swift" \
+  "$ROOT_DIR/App/KindleWallApp.swift" \
+  "$ROOT_DIR/Models/Book.swift" \
+  "$ROOT_DIR/Models/Highlight.swift" \
+  -o "$TMP_DIR/verify_t48_main"
+
+"$TMP_DIR/verify_t48_main"
+
 echo "T48 verification passed"
