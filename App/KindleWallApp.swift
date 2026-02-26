@@ -18,7 +18,14 @@ struct KindleWallApp: App {
         _appState = StateObject(wrappedValue: appState)
 
         wallpaperScheduler = WallpaperScheduler(rotateWallpaper: { [weak appState] in
-            appState?.rotateWallpaper() ?? false
+            guard let appState else {
+                return false
+            }
+
+            Task { @MainActor in
+                _ = appState.requestWallpaperRotation()
+            }
+            return true
         })
 
         #if canImport(AppKit)
@@ -135,7 +142,9 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.settingsWindowCoordinator?.showWindow()
             },
             rotateWallpaper: { [weak appState] in
-                appState?.rotateWallpaper()
+                Task { @MainActor in
+                    _ = appState?.requestWallpaperRotation()
+                }
             }
         )
     }

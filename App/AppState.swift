@@ -1,6 +1,13 @@
 import Combine
+import Dispatch
 import Foundation
 
+private let wallpaperRotationQueue = DispatchQueue(
+    label: "KindleWall.AppState.WallpaperRotation",
+    qos: .userInitiated
+)
+
+@MainActor
 final class AppState: ObservableObject {
     struct WallpaperTarget: Equatable {
         let identifier: String
@@ -59,6 +66,8 @@ final class AppState: ObservableObject {
     typealias SetAllBooksEnabled = (Bool) -> Void
     typealias FetchAllBooks = () -> [Book]
     typealias FetchTotalHighlightCount = () -> Int
+    typealias ExecuteRotationWork = (@escaping () -> Void) -> Void
+    typealias DeliverRotationResult = (@escaping () -> Void) -> Void
     typealias Now = () -> Date
 
     @Published private(set) var currentQuotePreview: String
@@ -82,9 +91,19 @@ final class AppState: ObservableObject {
     private let setAllBooksEnabledAction: SetAllBooksEnabled
     private let fetchAllBooks: FetchAllBooks
     private let fetchTotalHighlightCount: FetchTotalHighlightCount
+    private let executeRotationWork: ExecuteRotationWork
+    private let deliverRotationResult: DeliverRotationResult
     private let now: Now
     private var isRotationInProgress = false
     private let bookMutationLock = NSLock()
+
+    nonisolated private static func enqueueRotationWork(_ work: @escaping () -> Void) {
+        wallpaperRotationQueue.async(execute: work)
+    }
+
+    nonisolated private static func deliverRotationResultOnMain(_ work: @escaping () -> Void) {
+        DispatchQueue.main.async(execute: work)
+    }
 
     init(
         userDefaults: UserDefaults = .standard,
@@ -105,6 +124,8 @@ final class AppState: ObservableObject {
         setAllBooksEnabled: @escaping SetAllBooksEnabled = { _ in },
         fetchAllBooks: @escaping FetchAllBooks = { [] },
         fetchTotalHighlightCount: @escaping FetchTotalHighlightCount = { 0 },
+        executeRotationWork: @escaping ExecuteRotationWork = AppState.enqueueRotationWork,
+        deliverRotationResult: @escaping DeliverRotationResult = AppState.deliverRotationResultOnMain,
         now: @escaping Now = Date.init
     ) {
         self.userDefaults = userDefaults
@@ -127,12 +148,35 @@ final class AppState: ObservableObject {
         self.setAllBooksEnabledAction = setAllBooksEnabled
         self.fetchAllBooks = fetchAllBooks
         self.fetchTotalHighlightCount = fetchTotalHighlightCount
+        self.executeRotationWork = executeRotationWork
+        self.deliverRotationResult = deliverRotationResult
         self.now = now
     }
 
     @discardableResult
     func rotateWallpaper() -> Bool {
         rotateWallpaperWithOutcome().didRotate
+    }
+
+    @discardableResult
+    func requestWallpaperRotation() -> Bool {
+        guard !isRotationInProgress else {
+            return false
+        }
+
+        isRotationInProgress = true
+        let context = makeRotationPipelineContext()
+        executeRotationWork { [weak self] in
+            let execution = AppState.runWallpaperRotationPipeline(using: context)
+            self?.deliverRotationResult { [weak self] in
+                guard let self else {
+                    return
+                }
+                self.publishRotationExecution(execution)
+                self.isRotationInProgress = false
+            }
+        }
+        return true
     }
 
     @discardableResult
@@ -146,19 +190,67 @@ final class AppState: ObservableObject {
             isRotationInProgress = false
         }
 
-        guard let highlight = pickNextHighlight() else {
-            return .noActivePool
+        let execution = AppState.runWallpaperRotationPipeline(using: makeRotationPipelineContext())
+        publishRotationExecution(execution)
+        return execution.outcome
+    }
+
+    private struct RotationPipelineContext {
+        let pickNextHighlight: PickNextHighlight
+        let loadBackgroundImageURL: LoadBackgroundImageURL
+        let generateWallpaper: GenerateWallpaper
+        let setWallpaper: SetWallpaper
+        let prepareWallpaperRotation: PrepareWallpaperRotation?
+        let generateWallpapers: GenerateWallpapers?
+        let markHighlightShown: MarkHighlightShown
+        let setLastChangedAt: (Date) -> Void
+        let now: Now
+    }
+
+    private struct RotationExecution {
+        let outcome: WallpaperRotationOutcome
+        let currentQuotePreview: String?
+        let lastChangedAt: Date?
+    }
+
+    private func makeRotationPipelineContext() -> RotationPipelineContext {
+        RotationPipelineContext(
+            pickNextHighlight: pickNextHighlight,
+            loadBackgroundImageURL: loadBackgroundImageURL,
+            generateWallpaper: generateWallpaper,
+            setWallpaper: setWallpaper,
+            prepareWallpaperRotation: prepareWallpaperRotation,
+            generateWallpapers: generateWallpapers,
+            markHighlightShown: markHighlightShown,
+            setLastChangedAt: { [userDefaults] changedAt in
+                userDefaults.lastChangedAt = changedAt
+            },
+            now: now
+        )
+    }
+
+    nonisolated private static func runWallpaperRotationPipeline(using context: RotationPipelineContext) -> RotationExecution {
+        guard let highlight = context.pickNextHighlight() else {
+            return RotationExecution(
+                outcome: .noActivePool,
+                currentQuotePreview: nil,
+                lastChangedAt: nil
+            )
         }
 
-        let backgroundURL = loadBackgroundImageURL()
+        let backgroundURL = context.loadBackgroundImageURL()
         if
-            let prepareWallpaperRotation,
-            let generateWallpapers,
+            let prepareWallpaperRotation = context.prepareWallpaperRotation,
+            let generateWallpapers = context.generateWallpapers,
             let rotationPlan = prepareWallpaperRotation()
         {
             let targets = rotationPlan.targets
             guard !targets.isEmpty else {
-                return .wallpaperApplyFailure(.noTargets)
+                return RotationExecution(
+                    outcome: .wallpaperApplyFailure(.noTargets),
+                    currentQuotePreview: nil,
+                    lastChangedAt: nil
+                )
             }
 
             let generatedWallpapers = generateWallpapers(highlight, backgroundURL, targets)
@@ -169,30 +261,57 @@ final class AppState: ObservableObject {
                 generatedWallpapers.count == targets.count,
                 generatedIdentifiers == targetIdentifiers
             else {
-                return .wallpaperApplyFailure(.generatedTargetMismatch)
+                return RotationExecution(
+                    outcome: .wallpaperApplyFailure(.generatedTargetMismatch),
+                    currentQuotePreview: nil,
+                    lastChangedAt: nil
+                )
             }
 
             do {
                 try rotationPlan.apply(generatedWallpapers)
             } catch {
-                return .wallpaperApplyFailure(.applyError)
+                return RotationExecution(
+                    outcome: .wallpaperApplyFailure(.applyError),
+                    currentQuotePreview: nil,
+                    lastChangedAt: nil
+                )
             }
         } else {
             do {
-                let wallpaperURL = generateWallpaper(highlight, backgroundURL)
-                try setWallpaper(wallpaperURL)
+                let wallpaperURL = context.generateWallpaper(highlight, backgroundURL)
+                try context.setWallpaper(wallpaperURL)
             } catch {
-                return .wallpaperApplyFailure(.applyError)
+                return RotationExecution(
+                    outcome: .wallpaperApplyFailure(.applyError),
+                    currentQuotePreview: nil,
+                    lastChangedAt: nil
+                )
             }
         }
 
-        markHighlightShown(highlight.id)
+        context.markHighlightShown(highlight.id)
+        let changedAt = context.now()
+        context.setLastChangedAt(changedAt)
+        return RotationExecution(
+            outcome: .success,
+            currentQuotePreview: highlight.quoteText,
+            lastChangedAt: changedAt
+        )
+    }
 
-        let changedAt = now()
-        userDefaults.lastChangedAt = changedAt
-        lastChangedAt = changedAt
-        currentQuotePreview = highlight.quoteText
-        return .success
+    private func publishRotationExecution(_ execution: RotationExecution) {
+        guard execution.outcome == .success else {
+            return
+        }
+        guard
+            let currentQuotePreview = execution.currentQuotePreview,
+            let lastChangedAt = execution.lastChangedAt
+        else {
+            return
+        }
+        self.currentQuotePreview = currentQuotePreview
+        self.lastChangedAt = lastChangedAt
     }
 
     func setImportStatus(_ message: String, isError: Bool) {
