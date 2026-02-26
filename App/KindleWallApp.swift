@@ -4,6 +4,7 @@ import AppKit
 #endif
 
 @main
+@MainActor
 struct KindleWallApp: App {
     @StateObject private var appState: AppState
     private let wallpaperScheduler: WallpaperScheduler
@@ -70,7 +71,7 @@ struct KindleWallApp: App {
     #if canImport(AppKit)
     private static func makeMountListener(appState: AppState) -> VolumeWatcher.MountListener? {
         let publishImportStatusOnMain: VolumeWatcher.PublishImportStatus = { status in
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 appState.setImportStatus(status.message, isError: status.isError)
                 appState.refreshLibraryState()
             }
@@ -97,6 +98,7 @@ struct KindleWallApp: App {
 }
 
 #if canImport(AppKit)
+@MainActor
 private final class AppDelegate: NSObject, NSApplicationDelegate {
     private weak var appState: AppState?
     private var statusItemController: StatusItemController?
@@ -150,6 +152,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+@MainActor
 private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
     private weak var appState: AppState?
     private var settingsWindowController: NSWindowController?
@@ -188,7 +191,9 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
             queue: .main
         ) { [weak self] _ in
             NSLog("[ShowBooksDebug] observer received .kindleWallShowBooksWindow")
-            self?.showBooksWindow()
+            Task { @MainActor [weak self] in
+                self?.showBooksWindow()
+            }
         }
     }
 
@@ -202,7 +207,9 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.restoreWindowVisibilityAfterAppDeactivation()
+            Task { @MainActor [weak self] in
+                self?.restoreWindowVisibilityAfterAppDeactivation()
+            }
         }
     }
 
@@ -316,6 +323,7 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
     }
 }
 
+@MainActor
 private final class StatusItemController: NSObject {
     private let statusItem: NSStatusItem
     private let menuBarView: MenuBarView

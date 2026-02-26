@@ -3,6 +3,7 @@ import AppKit
 import Combine
 import Foundation
 
+@MainActor
 final class MenuBarView: NSObject {
     typealias Action = () -> Void
 

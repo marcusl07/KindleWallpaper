@@ -12,9 +12,6 @@ Refactor wallpaper rotation orchestration into a boundary that returns explicit 
 **T43 — Use unique wallpaper artifact paths per rotation**
 Replace static `current_wallpaper.png` reuse with unique output names per rotation (timestamp/UUID) and add bounded cleanup to avoid unbounded file growth.
 
-**T46 — Enforce main-thread ownership for UI state/controllers**
-Apply `@MainActor` boundaries to UI-facing state and controllers (`AppState`, delegate/controller surfaces) and make background-to-main hops explicit.
-
 **T48 — Add settings window lifecycle tests**
 Add behavioral verification for settings open/reopen/deactivate semantics to prevent regressions where the window disappears on focus loss.
 

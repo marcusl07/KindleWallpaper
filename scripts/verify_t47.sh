@@ -29,7 +29,7 @@ require_exact_count() {
 
 # T47 expectation: one shared main-thread status publisher, reused across listener variants.
 require_pattern "let[[:space:]]+publishImportStatusOnMain:[[:space:]]+VolumeWatcher\\.PublishImportStatus[[:space:]]*=[[:space:]]*\\{[[:space:]]+status[[:space:]]+in" "shared import-status publisher"
-require_pattern "DispatchQueue\\.main\\.async" "main-thread dispatch in shared publisher"
+require_pattern "(DispatchQueue\\.main\\.async|Task[[:space:]]*\\{[[:space:]]*@MainActor[[:space:]]+in)" "main-thread hop in shared publisher"
 require_exact_count "publishImportStatus:[[:space:]]*publishImportStatusOnMain" "2" "shared publisher wiring"
 require_exact_count "appState\\.setImportStatus\\(" "1" "setImportStatus update path"
 require_exact_count "appState\\.refreshLibraryState\\(" "1" "refreshLibraryState update path"
