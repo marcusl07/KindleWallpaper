@@ -335,3 +335,7 @@ Run expensive wallpaper compose/write work on a dedicated background executor wh
 Apply `@MainActor` boundaries to UI-facing state and controllers (`AppState`, delegate/controller surfaces) and make background-to-main hops explicit.
 
 
+
+
+**T54 — Cache decoded background image with invalidation**
+Add background image decode cache keyed by source path + mtime and invalidate when user changes background image.
