@@ -9,18 +9,6 @@ This file is the working context for agents. When an item is completed, move it 
 **T42 — Introduce explicit rotation outcomes**
 Refactor wallpaper rotation orchestration into a boundary that returns explicit outcomes (e.g., success, no-active-pool, wallpaper-apply-failure) instead of relying on implicit side effects.
 
-**T43 — Use unique wallpaper artifact paths per rotation**
-Replace static `current_wallpaper.png` reuse with unique output names per rotation (timestamp/UUID) and add bounded cleanup to avoid unbounded file growth.
-
-**T48 — Add settings window lifecycle tests**
-Add behavioral verification for settings open/reopen/deactivate semantics to prevent regressions where the window disappears on focus loss.
-
-**T49 — Add rapid books-interaction reliability tests**
-Add deterministic tests covering repeated checkbox clicks plus Select All/Deselect All sequences to validate serialized mutation behavior.
-
-**T50 — Add repeated Next Quote wallpaper update tests**
-Add tests ensuring successive Next Quote actions generate distinct wallpaper output identities and invoke wallpaper apply each time.
-
 **T51 — Add rotation outcome/error propagation tests**
 Add tests for success and failure outcomes (including no active pool and wallpaper apply failure) and verify UI-visible status propagation.
 

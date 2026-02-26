@@ -326,8 +326,8 @@ Create a single serialized mutation path for per-book toggle and bulk toggle ope
 Expose mutation-in-progress state and disable/re-enable book checkboxes and Select All/Deselect All controls deterministically during commit.
 
 
-**T53 — Move wallpaper generation/set flow off UI interaction path**
-Run expensive wallpaper compose/write work on a dedicated background executor while publishing state changes safely back on main.
+**T43 — Use unique wallpaper artifact paths per rotation**
+Replace static `current_wallpaper.png` reuse with unique output names per rotation (timestamp/UUID) and add bounded cleanup to avoid unbounded file growth.
 
 
 
@@ -336,6 +336,25 @@ Apply `@MainActor` boundaries to UI-facing state and controllers (`AppState`, de
 
 
 
+**T53 — Move wallpaper generation/set flow off UI interaction path**
+Run expensive wallpaper compose/write work on a dedicated background executor while publishing state changes safely back on main.
+
+
 
 **T54 — Cache decoded background image with invalidation**
 Add background image decode cache keyed by source path + mtime and invalidate when user changes background image.
+
+**T49 — Add rapid books-interaction reliability tests**
+Add deterministic tests covering repeated checkbox clicks plus Select All/Deselect All sequences to validate serialized mutation behavior.
+
+
+
+**T48 — Add settings window lifecycle tests**
+Add behavioral verification for settings open/reopen/deactivate semantics to prevent regressions where the window disappears on focus loss.
+
+
+
+**T50 — Add repeated Next Quote wallpaper update tests**
+Add tests ensuring successive Next Quote actions generate distinct wallpaper output identities and invoke wallpaper apply each time.
+
+
