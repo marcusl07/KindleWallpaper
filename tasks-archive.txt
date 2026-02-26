@@ -322,3 +322,6 @@ Remove duplicated import-status publish/update closures in `KindleWallApp.makeMo
 Create a single serialized mutation path for per-book toggle and bulk toggle operations to prevent overlapping writes/refetch races.
 
 
+**T45 — Add deterministic in-flight UI state for books controls**
+Expose mutation-in-progress state and disable/re-enable book checkboxes and Select All/Deselect All controls deterministically during commit.
+

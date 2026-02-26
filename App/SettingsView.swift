@@ -377,12 +377,20 @@ struct BooksListView: View {
                 Button("Select All") {
                     appState.setAllBooksEnabled(true)
                 }
-                .disabled(appState.books.isEmpty || appState.books.allSatisfy(\.isEnabled))
+                .disabled(
+                    appState.isBookMutationInFlight ||
+                    appState.books.isEmpty ||
+                    appState.books.allSatisfy(\.isEnabled)
+                )
 
                 Button("Deselect All") {
                     appState.setAllBooksEnabled(false)
                 }
-                .disabled(appState.books.isEmpty || appState.books.allSatisfy { !$0.isEnabled })
+                .disabled(
+                    appState.isBookMutationInFlight ||
+                    appState.books.isEmpty ||
+                    appState.books.allSatisfy { !$0.isEnabled }
+                )
             }
 
             List {
@@ -427,6 +435,7 @@ struct BooksListView: View {
             }
         }
         .toggleStyle(.checkbox)
+        .disabled(appState.isBookMutationInFlight)
     }
 
     private func bindingForBook(_ book: Book) -> Binding<Bool> {

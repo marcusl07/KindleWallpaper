@@ -66,6 +66,7 @@ final class AppState: ObservableObject {
     @Published private(set) var importError: String?
     @Published private(set) var totalHighlightCount: Int
     @Published private(set) var books: [Book]
+    @Published private(set) var isBookMutationInFlight: Bool
     @Published private(set) var activeScheduleMode: RotationScheduleMode
     @Published private(set) var lastChangedAt: Date?
 
@@ -112,6 +113,7 @@ final class AppState: ObservableObject {
         self.importError = importError
         self.totalHighlightCount = totalHighlightCount ?? fetchTotalHighlightCount()
         self.books = books ?? fetchAllBooks()
+        self.isBookMutationInFlight = false
         self.activeScheduleMode = activeScheduleMode ?? userDefaults.rotationScheduleMode
         self.lastChangedAt = userDefaults.lastChangedAt
         self.pickNextHighlight = pickNextHighlight
@@ -247,7 +249,9 @@ final class AppState: ObservableObject {
 
     private func performBookMutation(_ mutation: () -> Bool) {
         bookMutationLock.lock()
+        isBookMutationInFlight = true
         defer {
+            isBookMutationInFlight = false
             bookMutationLock.unlock()
         }
 
