@@ -19,13 +19,19 @@ When the daily scheduler ticks and requestWallpaperRotation() returns false (bus
 
 ## Phase 11 — Wallpaper Collection and UX Safeguards
 
-**T56 — Multiple background images**
-Replace single background image with a managed collection. User adds/removes images, KindleWall picks randomly each rotation. Must have at least one image. UI shows collection with preview, similar pattern to Books window. Update rotation pipeline to randomly select from collection. Account for T54 cache invalidation.
+**T56 — Background image collection data model**
+Define storage model for multiple background images. Replace single image path in ScheduleSettings or AppState with a collection. Handle migration from single image to collection (existing image becomes first item).
 
-**T57 — Capitalize highlight text toggle**
+**T57 — Background image collection UI**
+Replace "Change Image" picker in Settings with a managed backgrounds view (similar pattern to Books window). Show collection with previews, add/remove controls, block removal of last image, prompt to add if empty.
+
+**T58 — Random background selection in rotation pipeline**
+Update WallpaperGenerator rotation path to randomly pick from the background image collection each rotation. Single image in collection = current behavior. Update T54 cache to invalidate per selected image.
+
+**T59 — Capitalize highlight text toggle**
 Add a toggle in Settings to automatically capitalize the first letter of highlight text if it is lowercase. Off by default.
 
-**T58 — macOS wallpaper cycling conflict warning**
+**T60 — macOS wallpaper cycling conflict warning**
 Add a small notice in Settings warning users to disable macOS's built-in wallpaper rotation to avoid conflicts with KindleWall managing the wallpaper.
 
 ---
