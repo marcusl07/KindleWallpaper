@@ -12,6 +12,21 @@ Refactor wallpaper rotation orchestration into a boundary that returns explicit 
 **T51 — Add rotation outcome/error propagation tests**
 Add tests for success and failure outcomes (including no active pool and wallpaper apply failure) and verify UI-visible status propagation.
 
+**T55 — Fix daily scheduled rotation drop when rotation in progress**
+When the daily scheduler ticks and requestWallpaperRotation() returns false (busy), the scheduled rotation is silently dropped and won't retry that day. Fix by adding retry or queue behavior so the scheduled rotation eventually executes if initially rejected.
+
+---
+
+## Phase 11 — Wallpaper Collection and UX Safeguards
+
+**T56 — Multiple background images**
+Replace single background image with a managed collection. User adds/removes images, KindleWall picks randomly each rotation. Must have at least one image. UI shows collection with preview, similar pattern to Books window. Update rotation pipeline to randomly select from collection. Account for T54 cache invalidation.
+
+**T57 — Capitalize highlight text toggle**
+Add a toggle in Settings to automatically capitalize the first letter of highlight text if it is lowercase. Off by default.
+
+**T58 — macOS wallpaper cycling conflict warning**
+Add a small notice in Settings warning users to disable macOS's built-in wallpaper rotation to avoid conflicts with KindleWall managing the wallpaper.
 
 ---
 
