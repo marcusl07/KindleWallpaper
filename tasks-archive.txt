@@ -325,3 +325,8 @@ Create a single serialized mutation path for per-book toggle and bulk toggle ope
 **T45 — Add deterministic in-flight UI state for books controls**
 Expose mutation-in-progress state and disable/re-enable book checkboxes and Select All/Deselect All controls deterministically during commit.
 
+
+**T53 — Move wallpaper generation/set flow off UI interaction path**
+Run expensive wallpaper compose/write work on a dedicated background executor while publishing state changes safely back on main.
+
+

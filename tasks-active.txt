@@ -27,9 +27,6 @@ Add tests ensuring successive Next Quote actions generate distinct wallpaper out
 **T51 — Add rotation outcome/error propagation tests**
 Add tests for success and failure outcomes (including no active pool and wallpaper apply failure) and verify UI-visible status propagation.
 
-**T53 — Move wallpaper generation/set flow off UI interaction path**
-Run expensive wallpaper compose/write work on a dedicated background executor while publishing state changes safely back on main.
-
 **T54 — Cache decoded background image with invalidation**
 Add background image decode cache keyed by source path + mtime and invalidate when user changes background image.
 
