@@ -32,6 +32,7 @@ swiftc \
   "$ROOT_DIR/App/AppState.swift" \
   "$ROOT_DIR/App/ScheduleSettings.swift" \
   "$ROOT_DIR/App/WallpaperGenerator.swift" \
+  "$ROOT_DIR/App/BackgroundImageLoader.swift" \
   "$ROOT_DIR/App/AppSupportPaths.swift" \
   "$ROOT_DIR/App/BackgroundImageStore.swift" \
   "$ROOT_DIR/Models/Book.swift" \

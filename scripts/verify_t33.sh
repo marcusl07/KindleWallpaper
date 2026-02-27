@@ -21,7 +21,7 @@ require_pattern 'Text\("No image — black background"\)' "no-image placeholder 
 require_pattern 'Button\("Change Image\.\.\."\)' "Change Image button"
 require_pattern 'NSOpenPanel\(\)' "NSOpenPanel picker"
 require_pattern 'allowedContentTypes[[:space:]]*=[[:space:]]*\[\.jpeg,[[:space:]]*\.png,[[:space:]]*\.heic\]' "image type filter"
-require_pattern 'saveBackgroundImage\(from:' "background image persistence call"
+require_pattern 'saveBackgroundImageSelection\(from:' "background image persistence call"
 require_pattern 'refreshBackgroundThumbnail\(\)' "thumbnail refresh call"
 
 swiftc \
@@ -30,6 +30,7 @@ swiftc \
   "$ROOT_DIR/App/SettingsView.swift" \
   "$ROOT_DIR/App/AppState.swift" \
   "$ROOT_DIR/App/BackgroundImageStore.swift" \
+  "$ROOT_DIR/App/BackgroundImageLoader.swift" \
   "$ROOT_DIR/App/AppSupportPaths.swift" \
   "$ROOT_DIR/App/ScheduleSettings.swift" \
   "$ROOT_DIR/Models/Book.swift" \

@@ -361,3 +361,8 @@ Add tests ensuring successive Next Quote actions generate distinct wallpaper out
 
 **T55 — Fix daily scheduled rotation drop when rotation in progress**
 When the daily scheduler ticks and requestWallpaperRotation() returns false (busy), the scheduled rotation is silently dropped and won't retry that day. Fix by adding retry or queue behavior so the scheduled rotation eventually executes if initially rejected.
+
+**T56 — Background image collection data model**
+Define storage model for multiple background images. Replace single image path in ScheduleSettings or AppState with a collection. Handle migration from single image to collection (existing image becomes first item).
+
+

@@ -54,7 +54,7 @@ struct KindleWallApp: App {
         #else
         return AppState(
             pickNextHighlight: { nil },
-            loadBackgroundImageURL: { nil },
+            loadBackgroundImageURLs: { [] },
             generateWallpaper: { _, _ in
                 URL(fileURLWithPath: NSTemporaryDirectory())
                     .appendingPathComponent("kindlewall-placeholder-wallpaper.png")

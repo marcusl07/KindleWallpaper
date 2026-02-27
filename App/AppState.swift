@@ -35,6 +35,11 @@ final class AppState: ObservableObject {
         }
     }
 
+    struct BackgroundPreviewState: Equatable {
+        let primaryImageURL: URL?
+        let warningMessage: String?
+    }
+
     enum WallpaperApplyFailureReason: Equatable {
         case noTargets
         case generatedTargetMismatch
@@ -56,6 +61,7 @@ final class AppState: ObservableObject {
     }
 
     typealias PickNextHighlight = () -> Highlight?
+    typealias LoadBackgroundImageURLs = () -> [URL]
     typealias LoadBackgroundImageURL = () -> URL?
     typealias GenerateWallpaper = (Highlight, URL?) -> URL
     typealias SetWallpaper = (URL) throws -> Void
@@ -66,6 +72,8 @@ final class AppState: ObservableObject {
     typealias SetAllBooksEnabled = (Bool) -> Void
     typealias FetchAllBooks = () -> [Book]
     typealias FetchTotalHighlightCount = () -> Int
+    typealias LoadBackgroundPreviewState = () -> BackgroundPreviewState
+    typealias SaveBackgroundImageSelection = (URL) throws -> Void
     typealias ExecuteRotationWork = (@escaping () -> Void) -> Void
     typealias DeliverRotationResult = (@escaping () -> Void) -> Void
     typealias Now = () -> Date
@@ -81,7 +89,7 @@ final class AppState: ObservableObject {
 
     private let userDefaults: UserDefaults
     private let pickNextHighlight: PickNextHighlight
-    private let loadBackgroundImageURL: LoadBackgroundImageURL
+    private let loadBackgroundImageURLs: LoadBackgroundImageURLs
     private let generateWallpaper: GenerateWallpaper
     private let setWallpaper: SetWallpaper
     private let prepareWallpaperRotation: PrepareWallpaperRotation?
@@ -91,6 +99,8 @@ final class AppState: ObservableObject {
     private let setAllBooksEnabledAction: SetAllBooksEnabled
     private let fetchAllBooks: FetchAllBooks
     private let fetchTotalHighlightCount: FetchTotalHighlightCount
+    private let loadBackgroundPreviewStateAction: LoadBackgroundPreviewState
+    private let saveBackgroundImageSelectionAction: SaveBackgroundImageSelection
     private let executeRotationWork: ExecuteRotationWork
     private let deliverRotationResult: DeliverRotationResult
     private let now: Now
@@ -114,7 +124,8 @@ final class AppState: ObservableObject {
         books: [Book]? = nil,
         activeScheduleMode: RotationScheduleMode? = nil,
         pickNextHighlight: @escaping PickNextHighlight,
-        loadBackgroundImageURL: @escaping LoadBackgroundImageURL,
+        loadBackgroundImageURLs: LoadBackgroundImageURLs? = nil,
+        loadBackgroundImageURL: @escaping LoadBackgroundImageURL = { nil },
         generateWallpaper: @escaping GenerateWallpaper,
         setWallpaper: @escaping SetWallpaper,
         prepareWallpaperRotation: PrepareWallpaperRotation? = nil,
@@ -124,10 +135,37 @@ final class AppState: ObservableObject {
         setAllBooksEnabled: @escaping SetAllBooksEnabled = { _ in },
         fetchAllBooks: @escaping FetchAllBooks = { [] },
         fetchTotalHighlightCount: @escaping FetchTotalHighlightCount = { 0 },
+        loadBackgroundPreviewState: LoadBackgroundPreviewState? = nil,
+        saveBackgroundImageSelection: @escaping SaveBackgroundImageSelection = { _ in },
         executeRotationWork: @escaping ExecuteRotationWork = AppState.enqueueRotationWork,
         deliverRotationResult: @escaping DeliverRotationResult = AppState.deliverRotationResultOnMain,
         now: @escaping Now = Date.init
     ) {
+        let resolvedLoadBackgroundImageURLs: LoadBackgroundImageURLs
+        if let loadBackgroundImageURLs {
+            resolvedLoadBackgroundImageURLs = loadBackgroundImageURLs
+        } else {
+            resolvedLoadBackgroundImageURLs = {
+                guard let url = loadBackgroundImageURL() else {
+                    return []
+                }
+                return [url]
+            }
+        }
+
+        let resolvedLoadBackgroundPreviewState: LoadBackgroundPreviewState
+        if let loadBackgroundPreviewState {
+            resolvedLoadBackgroundPreviewState = loadBackgroundPreviewState
+        } else {
+            resolvedLoadBackgroundPreviewState = {
+                let backgroundURLs = resolvedLoadBackgroundImageURLs()
+                return BackgroundPreviewState(
+                    primaryImageURL: backgroundURLs.first,
+                    warningMessage: nil
+                )
+            }
+        }
+
         self.userDefaults = userDefaults
         self.currentQuotePreview = currentQuotePreview
         self.importStatus = importStatus
@@ -138,7 +176,7 @@ final class AppState: ObservableObject {
         self.activeScheduleMode = activeScheduleMode ?? userDefaults.rotationScheduleMode
         self.lastChangedAt = userDefaults.lastChangedAt
         self.pickNextHighlight = pickNextHighlight
-        self.loadBackgroundImageURL = loadBackgroundImageURL
+        self.loadBackgroundImageURLs = resolvedLoadBackgroundImageURLs
         self.generateWallpaper = generateWallpaper
         self.setWallpaper = setWallpaper
         self.prepareWallpaperRotation = prepareWallpaperRotation
@@ -148,6 +186,8 @@ final class AppState: ObservableObject {
         self.setAllBooksEnabledAction = setAllBooksEnabled
         self.fetchAllBooks = fetchAllBooks
         self.fetchTotalHighlightCount = fetchTotalHighlightCount
+        self.loadBackgroundPreviewStateAction = resolvedLoadBackgroundPreviewState
+        self.saveBackgroundImageSelectionAction = saveBackgroundImageSelection
         self.executeRotationWork = executeRotationWork
         self.deliverRotationResult = deliverRotationResult
         self.now = now
@@ -211,7 +251,7 @@ final class AppState: ObservableObject {
 
     private struct RotationPipelineContext {
         let pickNextHighlight: PickNextHighlight
-        let loadBackgroundImageURL: LoadBackgroundImageURL
+        let loadBackgroundImageURLs: LoadBackgroundImageURLs
         let generateWallpaper: GenerateWallpaper
         let setWallpaper: SetWallpaper
         let prepareWallpaperRotation: PrepareWallpaperRotation?
@@ -230,7 +270,7 @@ final class AppState: ObservableObject {
     private func makeRotationPipelineContext() -> RotationPipelineContext {
         RotationPipelineContext(
             pickNextHighlight: pickNextHighlight,
-            loadBackgroundImageURL: loadBackgroundImageURL,
+            loadBackgroundImageURLs: loadBackgroundImageURLs,
             generateWallpaper: generateWallpaper,
             setWallpaper: setWallpaper,
             prepareWallpaperRotation: prepareWallpaperRotation,
@@ -252,7 +292,7 @@ final class AppState: ObservableObject {
             )
         }
 
-        let backgroundURL = context.loadBackgroundImageURL()
+        let backgroundURL = context.loadBackgroundImageURLs().first
         if
             let prepareWallpaperRotation = context.prepareWallpaperRotation,
             let generateWallpapers = context.generateWallpapers,
@@ -375,6 +415,14 @@ final class AppState: ObservableObject {
         refreshScheduleState()
     }
 
+    func loadBackgroundPreviewState() -> BackgroundPreviewState {
+        loadBackgroundPreviewStateAction()
+    }
+
+    func saveBackgroundImageSelection(from sourceURL: URL) throws {
+        try saveBackgroundImageSelectionAction(sourceURL)
+    }
+
     func setActiveScheduleMode(_ mode: RotationScheduleMode) {
         userDefaults.rotationScheduleMode = mode
         activeScheduleMode = mode
@@ -397,6 +445,18 @@ final class AppState: ObservableObject {
 
 #if canImport(GRDB)
 extension AppState {
+    private static func warningMessage(from outcome: BackgroundImageStore.LoadCollectionOutcome) -> String? {
+        switch outcome {
+        case .success, .empty:
+            return nil
+        case .partiallyRecovered(let removedInvalidEntries):
+            let noun = removedInvalidEntries == 1 ? "entry" : "entries"
+            return "Recovered background collection by removing \(removedInvalidEntries) invalid \(noun)."
+        case .migrationFailed(let reason):
+            return reason.message
+        }
+    }
+
     static func live(userDefaults: UserDefaults = .standard) -> AppState {
         let backgroundStore = BackgroundImageStore(userDefaults: userDefaults)
         let wallpaperGenerator = WallpaperGenerator()
@@ -404,7 +464,7 @@ extension AppState {
         return AppState(
             userDefaults: userDefaults,
             pickNextHighlight: DatabaseManager.pickNextHighlight,
-            loadBackgroundImageURL: backgroundStore.loadBackgroundImageURL,
+            loadBackgroundImageURLs: backgroundStore.loadBackgroundImageURLs,
             generateWallpaper: { highlight, backgroundURL in
                 wallpaperGenerator.generateWallpaper(highlight: highlight, backgroundURL: backgroundURL)
             },
@@ -458,7 +518,17 @@ extension AppState {
             setBookEnabled: DatabaseManager.setBookEnabled(id:enabled:),
             setAllBooksEnabled: DatabaseManager.setAllBooksEnabled(enabled:),
             fetchAllBooks: DatabaseManager.fetchAllBooks,
-            fetchTotalHighlightCount: DatabaseManager.totalHighlightCount
+            fetchTotalHighlightCount: DatabaseManager.totalHighlightCount,
+            loadBackgroundPreviewState: {
+                let result = backgroundStore.loadBackgroundImageCollection()
+                return BackgroundPreviewState(
+                    primaryImageURL: result.urls.first,
+                    warningMessage: warningMessage(from: result.outcome)
+                )
+            },
+            saveBackgroundImageSelection: { sourceURL in
+                _ = try backgroundStore.saveBackgroundImage(from: sourceURL)
+            }
         )
     }
 }

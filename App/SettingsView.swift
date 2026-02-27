@@ -187,8 +187,9 @@ struct SettingsView: View {
     #endif
 
     private func refreshBackgroundThumbnail() {
-        let store = BackgroundImageStore()
-        backgroundImageURL = store.loadBackgroundImageURL()
+        let previewState = appState.loadBackgroundPreviewState()
+        backgroundImageURL = previewState.primaryImageURL
+        backgroundImageError = previewState.warningMessage
     }
 
     private var scheduleModeBinding: Binding<RotationScheduleMode> {
@@ -268,8 +269,7 @@ struct SettingsView: View {
         }
 
         do {
-            let store = BackgroundImageStore()
-            _ = try store.saveBackgroundImage(from: selectedURL)
+            try appState.saveBackgroundImageSelection(from: selectedURL)
             backgroundImageError = nil
             refreshBackgroundThumbnail()
         } catch {

@@ -7,7 +7,9 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 
 cat > "$TMP_DIR/main.swift" <<'SWIFT'
 import Foundation
+import Dispatch
 
+@MainActor
 func testLastChangedAtUserDefaultsHelperRoundTripsAndClears() throws {
     let fixture = try Fixture.make()
     defer { fixture.cleanup() }
@@ -22,6 +24,7 @@ func testLastChangedAtUserDefaultsHelperRoundTripsAndClears() throws {
     assertEqual(fixture.defaults.lastChangedAt, nil, "Expected setting lastChangedAt to nil to remove the value")
 }
 
+@MainActor
 func testLastChangedAtUserDefaultsHelperParsesLegacyFormats() throws {
     let fixture = try Fixture.make()
     defer { fixture.cleanup() }
@@ -48,6 +51,7 @@ func testLastChangedAtUserDefaultsHelperParsesLegacyFormats() throws {
     )
 }
 
+@MainActor
 func testAppStateInitLoadsPersistedLastChangedAt() throws {
     let fixture = try Fixture.make()
     defer { fixture.cleanup() }
@@ -58,7 +62,7 @@ func testAppStateInitLoadsPersistedLastChangedAt() throws {
     let appState = AppState(
         userDefaults: fixture.defaults,
         pickNextHighlight: { nil },
-        loadBackgroundImageURL: { nil },
+        loadBackgroundImageURLs: { [] },
         generateWallpaper: { _, _ in URL(fileURLWithPath: "/tmp/unused.png") },
         setWallpaper: { _ in },
         markHighlightShown: { _ in },
@@ -68,6 +72,7 @@ func testAppStateInitLoadsPersistedLastChangedAt() throws {
     assertDateEqual(appState.lastChangedAt, persisted, "Expected AppState to load lastChangedAt from UserDefaults on init")
 }
 
+@MainActor
 func testRotateWallpaperHappyPathCallsInOrderAndUpdatesState() throws {
     let fixture = try Fixture.make()
     defer { fixture.cleanup() }
@@ -91,9 +96,9 @@ func testRotateWallpaperHappyPathCallsInOrderAndUpdatesState() throws {
             calls.append("pick")
             return highlight
         },
-        loadBackgroundImageURL: {
+        loadBackgroundImageURLs: {
             calls.append("loadBackground")
-            return backgroundURL
+            return [backgroundURL]
         },
         generateWallpaper: { incomingHighlight, incomingBackgroundURL in
             calls.append("generate")
@@ -131,6 +136,7 @@ func testRotateWallpaperHappyPathCallsInOrderAndUpdatesState() throws {
     assertDateEqual(fixture.defaults.lastChangedAt, nowValue, "Expected UserDefaults.lastChangedAt to update after rotation")
 }
 
+@MainActor
 func testRotateWallpaperSkipsWorkWhenNoHighlightIsAvailable() throws {
     let fixture = try Fixture.make()
     defer { fixture.cleanup() }
@@ -145,9 +151,9 @@ func testRotateWallpaperSkipsWorkWhenNoHighlightIsAvailable() throws {
         userDefaults: fixture.defaults,
         currentQuotePreview: "existing preview",
         pickNextHighlight: { nil },
-        loadBackgroundImageURL: {
+        loadBackgroundImageURLs: {
             loadBackgroundCallCount += 1
-            return nil
+            return []
         },
         generateWallpaper: { _, _ in
             generateCallCount += 1
@@ -178,6 +184,7 @@ func testRotateWallpaperSkipsWorkWhenNoHighlightIsAvailable() throws {
     assertEqual(fixture.defaults.lastChangedAt, nil, "Expected UserDefaults.lastChangedAt to remain unchanged")
 }
 
+@MainActor
 func testRotateWallpaperPassesNilBackgroundToGenerator() throws {
     let fixture = try Fixture.make()
     defer { fixture.cleanup() }
@@ -188,7 +195,7 @@ func testRotateWallpaperPassesNilBackgroundToGenerator() throws {
     let appState = AppState(
         userDefaults: fixture.defaults,
         pickNextHighlight: { highlight },
-        loadBackgroundImageURL: { nil },
+        loadBackgroundImageURLs: { [] },
         generateWallpaper: { _, backgroundURL in
             passedBackgroundURL = backgroundURL
             return URL(fileURLWithPath: "/tmp/generated.png")
@@ -204,6 +211,36 @@ func testRotateWallpaperPassesNilBackgroundToGenerator() throws {
     assertEqual(passedBackgroundURL!, nil, "Expected nil background URL to flow into generator")
 }
 
+@MainActor
+func testRotateWallpaperUsesFirstBackgroundImageFromCollection() throws {
+    let fixture = try Fixture.make()
+    defer { fixture.cleanup() }
+
+    let highlight = sampleHighlight(quoteText: "Collection quote")
+    let firstURL = URL(fileURLWithPath: "/tmp/background-first.jpg")
+    let secondURL = URL(fileURLWithPath: "/tmp/background-second.jpg")
+    var passedBackgroundURL: URL??
+
+    let appState = AppState(
+        userDefaults: fixture.defaults,
+        pickNextHighlight: { highlight },
+        loadBackgroundImageURLs: { [firstURL, secondURL] },
+        generateWallpaper: { _, backgroundURL in
+            passedBackgroundURL = backgroundURL
+            return URL(fileURLWithPath: "/tmp/generated.png")
+        },
+        setWallpaper: { _ in },
+        markHighlightShown: { _ in },
+        now: { Date(timeIntervalSince1970: 1_735_911_000) }
+    )
+
+    let didRotate = appState.rotateWallpaper()
+    assertEqual(didRotate, true, "Expected rotation to succeed with multiple background images")
+    assertEqual(passedBackgroundURL != nil, true, "Expected generateWallpaper to receive a background URL argument")
+    assertEqual(passedBackgroundURL!, firstURL, "Expected T56 boundary to choose the first background image in collection")
+}
+
+@MainActor
 func testRotateWallpaperReentrancyGuardPreventsNestedWork() throws {
     let fixture = try Fixture.make()
     defer { fixture.cleanup() }
@@ -222,7 +259,7 @@ func testRotateWallpaperReentrancyGuardPreventsNestedWork() throws {
             pickCallCount += 1
             return highlight
         },
-        loadBackgroundImageURL: { nil },
+        loadBackgroundImageURLs: { [] },
         generateWallpaper: { _, _ in
             generateCallCount += 1
             return URL(fileURLWithPath: "/tmp/generated.png")
@@ -250,6 +287,7 @@ func testRotateWallpaperReentrancyGuardPreventsNestedWork() throws {
     assertEqual(nowCallCount, 1, "Expected nested rotateWallpaper call to skip timestamp update")
 }
 
+@MainActor
 func testRotateWallpaperUsesPerScreenPipelineWhenConfigured() throws {
     let fixture = try Fixture.make()
     defer { fixture.cleanup() }
@@ -273,9 +311,9 @@ func testRotateWallpaperUsesPerScreenPipelineWhenConfigured() throws {
             calls.append("pick")
             return highlight
         },
-        loadBackgroundImageURL: {
+        loadBackgroundImageURLs: {
             calls.append("loadBackground")
-            return backgroundURL
+            return [backgroundURL]
         },
         generateWallpaper: { _, _ in
             legacyGenerateCallCount += 1
@@ -323,6 +361,7 @@ func testRotateWallpaperUsesPerScreenPipelineWhenConfigured() throws {
     assertEqual(calls, ["pick", "loadBackground", "prepare", "generateMany", "setMany", "mark", "now"], "Expected per-screen pipeline orchestration order")
 }
 
+@MainActor
 func testRotateWallpaperPerScreenPipelineRejectsIdentifierMismatch() throws {
     let fixture = try Fixture.make()
     defer { fixture.cleanup() }
@@ -335,7 +374,7 @@ func testRotateWallpaperPerScreenPipelineRejectsIdentifierMismatch() throws {
     let appState = AppState(
         userDefaults: fixture.defaults,
         pickNextHighlight: { highlight },
-        loadBackgroundImageURL: { nil },
+        loadBackgroundImageURLs: { [] },
         generateWallpaper: { _, _ in URL(fileURLWithPath: "/tmp/legacy.png") },
         setWallpaper: { _ in },
         prepareWallpaperRotation: {
@@ -371,6 +410,7 @@ func testRotateWallpaperPerScreenPipelineRejectsIdentifierMismatch() throws {
     assertEqual(nowCallCount, 0, "Expected timestamp update to be skipped on identifier mismatch")
 }
 
+@MainActor
 func testRotateWallpaperPerScreenPlanUsesSingleSnapshotForGenerateAndApply() throws {
     let fixture = try Fixture.make()
     defer { fixture.cleanup() }
@@ -390,9 +430,9 @@ func testRotateWallpaperPerScreenPlanUsesSingleSnapshotForGenerateAndApply() thr
             calls.append("pick")
             return highlight
         },
-        loadBackgroundImageURL: {
+        loadBackgroundImageURLs: {
             calls.append("loadBackground")
-            return nil
+            return []
         },
         generateWallpaper: { _, _ in
             URL(fileURLWithPath: "/tmp/legacy.png")
@@ -511,22 +551,28 @@ struct Fixture {
     }
 }
 
-do {
-    try testLastChangedAtUserDefaultsHelperRoundTripsAndClears()
-    try testLastChangedAtUserDefaultsHelperParsesLegacyFormats()
-    try testAppStateInitLoadsPersistedLastChangedAt()
-    try testRotateWallpaperHappyPathCallsInOrderAndUpdatesState()
-    try testRotateWallpaperSkipsWorkWhenNoHighlightIsAvailable()
-    try testRotateWallpaperPassesNilBackgroundToGenerator()
-    try testRotateWallpaperReentrancyGuardPreventsNestedWork()
-    try testRotateWallpaperUsesPerScreenPipelineWhenConfigured()
-    try testRotateWallpaperPerScreenPipelineRejectsIdentifierMismatch()
-    try testRotateWallpaperPerScreenPlanUsesSingleSnapshotForGenerateAndApply()
-    print("T24 verification passed")
-} catch {
-    fputs("Verification failure: \(error)\n", stderr)
-    exit(1)
+Task { @MainActor in
+    do {
+        try testLastChangedAtUserDefaultsHelperRoundTripsAndClears()
+        try testLastChangedAtUserDefaultsHelperParsesLegacyFormats()
+        try testAppStateInitLoadsPersistedLastChangedAt()
+        try testRotateWallpaperHappyPathCallsInOrderAndUpdatesState()
+        try testRotateWallpaperSkipsWorkWhenNoHighlightIsAvailable()
+        try testRotateWallpaperPassesNilBackgroundToGenerator()
+        try testRotateWallpaperUsesFirstBackgroundImageFromCollection()
+        try testRotateWallpaperReentrancyGuardPreventsNestedWork()
+        try testRotateWallpaperUsesPerScreenPipelineWhenConfigured()
+        try testRotateWallpaperPerScreenPipelineRejectsIdentifierMismatch()
+        try testRotateWallpaperPerScreenPlanUsesSingleSnapshotForGenerateAndApply()
+        print("T24 verification passed")
+        exit(0)
+    } catch {
+        fputs("Verification failure: \(error)\n", stderr)
+        exit(1)
+    }
 }
+
+dispatchMain()
 SWIFT
 
 swiftc \

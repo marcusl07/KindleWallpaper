@@ -31,12 +31,10 @@ struct VerifyT21 {
 
         let destinationURL = try fixture.store.saveBackgroundImage(from: sourceURL)
 
-        expect(destinationURL.lastPathComponent == "background.jpg", "Expected copied file to preserve extension")
+        expect(destinationURL.pathExtension.lowercased() == "jpg", "Expected copied file to preserve extension")
         expect(FileManager.default.fileExists(atPath: destinationURL.path), "Expected copied file to exist")
         let loadedURL = fixture.store.loadBackgroundImageURL()
         expect(loadedURL == destinationURL, "Expected loadBackgroundImageURL to return saved URL")
-        let persistedPath = fixture.defaults.string(forKey: fixture.pathKey)
-        expect(persistedPath == destinationURL.path, "Expected UserDefaults path to match destination")
     }
 
     private static func testLoadReturnsNilWhenUnset() throws {
@@ -85,7 +83,7 @@ struct VerifyT21 {
 
         expect(!FileManager.default.fileExists(atPath: firstDestination.path), "Expected previous background file to be removed")
         expect(FileManager.default.fileExists(atPath: secondDestination.path), "Expected newest background file to exist")
-        expect(secondDestination.lastPathComponent == "background.heic", "Expected latest extension to be preserved")
+        expect(secondDestination.pathExtension.lowercased() == "heic", "Expected latest extension to be preserved")
     }
 
     private static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -146,6 +144,7 @@ swiftc \
   -module-cache-path "$tmp_dir/module-cache" \
   App/AppSupportPaths.swift \
   App/BackgroundImageStore.swift \
+  App/BackgroundImageLoader.swift \
   "$tmp_dir/verify_t21.swift" \
   -o "$tmp_dir/verify_t21"
 
