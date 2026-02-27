@@ -123,6 +123,10 @@ struct SettingsView: View {
             Text("Timed rotation requires the app to be running.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
+
+            Text("To avoid conflicts, disable macOS wallpaper rotation in System Settings > Wallpaper.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
         }
     }
 

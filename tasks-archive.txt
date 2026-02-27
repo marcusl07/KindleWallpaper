@@ -376,3 +376,6 @@ Update WallpaperGenerator rotation path to randomly pick from the background ima
 Replace "Change Image" picker in Settings with a managed backgrounds view (similar pattern to Books window). Show collection with previews, add/remove controls, block removal of last image, prompt to add if empty. UI should try to follow the default macOS Wallpaper settings menu patterns.
 
 
+
+**T60 — macOS wallpaper cycling conflict warning**
+Add a small notice in Settings warning users to disable macOS's built-in wallpaper rotation to avoid conflicts with KindleWall managing the wallpaper.

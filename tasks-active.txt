@@ -19,9 +19,6 @@ Add tests for success and failure outcomes (including no active pool and wallpap
 **T59 — Capitalize highlight text toggle**
 Add a toggle in Settings to automatically capitalize the first letter of highlight text if it is lowercase. Off by default.
 
-**T60 — macOS wallpaper cycling conflict warning**
-Add a small notice in Settings warning users to disable macOS's built-in wallpaper rotation to avoid conflicts with KindleWall managing the wallpaper.
-
 ---
 
 ## Open Agent Handoff Bugs
