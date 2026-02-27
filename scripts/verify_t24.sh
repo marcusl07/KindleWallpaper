@@ -212,7 +212,7 @@ func testRotateWallpaperPassesNilBackgroundToGenerator() throws {
 }
 
 @MainActor
-func testRotateWallpaperUsesFirstBackgroundImageFromCollection() throws {
+func testRotateWallpaperUsesSelectedBackgroundImageFromCollection() throws {
     let fixture = try Fixture.make()
     defer { fixture.cleanup() }
 
@@ -220,11 +220,18 @@ func testRotateWallpaperUsesFirstBackgroundImageFromCollection() throws {
     let firstURL = URL(fileURLWithPath: "/tmp/background-first.jpg")
     let secondURL = URL(fileURLWithPath: "/tmp/background-second.jpg")
     var passedBackgroundURL: URL??
+    var selectedFromCollection: [URL] = []
+    var selectCallCount = 0
 
     let appState = AppState(
         userDefaults: fixture.defaults,
         pickNextHighlight: { highlight },
         loadBackgroundImageURLs: { [firstURL, secondURL] },
+        selectBackgroundImageURL: { incomingURLs in
+            selectCallCount += 1
+            selectedFromCollection = incomingURLs
+            return incomingURLs.last
+        },
         generateWallpaper: { _, backgroundURL in
             passedBackgroundURL = backgroundURL
             return URL(fileURLWithPath: "/tmp/generated.png")
@@ -236,8 +243,10 @@ func testRotateWallpaperUsesFirstBackgroundImageFromCollection() throws {
 
     let didRotate = appState.rotateWallpaper()
     assertEqual(didRotate, true, "Expected rotation to succeed with multiple background images")
+    assertEqual(selectCallCount, 1, "Expected background selector to run once per rotation")
+    assertEqual(selectedFromCollection, [firstURL, secondURL], "Expected selector to receive full background collection")
     assertEqual(passedBackgroundURL != nil, true, "Expected generateWallpaper to receive a background URL argument")
-    assertEqual(passedBackgroundURL!, firstURL, "Expected T56 boundary to choose the first background image in collection")
+    assertEqual(passedBackgroundURL!, secondURL, "Expected selected collection image to flow into generator")
 }
 
 @MainActor
@@ -559,7 +568,7 @@ Task { @MainActor in
         try testRotateWallpaperHappyPathCallsInOrderAndUpdatesState()
         try testRotateWallpaperSkipsWorkWhenNoHighlightIsAvailable()
         try testRotateWallpaperPassesNilBackgroundToGenerator()
-        try testRotateWallpaperUsesFirstBackgroundImageFromCollection()
+        try testRotateWallpaperUsesSelectedBackgroundImageFromCollection()
         try testRotateWallpaperReentrancyGuardPreventsNestedWork()
         try testRotateWallpaperUsesPerScreenPipelineWhenConfigured()
         try testRotateWallpaperPerScreenPipelineRejectsIdentifierMismatch()

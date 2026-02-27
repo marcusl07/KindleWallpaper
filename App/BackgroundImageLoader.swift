@@ -101,6 +101,22 @@ final class BackgroundImageLoader {
         return LoadResult(image: image, outcome: .success)
     }
 
+    func invalidateCacheForUnselectedImages(selectedURL: URL?) {
+        let selectedPath = selectedURL?.path
+
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard let selectedPath else {
+            cachedImagesByPath.removeAll()
+            return
+        }
+
+        cachedImagesByPath = cachedImagesByPath.filter { path, _ in
+            path == selectedPath
+        }
+    }
+
     private func fileIdentity(for url: URL) -> FileIdentity? {
         var uncachedURL = url
         uncachedURL.removeAllCachedResourceValues()

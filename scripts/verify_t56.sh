@@ -24,7 +24,7 @@ require_pattern "$STORE_FILE" 'func[[:space:]]+replaceBackgroundImages\(with[[:s
 require_pattern "$STORE_FILE" 'func[[:space:]]+migrateLegacyBackgroundPathIfNeeded\(\)' "legacy migration entrypoint"
 require_pattern "$STORE_FILE" 'migrationFailed' "explicit migration failure outcome"
 require_pattern "$APP_STATE_FILE" 'loadBackgroundImageURLs:[[:space:]]*LoadBackgroundImageURLs' "AppState collection-aware background dependency"
-require_pattern "$APP_STATE_FILE" 'context\.loadBackgroundImageURLs\(\)\.first' "AppState deterministic first-image selection for T56"
+require_pattern "$APP_STATE_FILE" 'selectBackgroundImageURL:[[:space:]]*SelectBackgroundImageURL' "AppState background selection boundary"
 
 cp "$ROOT_DIR/scripts/verify_t56_main.swift" "$TMP_DIR/main.swift"
 

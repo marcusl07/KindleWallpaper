@@ -63,6 +63,7 @@ final class AppState: ObservableObject {
     typealias PickNextHighlight = () -> Highlight?
     typealias LoadBackgroundImageURLs = () -> [URL]
     typealias LoadBackgroundImageURL = () -> URL?
+    typealias SelectBackgroundImageURL = ([URL]) -> URL?
     typealias GenerateWallpaper = (Highlight, URL?) -> URL
     typealias SetWallpaper = (URL) throws -> Void
     typealias PrepareWallpaperRotation = () -> WallpaperRotationPlan?
@@ -90,6 +91,7 @@ final class AppState: ObservableObject {
     private let userDefaults: UserDefaults
     private let pickNextHighlight: PickNextHighlight
     private let loadBackgroundImageURLs: LoadBackgroundImageURLs
+    private let selectBackgroundImageURL: SelectBackgroundImageURL
     private let generateWallpaper: GenerateWallpaper
     private let setWallpaper: SetWallpaper
     private let prepareWallpaperRotation: PrepareWallpaperRotation?
@@ -126,6 +128,7 @@ final class AppState: ObservableObject {
         pickNextHighlight: @escaping PickNextHighlight,
         loadBackgroundImageURLs: LoadBackgroundImageURLs? = nil,
         loadBackgroundImageURL: @escaping LoadBackgroundImageURL = { nil },
+        selectBackgroundImageURL: SelectBackgroundImageURL? = nil,
         generateWallpaper: @escaping GenerateWallpaper,
         setWallpaper: @escaping SetWallpaper,
         prepareWallpaperRotation: PrepareWallpaperRotation? = nil,
@@ -153,6 +156,18 @@ final class AppState: ObservableObject {
             }
         }
 
+        let resolvedSelectBackgroundImageURL: SelectBackgroundImageURL
+        if let selectBackgroundImageURL {
+            resolvedSelectBackgroundImageURL = selectBackgroundImageURL
+        } else {
+            resolvedSelectBackgroundImageURL = { backgroundURLs in
+                guard backgroundURLs.count > 1 else {
+                    return backgroundURLs.first
+                }
+                return backgroundURLs.randomElement()
+            }
+        }
+
         let resolvedLoadBackgroundPreviewState: LoadBackgroundPreviewState
         if let loadBackgroundPreviewState {
             resolvedLoadBackgroundPreviewState = loadBackgroundPreviewState
@@ -177,6 +192,7 @@ final class AppState: ObservableObject {
         self.lastChangedAt = userDefaults.lastChangedAt
         self.pickNextHighlight = pickNextHighlight
         self.loadBackgroundImageURLs = resolvedLoadBackgroundImageURLs
+        self.selectBackgroundImageURL = resolvedSelectBackgroundImageURL
         self.generateWallpaper = generateWallpaper
         self.setWallpaper = setWallpaper
         self.prepareWallpaperRotation = prepareWallpaperRotation
@@ -252,6 +268,7 @@ final class AppState: ObservableObject {
     private struct RotationPipelineContext {
         let pickNextHighlight: PickNextHighlight
         let loadBackgroundImageURLs: LoadBackgroundImageURLs
+        let selectBackgroundImageURL: SelectBackgroundImageURL
         let generateWallpaper: GenerateWallpaper
         let setWallpaper: SetWallpaper
         let prepareWallpaperRotation: PrepareWallpaperRotation?
@@ -271,6 +288,7 @@ final class AppState: ObservableObject {
         RotationPipelineContext(
             pickNextHighlight: pickNextHighlight,
             loadBackgroundImageURLs: loadBackgroundImageURLs,
+            selectBackgroundImageURL: selectBackgroundImageURL,
             generateWallpaper: generateWallpaper,
             setWallpaper: setWallpaper,
             prepareWallpaperRotation: prepareWallpaperRotation,
@@ -292,7 +310,7 @@ final class AppState: ObservableObject {
             )
         }
 
-        let backgroundURL = context.loadBackgroundImageURLs().first
+        let backgroundURL = context.selectBackgroundImageURL(context.loadBackgroundImageURLs())
         if
             let prepareWallpaperRotation = context.prepareWallpaperRotation,
             let generateWallpapers = context.generateWallpapers,

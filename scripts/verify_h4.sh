@@ -144,6 +144,70 @@ func testSuccessCachingAndInvalidationOnFileChange() throws {
     expect(decodeCount == 2, "Expected cache invalidation when file identity changes")
 }
 
+func testSelectionScopedCacheInvalidation() throws {
+    let fixture = try TestFixture.make()
+    defer { fixture.cleanup() }
+
+    let firstURL = fixture.rootURL.appendingPathComponent("first.png")
+    let secondURL = fixture.rootURL.appendingPathComponent("second.png")
+    try writePNG(at: firstURL, width: 20, height: 20, color: .blue)
+    try writePNG(at: secondURL, width: 20, height: 20, color: .green)
+
+    var decodeCount = 0
+    let loader = BackgroundImageLoader(
+        loadImage: { url in
+            decodeCount += 1
+            return NSImage(contentsOf: url)
+        },
+        logger: { _ in }
+    )
+
+    let generator = WallpaperGenerator(
+        fileManager: .default,
+        appSupportDirectoryProvider: { fixture.appSupportURL },
+        mainScreenPixelSizeProvider: { CGSize(width: 1280, height: 720) },
+        mainScreenScaleProvider: { 1.0 },
+        backgroundImageLoader: loader,
+        retainedGeneratedFileCount: 5
+    )
+
+    let target = WallpaperGenerator.RenderTarget(
+        identifier: "display-1",
+        pixelWidth: 800,
+        pixelHeight: 600
+    )
+
+    _ = generator.generateWallpapers(
+        highlight: sampleHighlight(),
+        backgroundURL: firstURL,
+        targets: [target],
+        rotationID: "h4-selection-1"
+    )
+    _ = generator.generateWallpapers(
+        highlight: sampleHighlight(),
+        backgroundURL: firstURL,
+        targets: [target],
+        rotationID: "h4-selection-2"
+    )
+    expect(decodeCount == 1, "Expected repeated selection of same image to hit decode cache")
+
+    _ = generator.generateWallpapers(
+        highlight: sampleHighlight(),
+        backgroundURL: secondURL,
+        targets: [target],
+        rotationID: "h4-selection-3"
+    )
+    expect(decodeCount == 2, "Expected selecting a different image to decode the new selection")
+
+    _ = generator.generateWallpapers(
+        highlight: sampleHighlight(),
+        backgroundURL: firstURL,
+        targets: [target],
+        rotationID: "h4-selection-4"
+    )
+    expect(decodeCount == 3, "Expected prior selection cache to invalidate when selection changes")
+}
+
 func testWallpaperGeneratorFallsBackWhenBackgroundDecodeFails() throws {
     let fixture = try TestFixture.make()
     defer { fixture.cleanup() }
@@ -274,6 +338,7 @@ do {
     try testUnreadableOutcomeAndDedupedWarning()
     try testDecodeFailureOutcomeAndDedupedWarning()
     try testSuccessCachingAndInvalidationOnFileChange()
+    try testSelectionScopedCacheInvalidation()
     try testWallpaperGeneratorFallsBackWhenBackgroundDecodeFails()
     print("H4 verification passed")
 } catch {

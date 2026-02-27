@@ -19,9 +19,6 @@ Add tests for success and failure outcomes (including no active pool and wallpap
 **T57 — Background image collection UI**
 Replace "Change Image" picker in Settings with a managed backgrounds view (similar pattern to Books window). Show collection with previews, add/remove controls, block removal of last image, prompt to add if empty. UI should try to follow the default macOS Wallpaper settings menu patterns.
 
-**T58 — Random background selection in rotation pipeline**
-Update WallpaperGenerator rotation path to randomly pick from the background image collection each rotation. Single image in collection = current behavior. Update T54 cache to invalidate per selected image.
-
 **T59 — Capitalize highlight text toggle**
 Add a toggle in Settings to automatically capitalize the first letter of highlight text if it is lowercase. Off by default.
 

@@ -366,3 +366,8 @@ When the daily scheduler ticks and requestWallpaperRotation() returns false (bus
 Define storage model for multiple background images. Replace single image path in ScheduleSettings or AppState with a collection. Handle migration from single image to collection (existing image becomes first item).
 
 
+
+**T58 — Random background selection in rotation pipeline**
+Update WallpaperGenerator rotation path to randomly pick from the background image collection each rotation. Single image in collection = current behavior. Update T54 cache to invalidate per selected image.
+
+

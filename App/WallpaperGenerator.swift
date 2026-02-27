@@ -142,7 +142,8 @@ struct WallpaperGenerator {
     }
 
     private func loadBackgroundImage(from url: URL?) -> NSImage? {
-        backgroundImageLoader.load(from: url).image
+        backgroundImageLoader.invalidateCacheForUnselectedImages(selectedURL: url)
+        return backgroundImageLoader.load(from: url).image
     }
 
     private func solidBlackImage(size: CGSize) -> NSImage {
