@@ -379,3 +379,6 @@ Replace "Change Image" picker in Settings with a managed backgrounds view (simil
 
 **T60 — macOS wallpaper cycling conflict warning**
 Add a small notice in Settings warning users to disable macOS's built-in wallpaper rotation to avoid conflicts with KindleWall managing the wallpaper.
+
+**T59 — Capitalize highlight text toggle**
+Add a toggle in Settings to automatically capitalize the first letter of highlight text if it is lowercase. Off by default.

@@ -17,6 +17,7 @@ struct SettingsView: View {
                 booksSection
                 backgroundSection
                 scheduleSection
+                displaySection
                 aboutSection
             }
             .padding(20)
@@ -139,6 +140,15 @@ struct SettingsView: View {
         }
     }
 
+    private var displaySection: some View {
+        sectionContainer(title: "Display") {
+            Toggle("Capitalize first letter of highlight text", isOn: capitalizeHighlightTextBinding)
+            Text("If a quote starts lowercase, KindleWall displays it with an uppercase first letter.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     private func sectionContainer<Content: View>(
         title: String,
         @ViewBuilder content: () -> Content
@@ -182,6 +192,17 @@ struct SettingsView: View {
                 let components = Calendar.current.dateComponents([.hour, .minute], from: newValue)
                 UserDefaults.standard.scheduleDailyHour = components.hour ?? 9
                 UserDefaults.standard.scheduleDailyMinute = components.minute ?? 0
+            }
+        )
+    }
+
+    private var capitalizeHighlightTextBinding: Binding<Bool> {
+        Binding(
+            get: {
+                appState.capitalizeHighlightText
+            },
+            set: { enabled in
+                appState.setCapitalizeHighlightText(enabled)
             }
         )
     }

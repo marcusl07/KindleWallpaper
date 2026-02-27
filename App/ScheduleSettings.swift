@@ -55,6 +55,7 @@ extension UserDefaults {
         static let dailyHour = "scheduleDailyHour"
         static let dailyMinute = "scheduleDailyMinute"
         static let lastChangedAt = "lastChangedAt"
+        static let capitalizeHighlightText = "capitalizeHighlightText"
     }
 
     private static let lastChangedAtParsers: [ISO8601DateFormatter] = {
@@ -135,6 +136,35 @@ extension UserDefaults {
             }
 
             set(newValue.timeIntervalSince1970, forKey: ScheduleKeys.lastChangedAt)
+        }
+    }
+
+    var capitalizeHighlightText: Bool {
+        get {
+            guard let rawValue = object(forKey: ScheduleKeys.capitalizeHighlightText) else {
+                return false
+            }
+
+            if let number = rawValue as? NSNumber {
+                return number.boolValue
+            }
+
+            if let string = rawValue as? String {
+                let normalized = string.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                switch normalized {
+                case "1", "true", "yes":
+                    return true
+                case "0", "false", "no":
+                    return false
+                default:
+                    return false
+                }
+            }
+
+            return false
+        }
+        set {
+            set(newValue, forKey: ScheduleKeys.capitalizeHighlightText)
         }
     }
 

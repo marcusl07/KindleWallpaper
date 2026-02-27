@@ -102,6 +102,7 @@ final class AppState: ObservableObject {
     @Published private(set) var isBookMutationInFlight: Bool
     @Published private(set) var activeScheduleMode: RotationScheduleMode
     @Published private(set) var lastChangedAt: Date?
+    @Published private(set) var capitalizeHighlightText: Bool
 
     private let userDefaults: UserDefaults
     private let pickNextHighlight: PickNextHighlight
@@ -230,6 +231,7 @@ final class AppState: ObservableObject {
         self.isBookMutationInFlight = false
         self.activeScheduleMode = activeScheduleMode ?? userDefaults.rotationScheduleMode
         self.lastChangedAt = userDefaults.lastChangedAt
+        self.capitalizeHighlightText = userDefaults.capitalizeHighlightText
         self.pickNextHighlight = pickNextHighlight
         self.loadBackgroundImageURLs = resolvedLoadBackgroundImageURLs
         self.selectBackgroundImageURL = resolvedSelectBackgroundImageURL
@@ -313,6 +315,7 @@ final class AppState: ObservableObject {
         let pickNextHighlight: PickNextHighlight
         let loadBackgroundImageURLs: LoadBackgroundImageURLs
         let selectBackgroundImageURL: SelectBackgroundImageURL
+        let transformQuoteTextForDisplay: (String) -> String
         let generateWallpaper: GenerateWallpaper
         let setWallpaper: SetWallpaper
         let prepareWallpaperRotation: PrepareWallpaperRotation?
@@ -329,10 +332,17 @@ final class AppState: ObservableObject {
     }
 
     private func makeRotationPipelineContext() -> RotationPipelineContext {
-        RotationPipelineContext(
+        let capitalizeHighlightText = userDefaults.capitalizeHighlightText
+        return RotationPipelineContext(
             pickNextHighlight: pickNextHighlight,
             loadBackgroundImageURLs: loadBackgroundImageURLs,
             selectBackgroundImageURL: selectBackgroundImageURL,
+            transformQuoteTextForDisplay: { quoteText in
+                AppState.transformedQuoteTextForDisplay(
+                    quoteText,
+                    capitalizeFirstLetterIfLowercase: capitalizeHighlightText
+                )
+            },
             generateWallpaper: generateWallpaper,
             setWallpaper: setWallpaper,
             prepareWallpaperRotation: prepareWallpaperRotation,
@@ -354,6 +364,8 @@ final class AppState: ObservableObject {
             )
         }
 
+        let displayQuoteText = context.transformQuoteTextForDisplay(highlight.quoteText)
+        let highlightForDisplay = displayHighlight(highlight, quoteText: displayQuoteText)
         let backgroundURL = context.selectBackgroundImageURL(context.loadBackgroundImageURLs())
         if
             let prepareWallpaperRotation = context.prepareWallpaperRotation,
@@ -369,7 +381,7 @@ final class AppState: ObservableObject {
                 )
             }
 
-            let generatedWallpapers = generateWallpapers(highlight, backgroundURL, targets)
+            let generatedWallpapers = generateWallpapers(highlightForDisplay, backgroundURL, targets)
             let targetIdentifiers = Set(targets.map { $0.identifier })
             let generatedIdentifiers = Set(generatedWallpapers.map { $0.targetIdentifier })
 
@@ -395,7 +407,7 @@ final class AppState: ObservableObject {
             }
         } else {
             do {
-                let wallpaperURL = context.generateWallpaper(highlight, backgroundURL)
+                let wallpaperURL = context.generateWallpaper(highlightForDisplay, backgroundURL)
                 try context.setWallpaper(wallpaperURL)
             } catch {
                 return RotationExecution(
@@ -411,9 +423,60 @@ final class AppState: ObservableObject {
         context.setLastChangedAt(changedAt)
         return RotationExecution(
             outcome: .success,
-            currentQuotePreview: highlight.quoteText,
+            currentQuotePreview: displayQuoteText,
             lastChangedAt: changedAt
         )
+    }
+
+    nonisolated private static func displayHighlight(_ highlight: Highlight, quoteText: String) -> Highlight {
+        Highlight(
+            id: highlight.id,
+            bookId: highlight.bookId,
+            quoteText: quoteText,
+            bookTitle: highlight.bookTitle,
+            author: highlight.author,
+            location: highlight.location,
+            dateAdded: highlight.dateAdded,
+            lastShownAt: highlight.lastShownAt
+        )
+    }
+
+    nonisolated private static func transformedQuoteTextForDisplay(
+        _ quoteText: String,
+        capitalizeFirstLetterIfLowercase: Bool
+    ) -> String {
+        guard capitalizeFirstLetterIfLowercase else {
+            return quoteText
+        }
+
+        guard let firstLetterRange = firstLetterRange(in: quoteText) else {
+            return quoteText
+        }
+
+        let firstLetter = quoteText[firstLetterRange]
+        let firstLetterString = String(firstLetter)
+        let lowercase = firstLetterString.lowercased()
+        let uppercase = firstLetterString.uppercased()
+
+        guard firstLetterString == lowercase, firstLetterString != uppercase else {
+            return quoteText
+        }
+
+        var transformed = quoteText
+        transformed.replaceSubrange(firstLetterRange, with: uppercase)
+        return transformed
+    }
+
+    nonisolated private static func firstLetterRange(in text: String) -> Range<String.Index>? {
+        for index in text.indices {
+            let nextIndex = text.index(after: index)
+            let characterRange = index..<nextIndex
+            let character = String(text[characterRange])
+            if character.rangeOfCharacter(from: .letters) != nil {
+                return characterRange
+            }
+        }
+        return nil
     }
 
     private func publishRotationExecution(_ execution: RotationExecution) {
@@ -470,6 +533,7 @@ final class AppState: ObservableObject {
     func refreshScheduleState() {
         activeScheduleMode = userDefaults.rotationScheduleMode
         lastChangedAt = userDefaults.lastChangedAt
+        capitalizeHighlightText = userDefaults.capitalizeHighlightText
     }
 
     func refreshAllState() {
@@ -504,6 +568,11 @@ final class AppState: ObservableObject {
     func setActiveScheduleMode(_ mode: RotationScheduleMode) {
         userDefaults.rotationScheduleMode = mode
         activeScheduleMode = mode
+    }
+
+    func setCapitalizeHighlightText(_ enabled: Bool) {
+        userDefaults.capitalizeHighlightText = enabled
+        capitalizeHighlightText = enabled
     }
 
     private func performBookMutation(_ mutation: () -> Bool) {
