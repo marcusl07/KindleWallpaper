@@ -6,8 +6,9 @@ import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
-    @State private var backgroundImageURL: URL? = nil
     @State private var backgroundImageError: String? = nil
+    @State private var backgroundCollectionCount: Int = 0
+    @State private var primaryBackgroundName: String = "No image selected"
 
     var body: some View {
         ScrollView(.vertical) {
@@ -24,7 +25,10 @@ struct SettingsView: View {
         .frame(minWidth: 680, maxWidth: .infinity, minHeight: 520, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
             NSLog("[ShowBooksDebug] SettingsView.onAppear")
-            refreshBackgroundThumbnail()
+            refreshBackgroundSummary()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .kindleWallBackgroundCollectionDidChange)) { _ in
+            refreshBackgroundSummary()
         }
     }
 
@@ -66,9 +70,13 @@ struct SettingsView: View {
     }
 
     private var backgroundSection: some View {
-        sectionContainer(title: "Background Image") {
-            backgroundPreview
-                .allowsHitTesting(false)
+        sectionContainer(title: "Backgrounds") {
+            Text("\(backgroundCollectionCount) \(backgroundCollectionCount == 1 ? "image" : "images")")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+
+            Text("Current selection: \(primaryBackgroundName)")
+                .font(.callout)
 
             if let backgroundImageError {
                 Text(backgroundImageError)
@@ -76,8 +84,8 @@ struct SettingsView: View {
                     .foregroundStyle(.red)
             }
 
-            Button("Change Image...") {
-                chooseBackgroundImage()
+            Button("Show Backgrounds...") {
+                presentBackgroundsWindow()
             }
         }
     }
@@ -140,56 +148,11 @@ struct SettingsView: View {
         }
     }
 
-    @ViewBuilder
-    private var backgroundPreview: some View {
-        #if canImport(AppKit)
-        if let image = loadPreviewImage() {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.black.opacity(0.22))
-
-                Image(nsImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: .infinity, maxHeight: 160)
-                    .padding(6)
-            }
-            .frame(height: 160)
-            .frame(maxWidth: .infinity)
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.black.opacity(0.12), lineWidth: 1)
-            )
-        } else {
-            placeholderBackgroundPreview
-        }
-        #else
-        placeholderBackgroundPreview
-        #endif
-    }
-
-    private var placeholderBackgroundPreview: some View {
-        RoundedRectangle(cornerRadius: 8)
-            .fill(Color.black)
-            .frame(height: 160)
-            .frame(maxWidth: .infinity)
-            .overlay(
-                Text("No image — black background")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            )
-    }
-
-    #if canImport(AppKit)
-    private func loadPreviewImage() -> NSImage? {
-        BackgroundImageLoader.shared.load(from: backgroundImageURL).image
-    }
-    #endif
-
-    private func refreshBackgroundThumbnail() {
-        let previewState = appState.loadBackgroundPreviewState()
-        backgroundImageURL = previewState.primaryImageURL
-        backgroundImageError = previewState.warningMessage
+    private func refreshBackgroundSummary() {
+        let state = appState.loadBackgroundCollectionState()
+        backgroundCollectionCount = state.items.count
+        primaryBackgroundName = state.items.first?.fileURL.deletingPathExtension().lastPathComponent ?? "No image selected"
+        backgroundImageError = state.warningMessage
     }
 
     private var scheduleModeBinding: Binding<RotationScheduleMode> {
@@ -254,28 +217,8 @@ struct SettingsView: View {
         return calendar.date(from: components) ?? Date()
     }
 
-    private func chooseBackgroundImage() {
-        #if canImport(AppKit)
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [.jpeg, .png, .heic]
-        panel.title = "Choose Background Image"
-        panel.prompt = "Choose Image"
-
-        guard panel.runModal() == .OK, let selectedURL = panel.url else {
-            return
-        }
-
-        do {
-            try appState.saveBackgroundImageSelection(from: selectedURL)
-            backgroundImageError = nil
-            refreshBackgroundThumbnail()
-        } catch {
-            backgroundImageError = "Failed to set background image: \(error.localizedDescription)"
-        }
-        #endif
+    private func presentBackgroundsWindow() {
+        BackgroundsWindowPresentation.requestShowWindow()
     }
 
     private func chooseClippingsFile() {
@@ -355,8 +298,20 @@ enum BooksWindowPresentation {
     }
 }
 
+enum BackgroundsWindowPresentation {
+    static func requestShowWindow(notificationCenter: NotificationCenter = .default) {
+        notificationCenter.post(name: .kindleWallShowBackgroundsWindow, object: nil)
+    }
+
+    static func notifyCollectionChanged(notificationCenter: NotificationCenter = .default) {
+        notificationCenter.post(name: .kindleWallBackgroundCollectionDidChange, object: nil)
+    }
+}
+
 extension Notification.Name {
     static let kindleWallShowBooksWindow = Notification.Name("kindleWallShowBooksWindow")
+    static let kindleWallShowBackgroundsWindow = Notification.Name("kindleWallShowBackgroundsWindow")
+    static let kindleWallBackgroundCollectionDidChange = Notification.Name("kindleWallBackgroundCollectionDidChange")
 }
 
 #if canImport(AppKit)
@@ -451,5 +406,296 @@ struct BooksListView: View {
                 appState.setBookEnabled(id: book.id, enabled: enabled)
             }
         )
+    }
+}
+
+struct BackgroundsListView: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var collectionState = AppState.BackgroundCollectionState(items: [], warningMessage: nil)
+    @State private var selectedBackgroundID: UUID? = nil
+    @State private var operationError: String? = nil
+
+    private let gridColumns = [GridItem(.adaptive(minimum: 170, maximum: 230), spacing: 12)]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Backgrounds")
+                .font(.headline)
+
+            controlsRow
+
+            if let warningMessage = collectionState.warningMessage {
+                Text(warningMessage)
+                    .font(.callout)
+                    .foregroundStyle(.orange)
+            }
+
+            if let operationError {
+                Text(operationError)
+                    .font(.callout)
+                    .foregroundStyle(.red)
+            }
+
+            if collectionState.items.isEmpty {
+                emptyStateCard
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            } else {
+                ScrollView {
+                    LazyVGrid(columns: gridColumns, alignment: .leading, spacing: 12) {
+                        ForEach(collectionState.items) { item in
+                            tile(for: item)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onAppear {
+            refreshCollection()
+        }
+    }
+
+    private var controlsRow: some View {
+        HStack(spacing: 8) {
+            Button("Add Photo...") {
+                choosePhotos()
+            }
+
+            Button("Add Folder...") {
+                chooseFolder()
+            }
+
+            Button("Remove Selected") {
+                removeSelected()
+            }
+            .disabled(!canRemoveSelected)
+
+            Spacer(minLength: 8)
+
+            Text("\(collectionState.items.count) \(collectionState.items.count == 1 ? "item" : "items")")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var emptyStateCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("No background images yet.")
+                .font(.headline)
+            Text("Add at least one background image to start rotating wallpapers.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            Button("Add Photo...") {
+                choosePhotos()
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.black.opacity(0.04))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.black.opacity(0.10), style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
+        )
+    }
+
+    private func tile(for item: AppState.BackgroundCollectionItem) -> some View {
+        let isSelected = selectedBackgroundID == item.id
+
+        return Button {
+            setSelected(item.id)
+        } label: {
+            tileCardLabel(for: item, isSelected: isSelected)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func tileCardLabel(for item: AppState.BackgroundCollectionItem, isSelected: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            tilePreview(for: item.fileURL)
+                .frame(height: 110)
+            Text(item.fileURL.lastPathComponent)
+                .font(.caption)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .foregroundStyle(.primary)
+        }
+        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.black.opacity(0.03))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(isSelected ? Color.accentColor : Color.black.opacity(0.12), lineWidth: isSelected ? 2 : 1)
+        )
+        .overlay(alignment: .topTrailing) {
+            if isSelected {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(Color.accentColor)
+                    .padding(8)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func tilePreview(for fileURL: URL) -> some View {
+        #if canImport(AppKit)
+        if let image = BackgroundImageLoader.shared.load(from: fileURL).image {
+            Image(nsImage: image)
+                .resizable()
+                .scaledToFill()
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+        } else {
+            fallbackPreview
+        }
+        #else
+        fallbackPreview
+        #endif
+    }
+
+    private var fallbackPreview: some View {
+        RoundedRectangle(cornerRadius: 8)
+            .fill(Color.black)
+            .overlay(
+                Image(systemName: "photo")
+                    .foregroundStyle(.secondary)
+            )
+    }
+
+    private var canRemoveSelected: Bool {
+        selectedBackgroundID != nil && collectionState.items.count > 1
+    }
+
+    private func refreshCollection() {
+        collectionState = appState.loadBackgroundCollectionState()
+
+        if let selectedBackgroundID, collectionState.items.contains(where: { $0.id == selectedBackgroundID }) {
+            return
+        }
+        selectedBackgroundID = collectionState.items.first?.id
+    }
+
+    private func setSelected(_ id: UUID) {
+        do {
+            try appState.setPrimaryBackgroundImageSelection(id: id)
+            operationError = nil
+            refreshCollection()
+            selectedBackgroundID = id
+            BackgroundsWindowPresentation.notifyCollectionChanged()
+        } catch {
+            operationError = "Failed to select background: \(error.localizedDescription)"
+        }
+    }
+
+    private func removeSelected() {
+        guard let selectedBackgroundID else {
+            return
+        }
+
+        do {
+            try appState.removeBackgroundImageSelection(id: selectedBackgroundID)
+            operationError = nil
+            refreshCollection()
+            BackgroundsWindowPresentation.notifyCollectionChanged()
+        } catch {
+            operationError = "Failed to remove background: \(error.localizedDescription)"
+        }
+    }
+
+    private func addBackgroundURLs(_ sourceURLs: [URL]) {
+        guard !sourceURLs.isEmpty else {
+            return
+        }
+
+        var successfulAdds = 0
+        var firstError: Error?
+
+        for sourceURL in sourceURLs {
+            do {
+                try appState.addBackgroundImageSelection(from: sourceURL)
+                successfulAdds += 1
+            } catch {
+                if firstError == nil {
+                    firstError = error
+                }
+            }
+        }
+
+        refreshCollection()
+        if successfulAdds > 0 {
+            operationError = nil
+            BackgroundsWindowPresentation.notifyCollectionChanged()
+        } else if let firstError {
+            operationError = "Failed to add background: \(firstError.localizedDescription)"
+        }
+    }
+
+    private func choosePhotos() {
+        #if canImport(AppKit)
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        panel.allowedContentTypes = [.jpeg, .png, .heic]
+        panel.title = "Add Background Photos"
+        panel.prompt = "Add"
+
+        guard panel.runModal() == .OK else {
+            return
+        }
+
+        addBackgroundURLs(panel.urls)
+        #endif
+    }
+
+    private func chooseFolder() {
+        #if canImport(AppKit)
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.title = "Add Background Folder"
+        panel.prompt = "Add Folder"
+
+        guard panel.runModal() == .OK, let folderURL = panel.url else {
+            return
+        }
+
+        let supportedExtensions = Set(["jpg", "jpeg", "png", "heic", "heif"])
+        let keys: [URLResourceKey] = [.isRegularFileKey]
+        let enumerator = FileManager.default.enumerator(
+            at: folderURL,
+            includingPropertiesForKeys: keys,
+            options: [.skipsHiddenFiles]
+        )
+
+        var fileURLs: [URL] = []
+        while let next = enumerator?.nextObject() as? URL {
+            let values = try? next.resourceValues(forKeys: Set(keys))
+            guard values?.isRegularFile == true else {
+                continue
+            }
+            let fileExtension = next.pathExtension.lowercased()
+            if supportedExtensions.contains(fileExtension) {
+                fileURLs.append(next)
+            }
+        }
+
+        fileURLs.sort {
+            $0.lastPathComponent.localizedCaseInsensitiveCompare($1.lastPathComponent) == .orderedAscending
+        }
+
+        if fileURLs.isEmpty {
+            operationError = "No supported image files found in selected folder."
+            return
+        }
+        addBackgroundURLs(fileURLs)
+        #endif
     }
 }

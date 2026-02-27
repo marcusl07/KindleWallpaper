@@ -155,19 +155,25 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
     private weak var appState: AppState?
     private var settingsWindowController: NSWindowController?
     private var booksWindowController: NSWindowController?
+    private var backgroundsWindowController: NSWindowController?
     private var booksWindowObserver: NSObjectProtocol?
+    private var backgroundsWindowObserver: NSObjectProtocol?
     private var appDidResignActiveObserver: NSObjectProtocol?
 
     init(appState: AppState) {
         self.appState = appState
         super.init()
         installBooksWindowObserver()
+        installBackgroundsWindowObserver()
         installAppDeactivationObserver()
     }
 
     deinit {
         if let booksWindowObserver {
             NotificationCenter.default.removeObserver(booksWindowObserver)
+        }
+        if let backgroundsWindowObserver {
+            NotificationCenter.default.removeObserver(backgroundsWindowObserver)
         }
         if let appDidResignActiveObserver {
             NotificationCenter.default.removeObserver(appDidResignActiveObserver)
@@ -195,6 +201,22 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
         }
     }
 
+    private func installBackgroundsWindowObserver() {
+        guard backgroundsWindowObserver == nil else {
+            return
+        }
+
+        backgroundsWindowObserver = NotificationCenter.default.addObserver(
+            forName: .kindleWallShowBackgroundsWindow,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.showBackgroundsWindow()
+            }
+        }
+    }
+
     private func installAppDeactivationObserver() {
         guard appDidResignActiveObserver == nil else {
             return
@@ -214,6 +236,7 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
     private func restoreWindowVisibilityAfterAppDeactivation() {
         restoreVisibilityIfNeeded(for: settingsWindowController?.window)
         restoreVisibilityIfNeeded(for: booksWindowController?.window)
+        restoreVisibilityIfNeeded(for: backgroundsWindowController?.window)
     }
 
     private func restoreVisibilityIfNeeded(for window: NSWindow?) {
@@ -287,6 +310,30 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
         window.makeKeyAndOrderFront(nil)
     }
 
+    private func showBackgroundsWindow() {
+        NSApp.activate(ignoringOtherApps: true)
+
+        if let existingWindow = backgroundsWindowController?.window {
+            existingWindow.makeKeyAndOrderFront(nil)
+            return
+        }
+
+        guard let appState else {
+            return
+        }
+
+        let backgroundsView = BackgroundsListView()
+            .environmentObject(appState)
+        let hostingController = NSHostingController(rootView: backgroundsView)
+        let window = NSWindow(contentViewController: hostingController)
+        configureBackgroundsWindow(window)
+
+        let controller = NSWindowController(window: window)
+        backgroundsWindowController = controller
+        controller.showWindow(nil)
+        window.makeKeyAndOrderFront(nil)
+    }
+
     private func configureSettingsWindow(_ window: NSWindow) {
         window.title = "Settings"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
@@ -307,6 +354,16 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
         window.delegate = self
     }
 
+    private func configureBackgroundsWindow(_ window: NSWindow) {
+        window.title = "Backgrounds"
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        window.setContentSize(NSSize(width: 860, height: 620))
+        window.center()
+        window.canHide = false
+        window.hidesOnDeactivate = false
+        window.delegate = self
+    }
+
     func windowWillClose(_ notification: Notification) {
         guard let closedWindow = notification.object as? NSWindow else {
             return
@@ -317,6 +374,10 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
         }
         if booksWindowController?.window === closedWindow {
             booksWindowController = nil
+            return
+        }
+        if backgroundsWindowController?.window === closedWindow {
+            backgroundsWindowController = nil
         }
     }
 }

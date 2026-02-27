@@ -40,6 +40,17 @@ final class AppState: ObservableObject {
         let warningMessage: String?
     }
 
+    struct BackgroundCollectionItem: Equatable, Identifiable {
+        let id: UUID
+        let fileURL: URL
+        let addedAt: Date
+    }
+
+    struct BackgroundCollectionState: Equatable {
+        let items: [BackgroundCollectionItem]
+        let warningMessage: String?
+    }
+
     enum WallpaperApplyFailureReason: Equatable {
         case noTargets
         case generatedTargetMismatch
@@ -75,6 +86,10 @@ final class AppState: ObservableObject {
     typealias FetchTotalHighlightCount = () -> Int
     typealias LoadBackgroundPreviewState = () -> BackgroundPreviewState
     typealias SaveBackgroundImageSelection = (URL) throws -> Void
+    typealias LoadBackgroundCollectionState = () -> BackgroundCollectionState
+    typealias AddBackgroundImageSelection = (URL) throws -> Void
+    typealias RemoveBackgroundImageSelection = (UUID) throws -> Void
+    typealias SetPrimaryBackgroundImageSelection = (UUID) throws -> Void
     typealias ExecuteRotationWork = (@escaping () -> Void) -> Void
     typealias DeliverRotationResult = (@escaping () -> Void) -> Void
     typealias Now = () -> Date
@@ -103,6 +118,10 @@ final class AppState: ObservableObject {
     private let fetchTotalHighlightCount: FetchTotalHighlightCount
     private let loadBackgroundPreviewStateAction: LoadBackgroundPreviewState
     private let saveBackgroundImageSelectionAction: SaveBackgroundImageSelection
+    private let loadBackgroundCollectionStateAction: LoadBackgroundCollectionState
+    private let addBackgroundImageSelectionAction: AddBackgroundImageSelection
+    private let removeBackgroundImageSelectionAction: RemoveBackgroundImageSelection
+    private let setPrimaryBackgroundImageSelectionAction: SetPrimaryBackgroundImageSelection
     private let executeRotationWork: ExecuteRotationWork
     private let deliverRotationResult: DeliverRotationResult
     private let now: Now
@@ -140,6 +159,10 @@ final class AppState: ObservableObject {
         fetchTotalHighlightCount: @escaping FetchTotalHighlightCount = { 0 },
         loadBackgroundPreviewState: LoadBackgroundPreviewState? = nil,
         saveBackgroundImageSelection: @escaping SaveBackgroundImageSelection = { _ in },
+        loadBackgroundCollectionState: LoadBackgroundCollectionState? = nil,
+        addBackgroundImageSelection: @escaping AddBackgroundImageSelection = { _ in },
+        removeBackgroundImageSelection: @escaping RemoveBackgroundImageSelection = { _ in },
+        setPrimaryBackgroundImageSelection: @escaping SetPrimaryBackgroundImageSelection = { _ in },
         executeRotationWork: @escaping ExecuteRotationWork = AppState.enqueueRotationWork,
         deliverRotationResult: @escaping DeliverRotationResult = AppState.deliverRotationResultOnMain,
         now: @escaping Now = Date.init
@@ -181,6 +204,23 @@ final class AppState: ObservableObject {
             }
         }
 
+        let resolvedLoadBackgroundCollectionState: LoadBackgroundCollectionState
+        if let loadBackgroundCollectionState {
+            resolvedLoadBackgroundCollectionState = loadBackgroundCollectionState
+        } else {
+            resolvedLoadBackgroundCollectionState = {
+                let previewState = resolvedLoadBackgroundPreviewState()
+                let items = resolvedLoadBackgroundImageURLs().map { fileURL in
+                    BackgroundCollectionItem(
+                        id: UUID(),
+                        fileURL: fileURL,
+                        addedAt: .distantPast
+                    )
+                }
+                return BackgroundCollectionState(items: items, warningMessage: previewState.warningMessage)
+            }
+        }
+
         self.userDefaults = userDefaults
         self.currentQuotePreview = currentQuotePreview
         self.importStatus = importStatus
@@ -204,6 +244,10 @@ final class AppState: ObservableObject {
         self.fetchTotalHighlightCount = fetchTotalHighlightCount
         self.loadBackgroundPreviewStateAction = resolvedLoadBackgroundPreviewState
         self.saveBackgroundImageSelectionAction = saveBackgroundImageSelection
+        self.loadBackgroundCollectionStateAction = resolvedLoadBackgroundCollectionState
+        self.addBackgroundImageSelectionAction = addBackgroundImageSelection
+        self.removeBackgroundImageSelectionAction = removeBackgroundImageSelection
+        self.setPrimaryBackgroundImageSelectionAction = setPrimaryBackgroundImageSelection
         self.executeRotationWork = executeRotationWork
         self.deliverRotationResult = deliverRotationResult
         self.now = now
@@ -441,6 +485,22 @@ final class AppState: ObservableObject {
         try saveBackgroundImageSelectionAction(sourceURL)
     }
 
+    func loadBackgroundCollectionState() -> BackgroundCollectionState {
+        loadBackgroundCollectionStateAction()
+    }
+
+    func addBackgroundImageSelection(from sourceURL: URL) throws {
+        try addBackgroundImageSelectionAction(sourceURL)
+    }
+
+    func removeBackgroundImageSelection(id: UUID) throws {
+        try removeBackgroundImageSelectionAction(id)
+    }
+
+    func setPrimaryBackgroundImageSelection(id: UUID) throws {
+        try setPrimaryBackgroundImageSelectionAction(id)
+    }
+
     func setActiveScheduleMode(_ mode: RotationScheduleMode) {
         userDefaults.rotationScheduleMode = mode
         activeScheduleMode = mode
@@ -546,6 +606,28 @@ extension AppState {
             },
             saveBackgroundImageSelection: { sourceURL in
                 _ = try backgroundStore.saveBackgroundImage(from: sourceURL)
+            },
+            loadBackgroundCollectionState: {
+                let result = backgroundStore.loadBackgroundImageCollection()
+                return BackgroundCollectionState(
+                    items: result.items.map { item in
+                        BackgroundCollectionItem(
+                            id: item.id,
+                            fileURL: item.fileURL,
+                            addedAt: item.addedAt
+                        )
+                    },
+                    warningMessage: warningMessage(from: result.outcome)
+                )
+            },
+            addBackgroundImageSelection: { sourceURL in
+                _ = try backgroundStore.addBackgroundImage(from: sourceURL)
+            },
+            removeBackgroundImageSelection: { id in
+                _ = try backgroundStore.removeBackgroundImage(id: id)
+            },
+            setPrimaryBackgroundImageSelection: { id in
+                _ = try backgroundStore.promoteBackgroundImage(id: id)
             }
         )
     }

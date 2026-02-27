@@ -187,6 +187,41 @@ struct BackgroundImageStore {
     }
 
     @discardableResult
+    func promoteBackgroundImage(id: UUID) throws -> [BackgroundImageItem] {
+        let manifest = try loadManifestOrThrow()
+        let materialized = materializeItems(from: manifest.records)
+        let items = materialized.items
+        guard let selectedIndex = items.firstIndex(where: { $0.id == id }) else {
+            return items
+        }
+        guard selectedIndex != 0 else {
+            return items
+        }
+
+        let selected = items[selectedIndex]
+        var reordered = items
+        reordered.remove(at: selectedIndex)
+        reordered.insert(selected, at: 0)
+
+        let reorderedRecords = reordered.map { item in
+            ManifestRecord(
+                id: item.id,
+                filename: item.fileURL.lastPathComponent,
+                addedAt: item.addedAt
+            )
+        }
+
+        do {
+            try writeManifest(Manifest(version: manifest.version, records: reorderedRecords))
+        } catch {
+            throw StoreError.manifestWriteFailed
+        }
+
+        cleanupOrphanFiles(keeping: Set(reorderedRecords.map(\.filename)))
+        return reordered
+    }
+
+    @discardableResult
     func replaceBackgroundImages(with sourceURLs: [URL]) throws -> [BackgroundImageItem] {
         guard !sourceURLs.isEmpty else {
             throw StoreError.emptySourceList
@@ -410,13 +445,6 @@ struct BackgroundImageStore {
                     addedAt: record.addedAt
                 )
             )
-        }
-
-        validItems.sort { lhs, rhs in
-            if lhs.addedAt == rhs.addedAt {
-                return lhs.id.uuidString < rhs.id.uuidString
-            }
-            return lhs.addedAt < rhs.addedAt
         }
 
         return (items: validItems, removedInvalidEntries: removedCount)
