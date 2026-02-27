@@ -12,9 +12,6 @@ Refactor wallpaper rotation orchestration into a boundary that returns explicit 
 **T51 — Add rotation outcome/error propagation tests**
 Add tests for success and failure outcomes (including no active pool and wallpaper apply failure) and verify UI-visible status propagation.
 
-**T55 — Fix daily scheduled rotation drop when rotation in progress**
-When the daily scheduler ticks and requestWallpaperRotation() returns false (busy), the scheduled rotation is silently dropped and won't retry that day. Fix by adding retry or queue behavior so the scheduled rotation eventually executes if initially rejected.
-
 ---
 
 ## Phase 11 — Wallpaper Collection and UX Safeguards

@@ -358,3 +358,6 @@ Add behavioral verification for settings open/reopen/deactivate semantics to pre
 Add tests ensuring successive Next Quote actions generate distinct wallpaper output identities and invoke wallpaper apply each time.
 
 
+
+**T55 — Fix daily scheduled rotation drop when rotation in progress**
+When the daily scheduler ticks and requestWallpaperRotation() returns false (busy), the scheduled rotation is silently dropped and won't retry that day. Fix by adding retry or queue behavior so the scheduled rotation eventually executes if initially rejected.

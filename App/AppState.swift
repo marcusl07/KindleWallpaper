@@ -179,6 +179,20 @@ final class AppState: ObservableObject {
         return true
     }
 
+    nonisolated func requestWallpaperRotationSynchronously() -> Bool {
+        if Thread.isMainThread {
+            return MainActor.assumeIsolated {
+                requestWallpaperRotation()
+            }
+        }
+
+        return DispatchQueue.main.sync {
+            MainActor.assumeIsolated {
+                requestWallpaperRotation()
+            }
+        }
+    }
+
     @discardableResult
     func rotateWallpaperWithOutcome() -> WallpaperRotationOutcome {
         guard !isRotationInProgress else {

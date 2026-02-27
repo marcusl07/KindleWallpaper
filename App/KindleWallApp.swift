@@ -23,11 +23,7 @@ struct KindleWallApp: App {
             guard let appState else {
                 return false
             }
-
-            Task { @MainActor in
-                _ = appState.requestWallpaperRotation()
-            }
-            return true
+            return appState.requestWallpaperRotationSynchronously()
         })
 
         #if canImport(AppKit)

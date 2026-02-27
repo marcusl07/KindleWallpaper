@@ -38,6 +38,7 @@ final class WallpaperScheduler {
     private var repeatingTimer: WallpaperSchedulerTimer?
     private var hasRunLaunchCheck = false
     private var isRotating = false
+    private var pendingDailyScheduledTime: Date?
 
     init(
         userDefaults: UserDefaults = .standard,
@@ -95,36 +96,69 @@ final class WallpaperScheduler {
 
         switch mode {
         case .manual:
+            pendingDailyScheduledTime = nil
             return
         case .onLaunch:
+            pendingDailyScheduledTime = nil
             guard trigger == .appLaunch else {
                 return
             }
-            performRotationIfNeeded()
+            _ = performRotationIfNeeded()
         case .every30Minutes:
+            pendingDailyScheduledTime = nil
             let currentTime = now()
             guard Self.shouldRotateEveryThirtyMinutes(now: currentTime, lastChangedAt: userDefaults.lastChangedAt) else {
                 return
             }
-            performRotationIfNeeded()
+            _ = performRotationIfNeeded()
         case .daily:
-            let currentTime = now()
-            guard Self.shouldRotateDaily(
-                now: currentTime,
-                lastChangedAt: userDefaults.lastChangedAt,
-                scheduleHour: userDefaults.scheduleDailyHour,
-                scheduleMinute: userDefaults.scheduleDailyMinute,
-                calendar: calendar
-            ) else {
-                return
-            }
-            performRotationIfNeeded()
+            evaluateDailySchedule()
         }
     }
 
-    private func performRotationIfNeeded() {
-        guard !isRotating else {
+    private func evaluateDailySchedule() {
+        let currentTime = now()
+        let todayScheduledTime = Self.scheduledTimeForToday(
+            at: currentTime,
+            scheduleHour: userDefaults.scheduleDailyHour,
+            scheduleMinute: userDefaults.scheduleDailyMinute,
+            calendar: calendar
+        )
+
+        if let pendingDailyScheduledTime {
+            if !calendar.isDate(pendingDailyScheduledTime, inSameDayAs: currentTime) {
+                self.pendingDailyScheduledTime = nil
+            } else if currentTime >= pendingDailyScheduledTime {
+                if performRotationIfNeeded() {
+                    self.pendingDailyScheduledTime = nil
+                }
+                return
+            } else {
+                return
+            }
+        }
+
+        guard Self.shouldRotateDaily(
+            now: currentTime,
+            lastChangedAt: userDefaults.lastChangedAt,
+            scheduleHour: userDefaults.scheduleDailyHour,
+            scheduleMinute: userDefaults.scheduleDailyMinute,
+            calendar: calendar
+        ) else {
             return
+        }
+
+        if performRotationIfNeeded() {
+            pendingDailyScheduledTime = nil
+        } else {
+            pendingDailyScheduledTime = todayScheduledTime
+        }
+    }
+
+    @discardableResult
+    private func performRotationIfNeeded() -> Bool {
+        guard !isRotating else {
+            return false
         }
 
         isRotating = true
@@ -132,7 +166,7 @@ final class WallpaperScheduler {
             isRotating = false
         }
 
-        _ = rotateWallpaper()
+        return rotateWallpaper()
     }
 
     static func shouldRotateEveryThirtyMinutes(now: Date, lastChangedAt: Date?) -> Bool {
