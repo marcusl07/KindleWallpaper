@@ -6,4 +6,20 @@ This file is the working context for agents. When an item is completed, move it 
 
 ## Phase 11 — Wallpaper Collection and UX Safeguards
 
+---
+
+## Phase 12 — Settings Navigation and Collection Ordering
+
+**T63 — Add NavigationStack to Settings window**
+Wrap the main Settings view content in a SwiftUI `NavigationStack`. No navigation links wired yet, just the scaffold in place with back/forward navigation arrows available at the top of the window.
+
+**T64 — Wire Books section to in-place navigation**
+Replace the "Show Books..." button with a `NavigationLink` that drills into `BooksListView` inside the existing Settings window `NavigationStack`. No separate window, no notification-based routing.
+
+**T65 — Remove Books window from SettingsWindowCoordinator**
+Delete `showBooksWindow()`, the books window controller, and the `.kindleWallShowBooksWindow` notification observer from `SettingsWindowCoordinator`. Clean up all dead code left behind.
+
+**T66 — Fix background image collection reorder on selection**
+When a background image is clicked in the collection view it jumps to the front of the list. Fix with a stable sort so collection order never changes on state update or selection.
+
 ## Open Agent Handoff Bugs
