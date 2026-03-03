@@ -16,7 +16,4 @@ Replace the "Show Books..." button with a `NavigationLink` that drills into `Boo
 **T65 — Remove Books window from SettingsWindowCoordinator**
 Delete `showBooksWindow()`, the books window controller, and the `.kindleWallShowBooksWindow` notification observer from `SettingsWindowCoordinator`. Clean up all dead code left behind.
 
-**T66 — Fix background image collection reorder on selection**
-When a background image is clicked in the collection view it jumps to the front of the list. Fix with a stable sort so collection order never changes on state update or selection.
-
 ## Open Agent Handoff Bugs

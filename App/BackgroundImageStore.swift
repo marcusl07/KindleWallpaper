@@ -39,6 +39,7 @@ struct BackgroundImageStore {
 
     struct CollectionLoadResult: Equatable {
         let items: [BackgroundImageItem]
+        let selectedItemID: UUID?
         let outcome: LoadCollectionOutcome
 
         var urls: [URL] {
@@ -77,6 +78,7 @@ struct BackgroundImageStore {
 
     private enum Keys {
         static let backgroundImagePath = "backgroundImagePath"
+        static let selectedBackgroundImageID = "selectedBackgroundImageID"
     }
 
     private enum Constants {
@@ -93,6 +95,7 @@ struct BackgroundImageStore {
         let id: UUID
         let filename: String
         let addedAt: Date
+        let sortOrder: Int?
     }
 
     private let fileManager: FileManager
@@ -137,14 +140,16 @@ struct BackgroundImageStore {
     @discardableResult
     func addBackgroundImage(from sourceURL: URL) throws -> BackgroundImageItem {
         let existing = try loadManifestOrThrow()
+        let normalizedExistingRecords = normalizedRecords(existing.records)
         let copied = try copySourceImage(sourceURL, preferredFilename: nil)
         let record = ManifestRecord(
             id: UUID(),
             filename: copied.lastPathComponent,
-            addedAt: Date()
+            addedAt: Date(),
+            sortOrder: normalizedExistingRecords.count
         )
 
-        var updatedRecords = existing.records
+        var updatedRecords = normalizedExistingRecords
         updatedRecords.append(record)
 
         do {
@@ -156,6 +161,7 @@ struct BackgroundImageStore {
 
         clearLegacyPathKey()
         cleanupOrphanFiles(keeping: Set(updatedRecords.map(\.filename)))
+        persistSelectedBackgroundIDIfNeeded(from: materializeItems(from: updatedRecords).items)
 
         return BackgroundImageItem(id: record.id, fileURL: copied, addedAt: record.addedAt)
     }
@@ -173,7 +179,7 @@ struct BackgroundImageStore {
             return existingItems
         }
 
-        let remainingRecords = manifest.records.filter { $0.id != id }
+        let remainingRecords = normalizedRecords(manifest.records.filter { $0.id != id })
         do {
             try writeManifest(Manifest(version: manifest.version, records: remainingRecords))
         } catch {
@@ -183,42 +189,21 @@ struct BackgroundImageStore {
         try? fileManager.removeItem(at: removedItem.fileURL)
         cleanupOrphanFiles(keeping: Set(remainingRecords.map(\.filename)))
 
-        return materializeItems(from: remainingRecords).items
+        let remainingItems = materializeItems(from: remainingRecords).items
+        persistSelectedBackgroundIDIfNeeded(from: remainingItems)
+        return remainingItems
     }
 
     @discardableResult
     func promoteBackgroundImage(id: UUID) throws -> [BackgroundImageItem] {
         let manifest = try loadManifestOrThrow()
-        let materialized = materializeItems(from: manifest.records)
-        let items = materialized.items
-        guard let selectedIndex = items.firstIndex(where: { $0.id == id }) else {
-            return items
-        }
-        guard selectedIndex != 0 else {
+        let items = materializeItems(from: manifest.records).items
+        guard items.contains(where: { $0.id == id }) else {
             return items
         }
 
-        let selected = items[selectedIndex]
-        var reordered = items
-        reordered.remove(at: selectedIndex)
-        reordered.insert(selected, at: 0)
-
-        let reorderedRecords = reordered.map { item in
-            ManifestRecord(
-                id: item.id,
-                filename: item.fileURL.lastPathComponent,
-                addedAt: item.addedAt
-            )
-        }
-
-        do {
-            try writeManifest(Manifest(version: manifest.version, records: reorderedRecords))
-        } catch {
-            throw StoreError.manifestWriteFailed
-        }
-
-        cleanupOrphanFiles(keeping: Set(reorderedRecords.map(\.filename)))
-        return reordered
+        userDefaults.set(id.uuidString, forKey: Keys.selectedBackgroundImageID)
+        return items
     }
 
     @discardableResult
@@ -243,7 +228,8 @@ struct BackgroundImageStore {
                     ManifestRecord(
                         id: UUID(),
                         filename: copiedURL.lastPathComponent,
-                        addedAt: Date()
+                        addedAt: Date(),
+                        sortOrder: records.count
                     )
                 )
             }
@@ -266,13 +252,15 @@ struct BackgroundImageStore {
         clearLegacyPathKey()
         cleanupOrphanFiles(keeping: Set(records.map(\.filename)))
 
-        return records.map { record in
+        let items = records.map { record in
             BackgroundImageItem(
                 id: record.id,
                 fileURL: backgroundsDirectoryURL().appendingPathComponent(record.filename, isDirectory: false),
                 addedAt: record.addedAt
             )
         }
+        persistSelectedBackgroundIDIfNeeded(from: items)
+        return items
     }
 
     func loadBackgroundImageCollection() -> CollectionLoadResult {
@@ -280,14 +268,21 @@ struct BackgroundImageStore {
             guard let manifest = loadManifest() else {
                 return CollectionLoadResult(
                     items: [],
+                    selectedItemID: nil,
                     outcome: .migrationFailed(.manifestDecodeFailed)
                 )
             }
 
             let materialized = materializeItems(from: manifest.records)
-            if materialized.removedInvalidEntries > 0 {
-                let recoveredRecords = materialized.items.map {
-                    ManifestRecord(id: $0.id, filename: $0.fileURL.lastPathComponent, addedAt: $0.addedAt)
+            let selectedItemID = persistSelectedBackgroundIDIfNeeded(from: materialized.items)
+            if materialized.removedInvalidEntries > 0 || manifest.records.contains(where: { $0.sortOrder == nil }) {
+                let recoveredRecords = materialized.items.enumerated().map { index, item in
+                    ManifestRecord(
+                        id: item.id,
+                        filename: item.fileURL.lastPathComponent,
+                        addedAt: item.addedAt,
+                        sortOrder: index
+                    )
                 }
 
                 do {
@@ -295,6 +290,7 @@ struct BackgroundImageStore {
                 } catch {
                     return CollectionLoadResult(
                         items: materialized.items,
+                        selectedItemID: selectedItemID,
                         outcome: .migrationFailed(.manifestWriteFailed)
                     )
                 }
@@ -302,15 +298,16 @@ struct BackgroundImageStore {
                 cleanupOrphanFiles(keeping: Set(recoveredRecords.map(\.filename)))
                 return CollectionLoadResult(
                     items: materialized.items,
+                    selectedItemID: selectedItemID,
                     outcome: .partiallyRecovered(removedInvalidEntries: materialized.removedInvalidEntries)
                 )
             }
 
             if materialized.items.isEmpty {
-                return CollectionLoadResult(items: [], outcome: .empty)
+                return CollectionLoadResult(items: [], selectedItemID: nil, outcome: .empty)
             }
 
-            return CollectionLoadResult(items: materialized.items, outcome: .success)
+            return CollectionLoadResult(items: materialized.items, selectedItemID: selectedItemID, outcome: .success)
         }
 
         return migrateLegacyBackgroundPathIfNeeded()
@@ -321,13 +318,17 @@ struct BackgroundImageStore {
     }
 
     func loadBackgroundImageURL() -> URL? {
-        loadBackgroundImageURLs().first
+        let result = loadBackgroundImageCollection()
+        guard let selectedItemID = result.selectedItemID else {
+            return nil
+        }
+        return result.items.first(where: { $0.id == selectedItemID })?.fileURL
     }
 
     private func migrateLegacyBackgroundPathIfNeeded() -> CollectionLoadResult {
         guard let storedPath = userDefaults.string(forKey: Keys.backgroundImagePath),
               !storedPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return CollectionLoadResult(items: [], outcome: .empty)
+            return CollectionLoadResult(items: [], selectedItemID: nil, outcome: .empty)
         }
 
         let legacyURL = URL(fileURLWithPath: storedPath)
@@ -335,6 +336,7 @@ struct BackgroundImageStore {
             clearLegacyPathKey()
             return CollectionLoadResult(
                 items: [],
+                selectedItemID: nil,
                 outcome: .migrationFailed(.missingLegacyFile(path: legacyURL.path))
             )
         }
@@ -343,6 +345,7 @@ struct BackgroundImageStore {
             clearLegacyPathKey()
             return CollectionLoadResult(
                 items: [],
+                selectedItemID: nil,
                 outcome: .migrationFailed(.unreadableLegacyFile(path: legacyURL.path))
             )
         }
@@ -352,6 +355,7 @@ struct BackgroundImageStore {
         } catch {
             return CollectionLoadResult(
                 items: [],
+                selectedItemID: nil,
                 outcome: .migrationFailed(.manifestWriteFailed)
             )
         }
@@ -362,6 +366,7 @@ struct BackgroundImageStore {
         } catch {
             return CollectionLoadResult(
                 items: [],
+                selectedItemID: nil,
                 outcome: .migrationFailed(.copyFailed(path: legacyURL.path))
             )
         }
@@ -369,7 +374,8 @@ struct BackgroundImageStore {
         let record = ManifestRecord(
             id: UUID(),
             filename: copiedURL.lastPathComponent,
-            addedAt: Date()
+            addedAt: Date(),
+            sortOrder: 0
         )
         do {
             try writeManifest(Manifest(version: 1, records: [record]))
@@ -377,12 +383,14 @@ struct BackgroundImageStore {
             try? fileManager.removeItem(at: copiedURL)
             return CollectionLoadResult(
                 items: [],
+                selectedItemID: nil,
                 outcome: .migrationFailed(.manifestWriteFailed)
             )
         }
 
         clearLegacyPathKey()
         cleanupOrphanFiles(keeping: Set([record.filename]))
+        userDefaults.set(record.id.uuidString, forKey: Keys.selectedBackgroundImageID)
 
         return CollectionLoadResult(
             items: [
@@ -392,6 +400,7 @@ struct BackgroundImageStore {
                     addedAt: record.addedAt
                 )
             ],
+            selectedItemID: record.id,
             outcome: .success
         )
     }
@@ -425,7 +434,7 @@ struct BackgroundImageStore {
         validItems.reserveCapacity(records.count)
         var removedCount = 0
 
-        for record in records {
+        for record in stableSortedRecords(records) {
             let filename = record.filename.trimmingCharacters(in: .whitespacesAndNewlines)
             if filename.isEmpty {
                 removedCount += 1
@@ -448,6 +457,57 @@ struct BackgroundImageStore {
         }
 
         return (items: validItems, removedInvalidEntries: removedCount)
+    }
+
+    private func stableSortedRecords(_ records: [ManifestRecord]) -> [ManifestRecord] {
+        records.enumerated().sorted { lhs, rhs in
+            if let leftSortOrder = lhs.element.sortOrder, let rightSortOrder = rhs.element.sortOrder,
+               leftSortOrder != rightSortOrder {
+                return leftSortOrder < rightSortOrder
+            }
+            if lhs.element.addedAt != rhs.element.addedAt {
+                return lhs.element.addedAt < rhs.element.addedAt
+            }
+            return lhs.offset < rhs.offset
+        }.map(\.element)
+    }
+
+    private func normalizedRecords(_ records: [ManifestRecord]) -> [ManifestRecord] {
+        stableSortedRecords(records).enumerated().map { index, record in
+            ManifestRecord(
+                id: record.id,
+                filename: record.filename,
+                addedAt: record.addedAt,
+                sortOrder: index
+            )
+        }
+    }
+
+    @discardableResult
+    private func persistSelectedBackgroundIDIfNeeded(from items: [BackgroundImageItem]) -> UUID? {
+        guard !items.isEmpty else {
+            userDefaults.removeObject(forKey: Keys.selectedBackgroundImageID)
+            return nil
+        }
+
+        if
+            let selectedID = loadPersistedSelectedBackgroundID(),
+            items.contains(where: { $0.id == selectedID })
+        {
+            return selectedID
+        }
+
+        let fallbackID = items[0].id
+        userDefaults.set(fallbackID.uuidString, forKey: Keys.selectedBackgroundImageID)
+        return fallbackID
+    }
+
+    private func loadPersistedSelectedBackgroundID() -> UUID? {
+        guard let rawValue = userDefaults.string(forKey: Keys.selectedBackgroundImageID) else {
+            return nil
+        }
+
+        return UUID(uuidString: rawValue.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     private func writeManifest(_ manifest: Manifest) throws {

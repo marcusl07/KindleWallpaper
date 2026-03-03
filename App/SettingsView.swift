@@ -169,7 +169,7 @@ struct SettingsView: View {
     private func refreshBackgroundSummary() {
         let state = appState.loadBackgroundCollectionState()
         backgroundCollectionCount = state.items.count
-        primaryBackgroundName = state.items.first?.fileURL.deletingPathExtension().lastPathComponent ?? "No image selected"
+        primaryBackgroundName = state.items.first(where: { $0.id == state.selectedItemID })?.fileURL.deletingPathExtension().lastPathComponent ?? "No image selected"
         backgroundImageError = state.warningMessage
     }
 
@@ -440,7 +440,7 @@ struct BooksListView: View {
 
 struct BackgroundsListView: View {
     @EnvironmentObject private var appState: AppState
-    @State private var collectionState = AppState.BackgroundCollectionState(items: [], warningMessage: nil)
+    @State private var collectionState = AppState.BackgroundCollectionState(items: [], selectedItemID: nil, warningMessage: nil)
     @State private var selectedBackgroundID: UUID? = nil
     @State private var operationError: String? = nil
 
@@ -603,11 +603,7 @@ struct BackgroundsListView: View {
 
     private func refreshCollection() {
         collectionState = appState.loadBackgroundCollectionState()
-
-        if let selectedBackgroundID, collectionState.items.contains(where: { $0.id == selectedBackgroundID }) {
-            return
-        }
-        selectedBackgroundID = collectionState.items.first?.id
+        selectedBackgroundID = collectionState.selectedItemID ?? collectionState.items.first?.id
     }
 
     private func setSelected(_ id: UUID) {

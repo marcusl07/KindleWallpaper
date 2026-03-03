@@ -430,3 +430,6 @@ Acceptance criteria:
 Wrap the main Settings view content in a SwiftUI `NavigationStack`. No navigation links wired yet, just the scaffold in place with back/forward navigation arrows available at the top of the window.
 
 
+
+**T66 — Fix background image collection reorder on selection**
+When a background image is clicked in the collection view it jumps to the front of the list. Fix with a stable sort so collection order never changes on state update or selection.

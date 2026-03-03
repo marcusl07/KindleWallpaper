@@ -48,6 +48,7 @@ final class AppState: ObservableObject {
 
     struct BackgroundCollectionState: Equatable {
         let items: [BackgroundCollectionItem]
+        let selectedItemID: UUID?
         let warningMessage: String?
     }
 
@@ -224,7 +225,13 @@ final class AppState: ObservableObject {
                         addedAt: .distantPast
                     )
                 }
-                return BackgroundCollectionState(items: items, warningMessage: previewState.warningMessage)
+                return BackgroundCollectionState(
+                    items: items,
+                    selectedItemID: previewState.primaryImageURL.flatMap { selectedURL in
+                        items.first(where: { $0.fileURL == selectedURL })?.id
+                    },
+                    warningMessage: previewState.warningMessage
+                )
             }
         }
 
@@ -720,7 +727,7 @@ extension AppState {
             loadBackgroundPreviewState: {
                 let result = backgroundStore.loadBackgroundImageCollection()
                 return BackgroundPreviewState(
-                    primaryImageURL: result.urls.first,
+                    primaryImageURL: result.items.first(where: { $0.id == result.selectedItemID })?.fileURL,
                     warningMessage: warningMessage(from: result.outcome)
                 )
             },
@@ -737,6 +744,7 @@ extension AppState {
                             addedAt: item.addedAt
                         )
                     },
+                    selectedItemID: result.selectedItemID,
                     warningMessage: warningMessage(from: result.outcome)
                 )
             },
