@@ -444,3 +444,6 @@ Delete `showBooksWindow()`, the books window controller, and the `.kindleWallSho
 
 - T69 — Fix back/forward arrows missing for Backgrounds detail view
 
+
+- T68 — Reset row selection state on main settings view appear
+

@@ -17,7 +17,7 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack(path: $navigationModel.path) {
-            List {
+            List(selection: $navigationModel.selectedRootDestination) {
                 importSection
                 booksSection
                 backgroundSection
@@ -31,6 +31,9 @@ struct SettingsView: View {
             .listStyle(.insetGrouped)
             #endif
             .navigationTitle("Settings")
+            .onAppear {
+                navigationModel.resetRootSelection()
+            }
             .navigationDestination(for: SettingsDestination.self) { destination in
                 switch destination {
                 case .books:
@@ -80,6 +83,7 @@ struct SettingsView: View {
                     subtitle: "\(enabledBookCount) of \(appState.books.count) books enabled"
                 )
             }
+            .tag(SettingsDestination.books)
         }
     }
 
@@ -91,6 +95,7 @@ struct SettingsView: View {
                     subtitle: "\(backgroundCollectionCount) \(backgroundCollectionCount == 1 ? "image" : "images") • Current selection: \(primaryBackgroundName)"
                 )
             }
+            .tag(SettingsDestination.backgrounds)
 
             if let backgroundImageError {
                 settingsMessageRow(backgroundImageError, tone: .error)
@@ -310,6 +315,7 @@ enum SettingsDestination: Hashable {
 
 @MainActor
 final class SettingsNavigationModel: ObservableObject {
+    @Published var selectedRootDestination: SettingsDestination?
     @Published var path: [SettingsDestination] = [] {
         didSet {
             guard !isPerformingProgrammaticNavigation else {
@@ -332,6 +338,10 @@ final class SettingsNavigationModel: ObservableObject {
 
     private var forwardStack: [SettingsDestination] = []
     private var isPerformingProgrammaticNavigation = false
+
+    func resetRootSelection() {
+        selectedRootDestination = nil
+    }
 
     func goBack() {
         var poppedDestination: SettingsDestination?
@@ -370,6 +380,49 @@ final class SettingsNavigationModel: ObservableObject {
         canGoForward = !forwardStack.isEmpty
     }
 }
+
+#if TESTING
+@MainActor
+struct SettingsNavigationModelTestProbe {
+    private let navigationModel = SettingsNavigationModel()
+
+    func selectRootDestination(_ destination: SettingsDestination?) {
+        navigationModel.selectedRootDestination = destination
+    }
+
+    func goBack() {
+        navigationModel.goBack()
+    }
+
+    func goForward() {
+        navigationModel.goForward()
+    }
+
+    func push(_ destination: SettingsDestination) {
+        navigationModel.path.append(destination)
+    }
+
+    func resetRootSelection() {
+        navigationModel.resetRootSelection()
+    }
+
+    var selectedRootDestination: SettingsDestination? {
+        navigationModel.selectedRootDestination
+    }
+
+    var path: [SettingsDestination] {
+        navigationModel.path
+    }
+
+    var canGoBack: Bool {
+        navigationModel.canGoBack
+    }
+
+    var canGoForward: Bool {
+        navigationModel.canGoForward
+    }
+}
+#endif
 
 private enum SettingsMessageTone {
     case primary
