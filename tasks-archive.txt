@@ -425,3 +425,8 @@ Candidate areas to inspect:
 Acceptance criteria:
 - Settings window remains visible (non-key) after app deactivation.
 - User can bring it back to front without recreating state.
+
+**T63 — Add NavigationStack to Settings window**
+Wrap the main Settings view content in a SwiftUI `NavigationStack`. No navigation links wired yet, just the scaffold in place with back/forward navigation arrows available at the top of the window.
+
+

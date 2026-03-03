@@ -10,9 +10,6 @@ This file is the working context for agents. When an item is completed, move it 
 
 ## Phase 12 — Settings Navigation and Collection Ordering
 
-**T63 — Add NavigationStack to Settings window**
-Wrap the main Settings view content in a SwiftUI `NavigationStack`. No navigation links wired yet, just the scaffold in place with back/forward navigation arrows available at the top of the window.
-
 **T64 — Wire Books section to in-place navigation**
 Replace the "Show Books..." button with a `NavigationLink` that drills into `BooksListView` inside the existing Settings window `NavigationStack`. No separate window, no notification-based routing.
 

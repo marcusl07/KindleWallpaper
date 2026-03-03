@@ -11,17 +11,21 @@ struct SettingsView: View {
     @State private var primaryBackgroundName: String = "No image selected"
 
     var body: some View {
-        ScrollView(.vertical) {
-            VStack(alignment: .leading, spacing: 20) {
-                importSection
-                booksSection
-                backgroundSection
-                scheduleSection
-                displaySection
-                aboutSection
+        NavigationStack {
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 20) {
+                    importSection
+                    booksSection
+                    backgroundSection
+                    scheduleSection
+                    displaySection
+                    aboutSection
+                }
+                .padding(20)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .navigationTitle("Settings")
         }
         .frame(minWidth: 680, maxWidth: .infinity, minHeight: 520, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
