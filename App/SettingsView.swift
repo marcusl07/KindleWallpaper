@@ -17,7 +17,7 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack(path: $navigationModel.path) {
-            List {
+            Form {
                 importSection
                 booksSection
                 backgroundSection
@@ -25,11 +25,6 @@ struct SettingsView: View {
                 displaySection
                 aboutSection
             }
-            #if canImport(AppKit)
-            .listStyle(.inset(alternatesRowBackgrounds: false))
-            #else
-            .listStyle(.insetGrouped)
-            #endif
             .navigationTitle("Settings")
             .navigationDestination(for: SettingsDestination.self) { destination in
                 switch destination {
