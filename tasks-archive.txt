@@ -441,3 +441,6 @@ Replace the "Show Books..." button with a `NavigationLink` that drills into `Boo
 
 **T65 — Remove Books window from SettingsWindowCoordinator**
 Delete `showBooksWindow()`, the books window controller, and the `.kindleWallShowBooksWindow` notification observer from `SettingsWindowCoordinator`. Clean up all dead code left behind.
+
+- T69 — Fix back/forward arrows missing for Backgrounds detail view
+

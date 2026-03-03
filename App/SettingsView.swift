@@ -36,6 +36,9 @@ struct SettingsView: View {
                 case .books:
                     BooksListView()
                         .navigationTitle("Books")
+                case .backgrounds:
+                    BackgroundsListView()
+                        .navigationTitle("Backgrounds")
                 }
             }
         }
@@ -82,15 +85,12 @@ struct SettingsView: View {
 
     private var backgroundSection: some View {
         Section("Backgrounds") {
-            Button {
-                presentBackgroundsWindow()
-            } label: {
+            NavigationLink(value: SettingsDestination.backgrounds) {
                 settingsNavigationRow(
                     title: "Show Backgrounds",
                     subtitle: "\(backgroundCollectionCount) \(backgroundCollectionCount == 1 ? "image" : "images") • Current selection: \(primaryBackgroundName)"
                 )
             }
-            .buttonStyle(.plain)
 
             if let backgroundImageError {
                 settingsMessageRow(backgroundImageError, tone: .error)
@@ -231,10 +231,6 @@ struct SettingsView: View {
         return calendar.date(from: components) ?? Date()
     }
 
-    private func presentBackgroundsWindow() {
-        BackgroundsWindowPresentation.requestShowWindow()
-    }
-
     private func chooseClippingsFile() {
         #if canImport(AppKit)
         let panel = NSOpenPanel()
@@ -309,6 +305,7 @@ struct SettingsView: View {
 
 enum SettingsDestination: Hashable {
     case books
+    case backgrounds
 }
 
 @MainActor

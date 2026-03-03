@@ -11,3 +11,6 @@ This file is the working context for agents. When an item is completed, move it 
 ## Phase 12 — Settings Navigation and Collection Ordering
 
 ## Open Agent Handoff Bugs
+
+- T67 — Add trailing chevron to Books and Backgrounds navigation rows
+- T68 — Reset row selection state on main settings view appear
