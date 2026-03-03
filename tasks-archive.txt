@@ -447,3 +447,6 @@ Delete `showBooksWindow()`, the books window controller, and the `.kindleWallSho
 
 - T68 — Reset row selection state on main settings view appear
 
+
+- T67 — Add trailing chevron to Books and Backgrounds navigation rows
+
