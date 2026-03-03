@@ -15,3 +15,5 @@ when you make a mistake add it here so you dont do it again.
 - mistake logged (2026-03-03): do not run `scripts/archive_task.sh` in parallel for multiple task IDs; it mutates shared task files and can duplicate or race entries.
 
 Error handling — future note: Current convention uses fatalError for database errors (acceptable for personal v1). Before any wider distribution, all fatalError calls in Database.swift should be replaced with proper error propagation (throws) and user-facing error messages in the UI.
+
+Review gate override: For UI-only changes scoped to a single view file with no model or persistence impact, skip the review gate and implement directly.

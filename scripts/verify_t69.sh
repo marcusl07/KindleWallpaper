@@ -29,7 +29,8 @@ require_absent() {
 }
 
 require_pattern "$SETTINGS_FILE" 'case[[:space:]]+backgrounds' "backgrounds destination enum case"
-require_pattern "$SETTINGS_FILE" 'NavigationLink\(value:[[:space:]]*SettingsDestination\.backgrounds\)' "backgrounds navigation link"
+require_pattern "$SETTINGS_FILE" 'settingsNavigationButton\(' "settings navigation button helper"
+require_pattern "$SETTINGS_FILE" 'destination:[[:space:]]*\.backgrounds' "backgrounds navigation button destination"
 require_pattern "$SETTINGS_FILE" 'BackgroundsListView\(\)' "backgrounds destination view"
 require_pattern "$SETTINGS_FILE" '\.navigationTitle\("Backgrounds"\)' "backgrounds destination title"
 require_absent "$SETTINGS_FILE" 'presentBackgroundsWindow\(' "direct backgrounds window presenter in settings"

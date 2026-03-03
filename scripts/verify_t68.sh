@@ -29,8 +29,10 @@ forbid_pattern() {
 }
 
 require_pattern "$SETTINGS_FILE" 'List[[:space:]]*\{' "plain root settings list"
-require_pattern "$SETTINGS_FILE" 'NavigationLink\(value:[[:space:]]*SettingsDestination\.books\)' "books navigation link"
-require_pattern "$SETTINGS_FILE" 'NavigationLink\(value:[[:space:]]*SettingsDestination\.backgrounds\)' "backgrounds navigation link"
+require_pattern "$SETTINGS_FILE" 'settingsNavigationButton\(' "explicit settings navigation button helper"
+require_pattern "$SETTINGS_FILE" 'destination:[[:space:]]*\.books' "books navigation button destination"
+require_pattern "$SETTINGS_FILE" 'destination:[[:space:]]*\.backgrounds' "backgrounds navigation button destination"
+require_pattern "$SETTINGS_FILE" 'navigationModel\.path\.append\(destination\)' "explicit path push navigation"
 forbid_pattern "$SETTINGS_FILE" 'List\(selection:' "root settings selection binding"
 forbid_pattern "$SETTINGS_FILE" 'selectedRootDestination' "root selection state"
 forbid_pattern "$SETTINGS_FILE" 'resetRootSelection' "root selection reset helper"

@@ -74,23 +74,21 @@ struct SettingsView: View {
 
     private var booksSection: some View {
         Section("Books") {
-            NavigationLink(value: SettingsDestination.books) {
-                settingsNavigationRow(
-                    title: "Manage Books",
-                    subtitle: "\(enabledBookCount) of \(appState.books.count) books enabled"
-                )
-            }
+            settingsNavigationButton(
+                title: "Manage Books",
+                subtitle: "\(enabledBookCount) of \(appState.books.count) books enabled",
+                destination: .books
+            )
         }
     }
 
     private var backgroundSection: some View {
         Section("Backgrounds") {
-            NavigationLink(value: SettingsDestination.backgrounds) {
-                settingsNavigationRow(
-                    title: "Show Backgrounds",
-                    subtitle: "\(backgroundCollectionCount) \(backgroundCollectionCount == 1 ? "image" : "images") • Current selection: \(primaryBackgroundName)"
-                )
-            }
+            settingsNavigationButton(
+                title: "Show Backgrounds",
+                subtitle: "\(backgroundCollectionCount) \(backgroundCollectionCount == 1 ? "image" : "images") • Current selection: \(primaryBackgroundName)",
+                destination: .backgrounds
+            )
 
             if let backgroundImageError {
                 settingsMessageRow(backgroundImageError, tone: .error)
@@ -292,6 +290,15 @@ struct SettingsView: View {
                 .accessibilityHidden(true)
         }
         .contentShape(Rectangle())
+    }
+
+    private func settingsNavigationButton(title: String, subtitle: String, destination: SettingsDestination) -> some View {
+        Button {
+            navigationModel.path.append(destination)
+        } label: {
+            settingsNavigationRow(title: title, subtitle: subtitle)
+        }
+        .buttonStyle(.plain)
     }
 
     private func settingsMessageRow(_ message: String, tone: SettingsMessageTone = .primary) -> some View {
