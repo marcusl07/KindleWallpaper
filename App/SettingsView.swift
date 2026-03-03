@@ -6,26 +6,38 @@ import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
+    @ObservedObject private var navigationModel: SettingsNavigationModel
     @State private var backgroundImageError: String? = nil
     @State private var backgroundCollectionCount: Int = 0
     @State private var primaryBackgroundName: String = "No image selected"
 
+    init(navigationModel: SettingsNavigationModel) {
+        _navigationModel = ObservedObject(wrappedValue: navigationModel)
+    }
+
     var body: some View {
-        NavigationStack {
-            ScrollView(.vertical) {
-                VStack(alignment: .leading, spacing: 20) {
-                    importSection
-                    booksSection
-                    backgroundSection
-                    scheduleSection
-                    displaySection
-                    aboutSection
-                }
-                .padding(20)
-                .frame(maxWidth: .infinity, alignment: .topLeading)
+        NavigationStack(path: $navigationModel.path) {
+            List {
+                importSection
+                booksSection
+                backgroundSection
+                scheduleSection
+                displaySection
+                aboutSection
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            #if canImport(AppKit)
+            .listStyle(.inset(alternatesRowBackgrounds: false))
+            #else
+            .listStyle(.insetGrouped)
+            #endif
             .navigationTitle("Settings")
+            .navigationDestination(for: SettingsDestination.self) { destination in
+                switch destination {
+                case .books:
+                    BooksListView()
+                        .navigationTitle("Books")
+                }
+            }
         }
         .frame(minWidth: 680, maxWidth: .infinity, minHeight: 520, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
@@ -37,66 +49,57 @@ struct SettingsView: View {
     }
 
     private var importSection: some View {
-        sectionContainer(title: "Import") {
+        Section("Import") {
             Button("Import My Clippings.txt...") {
                 chooseClippingsFile()
             }
 
             if let importError = appState.importError, !importError.isEmpty {
-                Text(importError)
-                    .font(.callout)
-                    .foregroundStyle(.red)
+                settingsMessageRow(importError, tone: .error)
             } else if !appState.importStatus.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(appState.importStatus)
-                    .font(.callout)
+                settingsMessageRow(appState.importStatus)
             } else {
-                Text("No imports yet.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                settingsMessageRow("No imports yet.", tone: .secondary)
             }
 
-            Text("\(appState.totalHighlightCount) \(appState.totalHighlightCount == 1 ? "highlight" : "highlights") in library")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+            settingsMessageRow(
+                "\(appState.totalHighlightCount) \(appState.totalHighlightCount == 1 ? "highlight" : "highlights") in library",
+                tone: .secondary
+            )
         }
     }
 
     private var booksSection: some View {
-        sectionContainer(title: "Books") {
-            Text("\(enabledBookCount) of \(appState.books.count) books enabled")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-
-            NavigationLink("Show Books...") {
-                BooksListView()
-                    .navigationTitle("Books")
+        Section("Books") {
+            NavigationLink(value: SettingsDestination.books) {
+                settingsNavigationRow(
+                    title: "Manage Books",
+                    subtitle: "\(enabledBookCount) of \(appState.books.count) books enabled"
+                )
             }
         }
     }
 
     private var backgroundSection: some View {
-        sectionContainer(title: "Backgrounds") {
-            Text("\(backgroundCollectionCount) \(backgroundCollectionCount == 1 ? "image" : "images")")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-
-            Text("Current selection: \(primaryBackgroundName)")
-                .font(.callout)
+        Section("Backgrounds") {
+            Button {
+                presentBackgroundsWindow()
+            } label: {
+                settingsNavigationRow(
+                    title: "Show Backgrounds",
+                    subtitle: "\(backgroundCollectionCount) \(backgroundCollectionCount == 1 ? "image" : "images") • Current selection: \(primaryBackgroundName)"
+                )
+            }
+            .buttonStyle(.plain)
 
             if let backgroundImageError {
-                Text(backgroundImageError)
-                    .font(.callout)
-                    .foregroundStyle(.red)
-            }
-
-            Button("Show Backgrounds...") {
-                presentBackgroundsWindow()
+                settingsMessageRow(backgroundImageError, tone: .error)
             }
         }
     }
 
     private var scheduleSection: some View {
-        sectionContainer(title: "Rotation Schedule") {
+        Section("Rotation Schedule") {
             Picker("Change wallpaper:", selection: scheduleModeBinding) {
                 Text("Manual only")
                     .tag(RotationScheduleMode.manual)
@@ -122,47 +125,29 @@ struct SettingsView: View {
                 #endif
             }
 
-            Text("Last changed: \(formattedLastChangedAt)")
-                .font(.callout)
-
-            Text("Timed rotation requires the app to be running.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-
-            Text("To avoid conflicts, disable macOS wallpaper rotation in System Settings > Wallpaper.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+            settingsMessageRow("Last changed: \(formattedLastChangedAt)")
+            settingsMessageRow("Timed rotation requires the app to be running.", tone: .secondary)
+            settingsMessageRow(
+                "To avoid conflicts, disable macOS wallpaper rotation in System Settings > Wallpaper.",
+                tone: .secondary
+            )
         }
     }
 
     private var aboutSection: some View {
-        sectionContainer(title: "About") {
-            Text("KindleWall")
-                .font(.headline)
-            Text("Version \(appVersionDisplay)")
-                .foregroundStyle(.secondary)
+        Section("About") {
+            settingsValueRow(label: "App", value: "KindleWall")
+            settingsValueRow(label: "Version", value: appVersionDisplay)
         }
     }
 
     private var displaySection: some View {
-        sectionContainer(title: "Display") {
+        Section("Display") {
             Toggle("Capitalize first letter of highlight text", isOn: capitalizeHighlightTextBinding)
-            Text("If a quote starts lowercase, KindleWall displays it with an uppercase first letter.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private func sectionContainer<Content: View>(
-        title: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        GroupBox(label: Text(title).font(.headline)) {
-            VStack(alignment: .leading, spacing: 12) {
-                content()
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.top, 4)
+            settingsMessageRow(
+                "If a quote starts lowercase, KindleWall displays it with an uppercase first letter.",
+                tone: .secondary
+            )
         }
     }
 
@@ -293,6 +278,117 @@ struct SettingsView: View {
     private var enabledBookCount: Int {
         appState.books.filter(\.isEnabled).count
     }
+
+    private func settingsNavigationRow(title: String, subtitle: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .foregroundStyle(.primary)
+            Text(subtitle)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+
+    private func settingsMessageRow(_ message: String, tone: SettingsMessageTone = .primary) -> some View {
+        Text(message)
+            .font(.callout)
+            .foregroundStyle(tone.color)
+    }
+
+    private func settingsValueRow(label: String, value: String) -> some View {
+        HStack {
+            Text(label)
+            Spacer(minLength: 12)
+            Text(value)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+enum SettingsDestination: Hashable {
+    case books
+}
+
+@MainActor
+final class SettingsNavigationModel: ObservableObject {
+    @Published var path: [SettingsDestination] = [] {
+        didSet {
+            guard !isPerformingProgrammaticNavigation else {
+                recalculateAvailability()
+                return
+            }
+
+            if path.count > oldValue.count {
+                forwardStack.removeAll()
+            } else if path.isEmpty && !oldValue.isEmpty && oldValue != path {
+                forwardStack = Array(oldValue.reversed())
+            }
+
+            recalculateAvailability()
+        }
+    }
+
+    @Published private(set) var canGoBack = false
+    @Published private(set) var canGoForward = false
+
+    private var forwardStack: [SettingsDestination] = []
+    private var isPerformingProgrammaticNavigation = false
+
+    func goBack() {
+        var poppedDestination: SettingsDestination?
+
+        mutatePath {
+            poppedDestination = path.popLast()
+        }
+
+        guard let poppedDestination else {
+            return
+        }
+
+        forwardStack.append(poppedDestination)
+        recalculateAvailability()
+    }
+
+    func goForward() {
+        guard let destination = forwardStack.popLast() else {
+            return
+        }
+
+        mutatePath {
+            path.append(destination)
+        }
+    }
+
+    private func mutatePath(_ mutation: () -> Void) {
+        isPerformingProgrammaticNavigation = true
+        mutation()
+        isPerformingProgrammaticNavigation = false
+        recalculateAvailability()
+    }
+
+    private func recalculateAvailability() {
+        canGoBack = !path.isEmpty
+        canGoForward = !forwardStack.isEmpty
+    }
+}
+
+private enum SettingsMessageTone {
+    case primary
+    case secondary
+    case error
+
+    var color: AnyShapeStyle {
+        switch self {
+        case .primary:
+            AnyShapeStyle(.primary)
+        case .secondary:
+            AnyShapeStyle(.secondary)
+        case .error:
+            AnyShapeStyle(.red)
+        }
+    }
 }
 
 enum BackgroundsWindowPresentation {
@@ -315,9 +411,6 @@ struct BooksListView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Books")
-                .font(.headline)
-
             HStack(spacing: 12) {
                 Button("Select All") {
                     appState.setAllBooksEnabled(true)

@@ -17,9 +17,10 @@ require_pattern() {
   fi
 }
 
-require_pattern "$SETTINGS_FILE" 'NavigationStack[[:space:]]*\{' "settings navigation stack wrapper"
-require_pattern "$SETTINGS_FILE" 'ScrollView\(.vertical\)' "settings scroll view content"
+require_pattern "$SETTINGS_FILE" 'NavigationStack(\(path:[[:space:]]*\$navigationModel\.path\))?[[:space:]]*\{' "settings navigation stack wrapper"
+require_pattern "$SETTINGS_FILE" 'List[[:space:]]*\{' "settings list content"
 require_pattern "$SETTINGS_FILE" 'navigationTitle\("Settings"\)' "settings navigation title"
+require_pattern "$SETTINGS_FILE" 'SettingsNavigationModel' "settings navigation model"
 
 swiftc \
   -module-cache-path "$TMP_DIR/module-cache" \

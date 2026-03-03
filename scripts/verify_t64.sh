@@ -28,7 +28,8 @@ require_absent() {
   fi
 }
 
-require_pattern "$SETTINGS_FILE" 'NavigationLink\("Show Books\.\.\."\)' "books navigation link"
+require_pattern "$SETTINGS_FILE" 'NavigationLink\(value:[[:space:]]*SettingsDestination\.books\)' "books navigation link"
+require_pattern "$SETTINGS_FILE" 'Manage Books' "books navigation label"
 require_pattern "$SETTINGS_FILE" 'BooksListView\(\)' "books destination view"
 require_pattern "$SETTINGS_FILE" '\.navigationTitle\("Books"\)' "books destination navigation title"
 require_absent "$SETTINGS_FILE" 'Button\("Show Books\.\.\."\)' "books window button"

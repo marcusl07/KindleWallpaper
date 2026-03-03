@@ -66,6 +66,14 @@ private func testFreshOpenCreatesVisibleWindow() {
     assertTrue(probe.isSettingsWindowVisible, "Expected fresh settings open to produce a visible window")
     _ = assertNotNil(probe.settingsWindowControllerIdentifier, "Expected fresh settings open to create a window controller")
     _ = assertNotNil(probe.settingsWindowIdentifier, "Expected fresh settings open to create a window instance")
+    assertTrue(probe.hasSettingsToolbar, "Expected settings window to attach a toolbar for navigation controls")
+    assertEqual(probe.settingsToolbarStyle, .unified, "Expected settings window to use unified toolbar style")
+    assertEqual(probe.settingsWindowTitleVisibility, .hidden, "Expected settings window title to be hidden in toolbar mode")
+    assertTrue(
+        probe.settingsWindowUsesFullSizeContentView,
+        "Expected settings window to use full-size content view for unified titlebar layout"
+    )
+    assertTrue(probe.settingsToolbarItemCount > 0, "Expected settings toolbar to expose visible navigation items")
 }
 
 @MainActor

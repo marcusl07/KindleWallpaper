@@ -29,7 +29,7 @@ require_absent() {
   fi
 }
 
-require_pattern "$SETTINGS_FILE" 'NavigationLink\("Show Books\.\.\."\)' "inline books navigation"
+require_pattern "$SETTINGS_FILE" 'NavigationLink\(value:[[:space:]]*SettingsDestination\.books\)' "inline books navigation"
 require_pattern "$SETTINGS_FILE" 'BooksListView\(\)' "books destination view"
 require_absent "$SETTINGS_FILE" 'kindleWallShowBooksWindow' "books window notification constant"
 require_absent "$APP_FILE" 'booksWindowController' "books window controller storage"
