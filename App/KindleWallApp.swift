@@ -125,7 +125,6 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSLog("[ShowBooksDebug] applicationDidFinishLaunching")
         NSApp.setActivationPolicy(.accessory)
         hasFinishedLaunching = true
         installStatusItemIfNeeded()
@@ -133,7 +132,6 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func showSettingsWindowFromCommand() {
-        NSLog("[ShowBooksDebug] AppDelegate.showSettingsWindowFromCommand invoked")
         settingsWindowCoordinator?.showWindow()
     }
 
@@ -179,24 +177,18 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
 private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
     private weak var appState: AppState?
     private var settingsWindowController: NSWindowController?
-    private var booksWindowController: NSWindowController?
     private var backgroundsWindowController: NSWindowController?
-    private var booksWindowObserver: NSObjectProtocol?
     private var backgroundsWindowObserver: NSObjectProtocol?
     private var appDidResignActiveObserver: NSObjectProtocol?
 
     init(appState: AppState) {
         self.appState = appState
         super.init()
-        installBooksWindowObserver()
         installBackgroundsWindowObserver()
         installAppDeactivationObserver()
     }
 
     deinit {
-        if let booksWindowObserver {
-            NotificationCenter.default.removeObserver(booksWindowObserver)
-        }
         if let backgroundsWindowObserver {
             NotificationCenter.default.removeObserver(backgroundsWindowObserver)
         }
@@ -207,23 +199,6 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
 
     func setAppState(_ appState: AppState) {
         self.appState = appState
-    }
-
-    private func installBooksWindowObserver() {
-        guard booksWindowObserver == nil else {
-            return
-        }
-
-        booksWindowObserver = NotificationCenter.default.addObserver(
-            forName: .kindleWallShowBooksWindow,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            NSLog("[ShowBooksDebug] observer received .kindleWallShowBooksWindow")
-            Task { @MainActor [weak self] in
-                self?.showBooksWindow()
-            }
-        }
     }
 
     private func installBackgroundsWindowObserver() {
@@ -260,7 +235,6 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
 
     private func restoreWindowVisibilityAfterAppDeactivation() {
         restoreVisibilityIfNeeded(for: settingsWindowController?.window)
-        restoreVisibilityIfNeeded(for: booksWindowController?.window)
         restoreVisibilityIfNeeded(for: backgroundsWindowController?.window)
     }
 
@@ -280,21 +254,17 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
     }
 
     func showWindow() {
-        NSLog("[ShowBooksDebug] SettingsWindowCoordinator.showWindow entered")
         NSApp.activate(ignoringOtherApps: true)
 
         if let existingWindow = settingsWindowController?.window {
-            NSLog("[ShowBooksDebug] SettingsWindowCoordinator.showWindow branch=reuseExisting")
             existingWindow.makeKeyAndOrderFront(nil)
             return
         }
 
         guard let appState else {
-            NSLog("[ShowBooksDebug] SettingsWindowCoordinator.showWindow branch=appStateNil")
             return
         }
 
-        NSLog("[ShowBooksDebug] SettingsWindowCoordinator.showWindow branch=createNew")
         let settingsView = SettingsView()
             .environmentObject(appState)
         let hostingController = NSHostingController(rootView: settingsView)
@@ -303,34 +273,6 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
 
         let controller = NSWindowController(window: window)
         settingsWindowController = controller
-        controller.showWindow(nil)
-        window.makeKeyAndOrderFront(nil)
-    }
-
-    private func showBooksWindow() {
-        NSLog("[ShowBooksDebug] showBooksWindow entered")
-        NSApp.activate(ignoringOtherApps: true)
-
-        if let existingWindow = booksWindowController?.window {
-            NSLog("[ShowBooksDebug] showBooksWindow branch=reuseExisting")
-            existingWindow.makeKeyAndOrderFront(nil)
-            return
-        }
-
-        guard let appState else {
-            NSLog("[ShowBooksDebug] showBooksWindow branch=appStateNil")
-            return
-        }
-
-        NSLog("[ShowBooksDebug] showBooksWindow branch=createNew")
-        let booksView = BooksListView()
-            .environmentObject(appState)
-        let hostingController = NSHostingController(rootView: booksView)
-        let window = NSWindow(contentViewController: hostingController)
-        configureBooksWindow(window)
-
-        let controller = NSWindowController(window: window)
-        booksWindowController = controller
         controller.showWindow(nil)
         window.makeKeyAndOrderFront(nil)
     }
@@ -369,16 +311,6 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
         window.delegate = self
     }
 
-    private func configureBooksWindow(_ window: NSWindow) {
-        window.title = "Books"
-        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        window.setContentSize(NSSize(width: 760, height: 560))
-        window.center()
-        window.canHide = false
-        window.hidesOnDeactivate = false
-        window.delegate = self
-    }
-
     private func configureBackgroundsWindow(_ window: NSWindow) {
         window.title = "Backgrounds"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
@@ -395,10 +327,6 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
         }
         if settingsWindowController?.window === closedWindow {
             settingsWindowController = nil
-            return
-        }
-        if booksWindowController?.window === closedWindow {
-            booksWindowController = nil
             return
         }
         if backgroundsWindowController?.window === closedWindow {

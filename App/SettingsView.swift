@@ -29,7 +29,6 @@ struct SettingsView: View {
         }
         .frame(minWidth: 680, maxWidth: .infinity, minHeight: 520, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
-            NSLog("[ShowBooksDebug] SettingsView.onAppear")
             refreshBackgroundSummary()
         }
         .onReceive(NotificationCenter.default.publisher(for: .kindleWallBackgroundCollectionDidChange)) { _ in
@@ -307,7 +306,6 @@ enum BackgroundsWindowPresentation {
 }
 
 extension Notification.Name {
-    static let kindleWallShowBooksWindow = Notification.Name("kindleWallShowBooksWindow")
     static let kindleWallShowBackgroundsWindow = Notification.Name("kindleWallShowBackgroundsWindow")
     static let kindleWallBackgroundCollectionDidChange = Notification.Name("kindleWallBackgroundCollectionDidChange")
 }

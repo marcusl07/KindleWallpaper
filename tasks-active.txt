@@ -10,7 +10,4 @@ This file is the working context for agents. When an item is completed, move it 
 
 ## Phase 12 — Settings Navigation and Collection Ordering
 
-**T65 — Remove Books window from SettingsWindowCoordinator**
-Delete `showBooksWindow()`, the books window controller, and the `.kindleWallShowBooksWindow` notification observer from `SettingsWindowCoordinator`. Clean up all dead code left behind.
-
 ## Open Agent Handoff Bugs
