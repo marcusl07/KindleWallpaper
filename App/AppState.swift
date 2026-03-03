@@ -80,6 +80,7 @@ final class AppState: ObservableObject {
     typealias PrepareWallpaperRotation = () -> WallpaperRotationPlan?
     typealias GenerateWallpapers = (Highlight, URL?, [WallpaperTarget]) -> [GeneratedWallpaper]
     typealias StoreReusableGeneratedWallpapers = ([GeneratedWallpaper]) -> Void
+    typealias ReapplyStoredWallpaper = () -> Bool
     typealias MarkHighlightShown = (UUID) -> Void
     typealias SetBookEnabled = (UUID, Bool) -> Void
     typealias SetAllBooksEnabled = (Bool) -> Void
@@ -114,6 +115,7 @@ final class AppState: ObservableObject {
     private let prepareWallpaperRotation: PrepareWallpaperRotation?
     private let generateWallpapers: GenerateWallpapers?
     private let storeReusableGeneratedWallpapers: StoreReusableGeneratedWallpapers
+    private let reapplyStoredWallpaper: ReapplyStoredWallpaper
     private let markHighlightShown: MarkHighlightShown
     private let setBookEnabledAction: SetBookEnabled
     private let setAllBooksEnabledAction: SetAllBooksEnabled
@@ -156,6 +158,7 @@ final class AppState: ObservableObject {
         prepareWallpaperRotation: PrepareWallpaperRotation? = nil,
         generateWallpapers: GenerateWallpapers? = nil,
         storeReusableGeneratedWallpapers: @escaping StoreReusableGeneratedWallpapers = { _ in },
+        reapplyStoredWallpaper: @escaping ReapplyStoredWallpaper = { false },
         markHighlightShown: @escaping MarkHighlightShown,
         setBookEnabled: @escaping SetBookEnabled = { _, _ in },
         setAllBooksEnabled: @escaping SetAllBooksEnabled = { _ in },
@@ -243,6 +246,7 @@ final class AppState: ObservableObject {
         self.prepareWallpaperRotation = prepareWallpaperRotation
         self.generateWallpapers = generateWallpapers
         self.storeReusableGeneratedWallpapers = storeReusableGeneratedWallpapers
+        self.reapplyStoredWallpaper = reapplyStoredWallpaper
         self.markHighlightShown = markHighlightShown
         self.setBookEnabledAction = setBookEnabled
         self.setAllBooksEnabledAction = setAllBooksEnabled
@@ -313,6 +317,11 @@ final class AppState: ObservableObject {
         let execution = AppState.runWallpaperRotationPipeline(using: makeRotationPipelineContext())
         publishRotationExecution(execution)
         return execution.outcome
+    }
+
+    @discardableResult
+    func reapplyStoredWallpaperIfAvailable() -> Bool {
+        reapplyStoredWallpaper()
     }
 
     private struct RotationPipelineContext {
@@ -690,6 +699,18 @@ extension AppState {
                         )
                     }
                 )
+            },
+            reapplyStoredWallpaper: {
+                let storedWallpapers = userDefaults.loadReusableGeneratedWallpapers()
+                guard !storedWallpapers.isEmpty else {
+                    return false
+                }
+
+                let resolvedScreens = WallpaperSetter.resolvedConnectedScreens()
+                return (try? WallpaperSetter.tryReapplyStoredWallpapers(
+                    storedWallpapers,
+                    on: resolvedScreens
+                )) ?? false
             },
             markHighlightShown: DatabaseManager.markHighlightShown(id:),
             setBookEnabled: DatabaseManager.setBookEnabled(id:enabled:),

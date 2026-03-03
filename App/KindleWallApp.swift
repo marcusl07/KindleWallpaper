@@ -101,7 +101,14 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     private weak var appState: AppState?
     private var statusItemController: StatusItemController?
     private var settingsWindowCoordinator: SettingsWindowCoordinator?
+    private var didWakeObserver: NSObjectProtocol?
     private var hasFinishedLaunching = false
+
+    deinit {
+        if let didWakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(didWakeObserver)
+        }
+    }
 
     func configure(appState: AppState) {
         self.appState = appState
@@ -113,6 +120,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if hasFinishedLaunching {
             installStatusItemIfNeeded()
+            installWakeObserverIfNeeded()
         }
     }
 
@@ -121,6 +129,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         hasFinishedLaunching = true
         installStatusItemIfNeeded()
+        installWakeObserverIfNeeded()
     }
 
     func showSettingsWindowFromCommand() {
@@ -147,6 +156,22 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         )
+    }
+
+    private func installWakeObserverIfNeeded() {
+        guard didWakeObserver == nil else {
+            return
+        }
+
+        didWakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                _ = self?.appState?.reapplyStoredWallpaperIfAvailable()
+            }
+        }
     }
 }
 

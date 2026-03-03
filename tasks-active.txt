@@ -6,34 +6,4 @@ This file is the working context for agents. When an item is completed, move it 
 
 ## Phase 11 — Wallpaper Collection and UX Safeguards
 
-**T61 — Re-apply wallpaper on wake from sleep**
-Register an observer for `NSWorkspace.didWakeNotification` and re-apply the most recently generated KindleWall wallpaper on wake without triggering a new rotation. Depends on T62 so the file being reapplied is guaranteed to still exist on disk.
-
----
-
 ## Open Agent Handoff Bugs
-
-### H2 — Settings window closes on app deactivation
-Reported by user after opening settings from menu bar.
-
-Current observed behavior:
-- Clicking away causes the settings window to disappear.
-- User must reopen settings from the menu bar status item each time.
-
-Expected behavior:
-- Settings window remains open after losing focus.
-- Window should close only when explicitly closed by user.
-
-Repro steps:
-1. Open settings from menu bar.
-2. Click another app/window.
-3. Observe settings window disappears instead of remaining as a normal background window.
-
-Candidate areas to inspect:
-- `App/KindleWallApp.swift` custom settings window lifecycle in `AppDelegate`.
-- Window configuration flags/levels/collection behavior.
-- Any implicit close/hide behavior tied to app activation policy (`.accessory`).
-
-Acceptance criteria:
-- Settings window remains visible (non-key) after app deactivation.
-- User can bring it back to front without recreating state.

@@ -130,6 +130,21 @@ enum WallpaperSetter {
         )
     }
 
+    @discardableResult
+    static func tryReapplyStoredWallpapers(
+        _ wallpapers: [StoredGeneratedWallpaper],
+        on resolvedScreens: [ResolvedScreen<NSScreen>],
+        setDesktopImage: (URL, NSScreen) throws -> Void = { url, screen in
+            try NSWorkspace.shared.setDesktopImageURL(url, for: screen, options: [:])
+        }
+    ) throws -> Bool {
+        try reapplyStoredWallpapers(
+            wallpapers,
+            resolvedScreens: resolvedScreens,
+            setDesktopImage: setDesktopImage
+        )
+    }
+
     static func setWallpaper(
         imageURL: URL,
         screensProvider: () -> [NSScreen] = { NSScreen.screens },
@@ -207,6 +222,43 @@ enum WallpaperSetter {
         for screen in screens {
             try setDesktopImage(imageURL, screen)
         }
+    }
+
+    @discardableResult
+    static func reapplyStoredWallpapers<Screen>(
+        _ wallpapers: [StoredGeneratedWallpaper],
+        resolvedScreens: [ResolvedScreen<Screen>],
+        setDesktopImage: (URL, Screen) throws -> Void
+    ) rethrows -> Bool {
+        guard !wallpapers.isEmpty, !resolvedScreens.isEmpty else {
+            return false
+        }
+
+        if
+            wallpapers.count == 1,
+            let wallpaper = wallpapers.first,
+            wallpaper.targetIdentifier == StoredGeneratedWallpaper.allScreensTargetIdentifier
+        {
+            try applyWallpaper(
+                imageURL: wallpaper.fileURL,
+                screens: resolvedScreens.map(\.screen),
+                setDesktopImage: setDesktopImage
+            )
+            return true
+        }
+
+        let assignments = wallpapers.map { wallpaper in
+            WallpaperAssignment(
+                screenIdentifier: wallpaper.targetIdentifier,
+                imageURL: wallpaper.fileURL
+            )
+        }
+        try applyWallpapers(
+            assignments: assignments,
+            resolvedScreens: resolvedScreens,
+            setDesktopImage: setDesktopImage
+        )
+        return true
     }
 
     private static func identifier(for screen: NSScreen, fallbackIndex: Int) -> String {
