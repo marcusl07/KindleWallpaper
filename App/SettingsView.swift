@@ -68,8 +68,9 @@ struct SettingsView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
-            Button("Show Books...") {
-                presentBooksWindowDirectly()
+            NavigationLink("Show Books...") {
+                BooksListView()
+                    .navigationTitle("Books")
             }
         }
     }
@@ -293,38 +294,6 @@ struct SettingsView: View {
     private var enabledBookCount: Int {
         appState.books.filter(\.isEnabled).count
     }
-
-    private func presentBooksWindowDirectly() {
-        #if canImport(AppKit)
-        NSLog("[ShowBooksDebug] direct button action entered")
-        let booksView = BooksListView()
-            .environmentObject(appState)
-        let hostingController = NSHostingController(rootView: booksView)
-        let window = NSWindow(contentViewController: hostingController)
-        window.title = "Books"
-        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        window.setContentSize(NSSize(width: 760, height: 560))
-        window.center()
-        window.canHide = false
-        window.hidesOnDeactivate = false
-
-        let controller = NSWindowController(window: window)
-        DirectBooksWindowStore.windowController = controller
-        NSApp.activate(ignoringOtherApps: true)
-        controller.showWindow(nil)
-        window.makeKeyAndOrderFront(nil)
-        NSLog("[ShowBooksDebug] direct button action didShowWindow")
-        #else
-        BooksWindowPresentation.requestShowWindow()
-        #endif
-    }
-}
-
-enum BooksWindowPresentation {
-    static func requestShowWindow(notificationCenter: NotificationCenter = .default) {
-        NSLog("[ShowBooksDebug] requestShowWindow posting .kindleWallShowBooksWindow")
-        notificationCenter.post(name: .kindleWallShowBooksWindow, object: nil)
-    }
 }
 
 enum BackgroundsWindowPresentation {
@@ -342,12 +311,6 @@ extension Notification.Name {
     static let kindleWallShowBackgroundsWindow = Notification.Name("kindleWallShowBackgroundsWindow")
     static let kindleWallBackgroundCollectionDidChange = Notification.Name("kindleWallBackgroundCollectionDidChange")
 }
-
-#if canImport(AppKit)
-private enum DirectBooksWindowStore {
-    static var windowController: NSWindowController?
-}
-#endif
 
 struct BooksListView: View {
     @EnvironmentObject private var appState: AppState

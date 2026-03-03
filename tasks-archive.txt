@@ -433,3 +433,8 @@ Wrap the main Settings view content in a SwiftUI `NavigationStack`. No navigatio
 
 **T66 — Fix background image collection reorder on selection**
 When a background image is clicked in the collection view it jumps to the front of the list. Fix with a stable sort so collection order never changes on state update or selection.
+
+**T64 — Wire Books section to in-place navigation**
+Replace the "Show Books..." button with a `NavigationLink` that drills into `BooksListView` inside the existing Settings window `NavigationStack`. No separate window, no notification-based routing.
+
+

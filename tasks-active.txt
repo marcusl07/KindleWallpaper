@@ -10,9 +10,6 @@ This file is the working context for agents. When an item is completed, move it 
 
 ## Phase 12 — Settings Navigation and Collection Ordering
 
-**T64 — Wire Books section to in-place navigation**
-Replace the "Show Books..." button with a `NavigationLink` that drills into `BooksListView` inside the existing Settings window `NavigationStack`. No separate window, no notification-based routing.
-
 **T65 — Remove Books window from SettingsWindowCoordinator**
 Delete `showBooksWindow()`, the books window controller, and the `.kindleWallShowBooksWindow` notification observer from `SettingsWindowCoordinator`. Clean up all dead code left behind.
 
