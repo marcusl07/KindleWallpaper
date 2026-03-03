@@ -79,6 +79,7 @@ final class AppState: ObservableObject {
     typealias SetWallpaper = (URL) throws -> Void
     typealias PrepareWallpaperRotation = () -> WallpaperRotationPlan?
     typealias GenerateWallpapers = (Highlight, URL?, [WallpaperTarget]) -> [GeneratedWallpaper]
+    typealias StoreReusableGeneratedWallpapers = ([GeneratedWallpaper]) -> Void
     typealias MarkHighlightShown = (UUID) -> Void
     typealias SetBookEnabled = (UUID, Bool) -> Void
     typealias SetAllBooksEnabled = (Bool) -> Void
@@ -112,6 +113,7 @@ final class AppState: ObservableObject {
     private let setWallpaper: SetWallpaper
     private let prepareWallpaperRotation: PrepareWallpaperRotation?
     private let generateWallpapers: GenerateWallpapers?
+    private let storeReusableGeneratedWallpapers: StoreReusableGeneratedWallpapers
     private let markHighlightShown: MarkHighlightShown
     private let setBookEnabledAction: SetBookEnabled
     private let setAllBooksEnabledAction: SetAllBooksEnabled
@@ -153,6 +155,7 @@ final class AppState: ObservableObject {
         setWallpaper: @escaping SetWallpaper,
         prepareWallpaperRotation: PrepareWallpaperRotation? = nil,
         generateWallpapers: GenerateWallpapers? = nil,
+        storeReusableGeneratedWallpapers: @escaping StoreReusableGeneratedWallpapers = { _ in },
         markHighlightShown: @escaping MarkHighlightShown,
         setBookEnabled: @escaping SetBookEnabled = { _, _ in },
         setAllBooksEnabled: @escaping SetAllBooksEnabled = { _ in },
@@ -239,6 +242,7 @@ final class AppState: ObservableObject {
         self.setWallpaper = setWallpaper
         self.prepareWallpaperRotation = prepareWallpaperRotation
         self.generateWallpapers = generateWallpapers
+        self.storeReusableGeneratedWallpapers = storeReusableGeneratedWallpapers
         self.markHighlightShown = markHighlightShown
         self.setBookEnabledAction = setBookEnabled
         self.setAllBooksEnabledAction = setAllBooksEnabled
@@ -320,6 +324,7 @@ final class AppState: ObservableObject {
         let setWallpaper: SetWallpaper
         let prepareWallpaperRotation: PrepareWallpaperRotation?
         let generateWallpapers: GenerateWallpapers?
+        let storeReusableGeneratedWallpapers: StoreReusableGeneratedWallpapers
         let markHighlightShown: MarkHighlightShown
         let setLastChangedAt: (Date) -> Void
         let now: Now
@@ -347,6 +352,7 @@ final class AppState: ObservableObject {
             setWallpaper: setWallpaper,
             prepareWallpaperRotation: prepareWallpaperRotation,
             generateWallpapers: generateWallpapers,
+            storeReusableGeneratedWallpapers: storeReusableGeneratedWallpapers,
             markHighlightShown: markHighlightShown,
             setLastChangedAt: { [userDefaults] changedAt in
                 userDefaults.lastChangedAt = changedAt
@@ -367,6 +373,7 @@ final class AppState: ObservableObject {
         let displayQuoteText = context.transformQuoteTextForDisplay(highlight.quoteText)
         let highlightForDisplay = displayHighlight(highlight, quoteText: displayQuoteText)
         let backgroundURL = context.selectBackgroundImageURL(context.loadBackgroundImageURLs())
+        let appliedGeneratedWallpapers: [GeneratedWallpaper]
         if
             let prepareWallpaperRotation = context.prepareWallpaperRotation,
             let generateWallpapers = context.generateWallpapers,
@@ -405,10 +412,18 @@ final class AppState: ObservableObject {
                     lastChangedAt: nil
                 )
             }
+
+            appliedGeneratedWallpapers = generatedWallpapers
         } else {
             do {
                 let wallpaperURL = context.generateWallpaper(highlightForDisplay, backgroundURL)
                 try context.setWallpaper(wallpaperURL)
+                appliedGeneratedWallpapers = [
+                    GeneratedWallpaper(
+                        targetIdentifier: StoredGeneratedWallpaper.allScreensTargetIdentifier,
+                        fileURL: wallpaperURL
+                    )
+                ]
             } catch {
                 return RotationExecution(
                     outcome: .wallpaperApplyFailure(.applyError),
@@ -418,6 +433,7 @@ final class AppState: ObservableObject {
             }
         }
 
+        context.storeReusableGeneratedWallpapers(appliedGeneratedWallpapers)
         context.markHighlightShown(highlight.id)
         let changedAt = context.now()
         context.setLastChangedAt(changedAt)
@@ -606,7 +622,11 @@ extension AppState {
 
     static func live(userDefaults: UserDefaults = .standard) -> AppState {
         let backgroundStore = BackgroundImageStore(userDefaults: userDefaults)
-        let wallpaperGenerator = WallpaperGenerator()
+        let wallpaperGenerator = WallpaperGenerator(
+            protectedGeneratedWallpapersProvider: {
+                userDefaults.loadReusableGeneratedWallpapers().map(\.fileURL)
+            }
+        )
 
         return AppState(
             userDefaults: userDefaults,
@@ -660,6 +680,16 @@ extension AppState {
                         fileURL: generated.fileURL
                     )
                 }
+            },
+            storeReusableGeneratedWallpapers: { generatedWallpapers in
+                userDefaults.storeReusableGeneratedWallpapers(
+                    generatedWallpapers.map { wallpaper in
+                        StoredGeneratedWallpaper(
+                            targetIdentifier: wallpaper.targetIdentifier,
+                            fileURL: wallpaper.fileURL
+                        )
+                    }
+                )
             },
             markHighlightShown: DatabaseManager.markHighlightShown(id:),
             setBookEnabled: DatabaseManager.setBookEnabled(id:enabled:),

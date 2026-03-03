@@ -49,6 +49,13 @@ enum RotationScheduleMode: String, CaseIterable {
     }
 }
 
+struct StoredGeneratedWallpaper: Equatable {
+    static let allScreensTargetIdentifier = "__all_screens__"
+
+    let targetIdentifier: String
+    let fileURL: URL
+}
+
 extension UserDefaults {
     private enum ScheduleKeys {
         static let rotationMode = "rotationScheduleMode"
@@ -56,6 +63,7 @@ extension UserDefaults {
         static let dailyMinute = "scheduleDailyMinute"
         static let lastChangedAt = "lastChangedAt"
         static let capitalizeHighlightText = "capitalizeHighlightText"
+        static let reusableGeneratedWallpaperPathsByTarget = "reusableGeneratedWallpaperPathsByTarget"
     }
 
     private static let lastChangedAtParsers: [ISO8601DateFormatter] = {
@@ -165,6 +173,75 @@ extension UserDefaults {
         }
         set {
             set(newValue, forKey: ScheduleKeys.capitalizeHighlightText)
+        }
+    }
+
+    func storeReusableGeneratedWallpapers(_ wallpapers: [StoredGeneratedWallpaper]) {
+        guard !wallpapers.isEmpty else {
+            removeObject(forKey: ScheduleKeys.reusableGeneratedWallpaperPathsByTarget)
+            return
+        }
+
+        let persistedPaths = Dictionary(
+            wallpapers.map { wallpaper in
+                (wallpaper.targetIdentifier, wallpaper.fileURL.standardizedFileURL.path)
+            },
+            uniquingKeysWith: { _, latest in latest }
+        )
+        set(persistedPaths, forKey: ScheduleKeys.reusableGeneratedWallpaperPathsByTarget)
+    }
+
+    func loadReusableGeneratedWallpapers(
+        fileManager: FileManager = .default
+    ) -> [StoredGeneratedWallpaper] {
+        guard let storedPaths = dictionary(forKey: ScheduleKeys.reusableGeneratedWallpaperPathsByTarget) else {
+            return []
+        }
+
+        var validPathsByTarget: [String: String] = [:]
+        validPathsByTarget.reserveCapacity(storedPaths.count)
+
+        var validWallpapers: [StoredGeneratedWallpaper] = []
+        validWallpapers.reserveCapacity(storedPaths.count)
+
+        for (targetIdentifier, rawPathValue) in storedPaths {
+            guard
+                let path = rawPathValue as? String
+            else {
+                continue
+            }
+
+            let normalizedTargetIdentifier = targetIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedPath = path.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard
+                !normalizedTargetIdentifier.isEmpty,
+                !normalizedPath.isEmpty
+            else {
+                continue
+            }
+
+            let fileURL = URL(fileURLWithPath: normalizedPath).standardizedFileURL
+            guard fileManager.fileExists(atPath: fileURL.path) else {
+                continue
+            }
+
+            validPathsByTarget[normalizedTargetIdentifier] = fileURL.path
+            validWallpapers.append(
+                StoredGeneratedWallpaper(
+                    targetIdentifier: normalizedTargetIdentifier,
+                    fileURL: fileURL
+                )
+            )
+        }
+
+        if validPathsByTarget.isEmpty {
+            removeObject(forKey: ScheduleKeys.reusableGeneratedWallpaperPathsByTarget)
+        } else if NSDictionary(dictionary: validPathsByTarget) != storedPaths as NSDictionary {
+            set(validPathsByTarget, forKey: ScheduleKeys.reusableGeneratedWallpaperPathsByTarget)
+        }
+
+        return validWallpapers.sorted { lhs, rhs in
+            lhs.targetIdentifier < rhs.targetIdentifier
         }
     }
 

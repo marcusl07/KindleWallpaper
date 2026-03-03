@@ -41,6 +41,7 @@ struct WallpaperGenerator {
     private let mainScreenScaleProvider: () -> CGFloat?
     private let backgroundImageLoader: BackgroundImageLoader
     private let retainedGeneratedFileCount: Int
+    private let protectedGeneratedWallpapersProvider: () -> [URL]
 
     init(
         fileManager: FileManager = .default,
@@ -60,7 +61,8 @@ struct WallpaperGenerator {
             NSScreen.main?.backingScaleFactor
         },
         backgroundImageLoader: BackgroundImageLoader = .shared,
-        retainedGeneratedFileCount: Int = Constants.defaultRetainedGeneratedFiles
+        retainedGeneratedFileCount: Int = Constants.defaultRetainedGeneratedFiles,
+        protectedGeneratedWallpapersProvider: @escaping () -> [URL] = { [] }
     ) {
         self.fileManager = fileManager
         self.appSupportDirectoryProvider = appSupportDirectoryProvider
@@ -68,6 +70,7 @@ struct WallpaperGenerator {
         self.mainScreenScaleProvider = mainScreenScaleProvider
         self.backgroundImageLoader = backgroundImageLoader
         self.retainedGeneratedFileCount = max(retainedGeneratedFileCount, 1)
+        self.protectedGeneratedWallpapersProvider = protectedGeneratedWallpapersProvider
     }
 
     func generateWallpaper(highlight: Highlight, backgroundURL: URL?) -> URL {
@@ -137,7 +140,10 @@ struct WallpaperGenerator {
             )
         }
 
-        cleanupGeneratedWallpapers(in: outputDirectory)
+        cleanupGeneratedWallpapers(
+            in: outputDirectory,
+            protecting: generatedWallpapers.map(\.fileURL) + protectedGeneratedWallpapersProvider()
+        )
         return generatedWallpapers
     }
 
@@ -306,7 +312,7 @@ struct WallpaperGenerator {
         return result.isEmpty ? "unknown" : result
     }
 
-    private func cleanupGeneratedWallpapers(in directoryURL: URL) {
+    private func cleanupGeneratedWallpapers(in directoryURL: URL, protecting protectedFileURLs: [URL]) {
         do {
             let fileURLs = try fileManager.contentsOfDirectory(
                 at: directoryURL,
@@ -338,7 +344,14 @@ struct WallpaperGenerator {
                 resourceTimestamp(for: lhs) > resourceTimestamp(for: rhs)
             }
 
-            let staleFiles = sortedFiles.dropFirst(retainedGeneratedFileCount)
+            let protectedFilePathSet = Set(
+                protectedFileURLs.map { $0.standardizedFileURL.path }
+            )
+            let unprotectedFiles = sortedFiles.filter { fileURL in
+                !protectedFilePathSet.contains(fileURL.standardizedFileURL.path)
+            }
+
+            let staleFiles = unprotectedFiles.dropFirst(retainedGeneratedFileCount)
             for staleFile in staleFiles {
                 try? fileManager.removeItem(at: staleFile)
             }
