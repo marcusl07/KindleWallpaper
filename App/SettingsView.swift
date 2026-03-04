@@ -18,7 +18,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack(path: $navigationModel.path) {
             Form {
-                importSection
+                quotesSection
                 booksSection
                 backgroundSection
                 scheduleSection
@@ -29,6 +29,9 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .navigationDestination(for: SettingsDestination.self) { destination in
                 switch destination {
+                case .quotes:
+                    QuotesListView()
+                        .navigationTitle("Quotes")
                 case .books:
                     BooksListView()
                         .navigationTitle("Books")
@@ -47,23 +50,12 @@ struct SettingsView: View {
         }
     }
 
-    private var importSection: some View {
-        Section("Import") {
-            Button("Import My Clippings.txt...") {
-                chooseClippingsFile()
-            }
-
-            if let importError = appState.importError, !importError.isEmpty {
-                settingsMessageRow(importError, tone: .error)
-            } else if !appState.importStatus.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                settingsMessageRow(appState.importStatus)
-            } else {
-                settingsMessageRow("No imports yet.", tone: .secondary)
-            }
-
-            settingsMessageRow(
-                "\(appState.totalHighlightCount) \(appState.totalHighlightCount == 1 ? "highlight" : "highlights") in library",
-                tone: .secondary
+    private var quotesSection: some View {
+        Section("Quotes") {
+            settingsNavigationButton(
+                title: "Quotes",
+                subtitle: quoteLibrarySummary,
+                destination: .quotes
             )
         }
     }
@@ -225,48 +217,12 @@ struct SettingsView: View {
         return calendar.date(from: components) ?? Date()
     }
 
-    private func chooseClippingsFile() {
-        #if canImport(AppKit)
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        if let txtType = UTType(filenameExtension: "txt") {
-            panel.allowedContentTypes = [txtType]
-        } else {
-            panel.allowedContentTypes = [.plainText]
-        }
-        panel.title = "Import My Clippings.txt"
-        panel.prompt = "Import"
-
-        guard panel.runModal() == .OK, let selectedURL = panel.url else {
-            return
-        }
-
-        importClippingsFile(at: selectedURL)
-        #endif
-    }
-
-    private func importClippingsFile(at fileURL: URL) {
-        #if canImport(GRDB)
-        let result = importFile(at: fileURL)
-        let status = VolumeWatcher.makeImportStatus(
-            from: VolumeWatcher.ImportPayload(
-                newHighlightCount: result.newHighlightCount,
-                error: result.error,
-                parseWarningCount: result.parseWarningCount
-            ),
-            now: Date()
-        )
-        appState.setImportStatus(status.message, isError: status.isError)
-        appState.refreshLibraryState()
-        #else
-        appState.setImportStatus("Import unavailable in this build.", isError: true)
-        #endif
-    }
-
     private var enabledBookCount: Int {
         appState.books.filter(\.isEnabled).count
+    }
+
+    private var quoteLibrarySummary: String {
+        "\(appState.totalHighlightCount) \(appState.totalHighlightCount == 1 ? "highlight" : "highlights") in library"
     }
 
     private func settingsNavigationRow(title: String, subtitle: String) -> some View {
@@ -314,6 +270,7 @@ struct SettingsView: View {
 }
 
 enum SettingsDestination: Hashable {
+    case quotes
     case books
     case backgrounds
 }
@@ -427,6 +384,108 @@ private enum SettingsMessageTone {
             AnyShapeStyle(.red)
         }
     }
+}
+
+private struct QuotesListView: View {
+    @EnvironmentObject private var appState: AppState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            QuotesImportHeaderView()
+
+            List {
+                if appState.totalHighlightCount == 0 {
+                    Text("No quotes imported yet.")
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Text("\(appState.totalHighlightCount) quotes available. Search, sort, and detail tools arrive in the next task.")
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .listStyle(.inset)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
+private struct QuotesImportHeaderView: View {
+    @EnvironmentObject private var appState: AppState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Button("Import My Clippings.txt...") {
+                    chooseClippingsFile(for: appState)
+                }
+
+                Spacer(minLength: 8)
+
+                Text("\(appState.totalHighlightCount) \(appState.totalHighlightCount == 1 ? "highlight" : "highlights") in library")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let importError = appState.importError, !importError.isEmpty {
+                settingsMessageRow(importError, tone: .error)
+            } else if !appState.importStatus.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                settingsMessageRow(appState.importStatus)
+            } else {
+                settingsMessageRow("No imports yet.", tone: .secondary)
+            }
+        }
+    }
+
+    private func settingsMessageRow(_ message: String, tone: SettingsMessageTone = .primary) -> some View {
+        Text(message)
+            .font(.callout)
+            .foregroundStyle(tone.color)
+    }
+}
+
+@MainActor
+private func chooseClippingsFile(for appState: AppState) {
+    #if canImport(AppKit)
+    let panel = NSOpenPanel()
+    panel.canChooseFiles = true
+    panel.canChooseDirectories = false
+    panel.allowsMultipleSelection = false
+    if let txtType = UTType(filenameExtension: "txt") {
+        panel.allowedContentTypes = [txtType]
+    } else {
+        panel.allowedContentTypes = [.plainText]
+    }
+    panel.title = "Import My Clippings.txt"
+    panel.prompt = "Import"
+
+    guard panel.runModal() == .OK, let selectedURL = panel.url else {
+        return
+    }
+
+    importClippingsFile(at: selectedURL, for: appState)
+    #endif
+}
+
+@MainActor
+private func importClippingsFile(at fileURL: URL, for appState: AppState) {
+    #if canImport(GRDB)
+    let result = importFile(at: fileURL)
+    let status = VolumeWatcher.makeImportStatus(
+        from: VolumeWatcher.ImportPayload(
+            newHighlightCount: result.newHighlightCount,
+            error: result.error,
+            parseWarningCount: result.parseWarningCount
+        ),
+        now: Date()
+    )
+    appState.setImportStatus(status.message, isError: status.isError)
+    appState.refreshLibraryState()
+    #else
+    appState.setImportStatus("Import unavailable in this build.", isError: true)
+    #endif
 }
 
 enum BackgroundsWindowPresentation {
