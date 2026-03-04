@@ -469,7 +469,8 @@ final class AppState: ObservableObject {
             author: highlight.author,
             location: highlight.location,
             dateAdded: highlight.dateAdded,
-            lastShownAt: highlight.lastShownAt
+            lastShownAt: highlight.lastShownAt,
+            isEnabled: highlight.isEnabled
         )
     }
 

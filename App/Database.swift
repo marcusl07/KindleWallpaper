@@ -39,6 +39,7 @@ enum DatabaseManager {
         location    TEXT,
         dateAdded   TEXT,
         lastShownAt TEXT,
+        isEnabled   INTEGER NOT NULL DEFAULT 1,
         dedupeKey   TEXT NOT NULL UNIQUE
     );
     """
@@ -59,6 +60,32 @@ enum DatabaseManager {
         return formatter
     }()
 
+    private static let migrator: DatabaseMigrator = {
+        var migrator = DatabaseMigrator()
+
+        migrator.registerMigration("createInitialSchema") { database in
+            try database.execute(sql: createBooksTableSQL)
+            try database.execute(sql: createHighlightsTableSQL)
+            try database.execute(sql: createHighlightsBookIDIndexSQL)
+            try database.execute(sql: createHighlightsBookIDLastShownAtIndexSQL)
+        }
+
+        migrator.registerMigration("addHighlightsIsEnabled") { database in
+            guard try !tableColumnNames(in: "highlights", database: database).contains("isEnabled") else {
+                return
+            }
+
+            try database.execute(
+                sql: """
+                ALTER TABLE highlights
+                ADD COLUMN isEnabled INTEGER NOT NULL DEFAULT 1
+                """
+            )
+        }
+
+        return migrator
+    }()
+
     private static func makeDatabaseURL() throws -> URL {
         let appSupportURL = AppSupportPaths.kindleWallDirectory(fileManager: .default)
         return appSupportURL.appendingPathComponent("highlights.db", isDirectory: false)
@@ -69,12 +96,14 @@ enum DatabaseManager {
     }
 
     private static func initializeSchema(in databaseQueue: DatabaseQueue) throws {
-        try databaseQueue.write { database in
-            try database.execute(sql: createBooksTableSQL)
-            try database.execute(sql: createHighlightsTableSQL)
-            try database.execute(sql: createHighlightsBookIDIndexSQL)
-            try database.execute(sql: createHighlightsBookIDLastShownAtIndexSQL)
-        }
+        try migrator.migrate(databaseQueue)
+    }
+
+    private static func tableColumnNames(in tableName: String, database: Database) throws -> Set<String> {
+        let rows = try Row.fetchAll(database, sql: "PRAGMA table_info(\(tableName))")
+        return Set(rows.compactMap { row in
+            row["name"] as String?
+        })
     }
 
     static func upsertBook(_ book: Book) -> UUID {
@@ -142,9 +171,10 @@ enum DatabaseManager {
                         location,
                         dateAdded,
                         lastShownAt,
+                        isEnabled,
                         dedupeKey
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     arguments: [
                         highlight.id.uuidString,
@@ -155,6 +185,7 @@ enum DatabaseManager {
                         highlight.location,
                         iso8601String(from: highlight.dateAdded),
                         iso8601String(from: highlight.lastShownAt),
+                        highlight.isEnabled ? 1 : 0,
                         dedupeKey
                     ]
                 )
@@ -239,6 +270,7 @@ enum DatabaseManager {
                     SELECT COUNT(*)
                     FROM highlights
                     WHERE bookId IN (SELECT id FROM books WHERE isEnabled = 1)
+                      AND isEnabled = 1
                     """
                 ) ?? 0
 
@@ -252,6 +284,7 @@ enum DatabaseManager {
                     SELECT COUNT(*)
                     FROM highlights
                     WHERE bookId IN (SELECT id FROM books WHERE isEnabled = 1)
+                      AND isEnabled = 1
                       AND lastShownAt IS NULL
                     """
                 ) ?? 0
@@ -262,6 +295,7 @@ enum DatabaseManager {
                         UPDATE highlights
                         SET lastShownAt = NULL
                         WHERE bookId IN (SELECT id FROM books WHERE isEnabled = 1)
+                          AND isEnabled = 1
                         """
                     )
 
@@ -271,6 +305,7 @@ enum DatabaseManager {
                         SELECT COUNT(*)
                         FROM highlights
                         WHERE bookId IN (SELECT id FROM books WHERE isEnabled = 1)
+                          AND isEnabled = 1
                           AND lastShownAt IS NULL
                         """
                     ) ?? 0
@@ -284,9 +319,10 @@ enum DatabaseManager {
                 guard let row = try Row.fetchOne(
                     database,
                     sql: """
-                    SELECT id, bookId, quoteText, bookTitle, author, location, dateAdded, lastShownAt
+                    SELECT id, bookId, quoteText, bookTitle, author, location, dateAdded, lastShownAt, isEnabled
                     FROM highlights
                     WHERE bookId IN (SELECT id FROM books WHERE isEnabled = 1)
+                      AND isEnabled = 1
                       AND lastShownAt IS NULL
                     LIMIT 1 OFFSET ?
                     """,
@@ -411,6 +447,7 @@ enum DatabaseManager {
 
         let dateAddedValue: String? = row["dateAdded"]
         let lastShownAtValue: String? = row["lastShownAt"]
+        let isEnabledValue: Int = row["isEnabled"]
 
         return Highlight(
             id: id,
@@ -420,7 +457,8 @@ enum DatabaseManager {
             author: row["author"],
             location: row["location"],
             dateAdded: dateAddedValue.flatMap { iso8601Formatter.date(from: $0) },
-            lastShownAt: lastShownAtValue.flatMap { iso8601Formatter.date(from: $0) }
+            lastShownAt: lastShownAtValue.flatMap { iso8601Formatter.date(from: $0) },
+            isEnabled: isEnabledValue != 0
         )
     }
 }
