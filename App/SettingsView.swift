@@ -25,6 +25,7 @@ struct SettingsView: View {
                 displaySection
                 aboutSection
             }
+            .formStyle(.grouped)
             .navigationTitle("Settings")
             .navigationDestination(for: SettingsDestination.self) { destination in
                 switch destination {
