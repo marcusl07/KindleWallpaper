@@ -10,5 +10,44 @@ This file is the working context for agents. When an item is completed, move it 
 
 ## Phase 12 — Settings Navigation and Collection Ordering
 
-## Open Agent Handoff Bugs
+---
 
+## Phase 13 — Quote Management
+
+**T72 — Add `isEnabled` column to `highlights` table**
+Add `isEnabled INTEGER NOT NULL DEFAULT 1` to the `highlights` table. Write migration for existing databases. Update the active-pool query to filter on `highlights.isEnabled = 1`.
+
+**T73 — Make `bookId` nullable on `highlights` table**
+Change `bookId` on the `highlights` table to allow `NULL` for manually added quotes with no book association. Write migration. Update all queries referencing `bookId` to handle `NULL` gracefully.
+
+**T74 — Update wallpaper renderer for missing book title and author**
+In `WallpaperGenerator.swift`, handle empty/nil `bookTitle` and `author` and omit the attribution line entirely rather than rendering blank space.
+
+**T75 — Replace Import section with Quotes navigation row in Settings**
+Remove the Import section from the main settings view. Add a Quotes row navigating in-place to `QuotesListView`. Move import button and status into the Quotes list view header.
+
+**T76 — Build Quotes list view with search and sort**
+Create `QuotesListView` with real-time search across quote text/book title/author, sort toggle (alphabetical by book / most recently added). Each row shows truncated quote text + book title + author.
+
+**T77 — Add filter controls to Quotes list view**
+Add filters to `QuotesListView`: by book title, author, enabled/disabled books only, manually added only. Filters compose with search.
+
+**T78 — Build Quote detail view**
+Create `QuoteDetailView` showing full quote text, book, author, location, date added, last shown. Actions: Edit, Set as Current Wallpaper, Enable/Disable from rotation, Delete with confirmation.
+
+**T79 — Build Quote edit/add view**
+Create `QuoteEditView` for editing all fields (quote text, book title, author, location). All fields optional except quote text. If book title + author match existing book, link to it. Save/Cancel.
+
+**T80 — Implement per-quote enable/disable toggle**
+Wire enable/disable in `QuoteDetailView` to update `highlights.isEnabled` in the database via `AppState`. Disabled quotes excluded from rotation pool.
+
+**T81 — Implement delete quote**
+Wire delete in `QuoteDetailView` to remove highlight from database. Confirmation alert before deleting. Return to list after deletion.
+
+**T82 — Implement Set as Current Wallpaper from detail view**
+Wire `Set as Current Wallpaper` in `QuoteDetailView` to force that specific highlight through the rotation pipeline immediately. Reuse `requestWallpaperRotation` with a forced highlight parameter.
+
+**T83 — Implement manual add quote**
+Wire `+` button in `QuotesListView` to open `QuoteEditView` in add mode. On save, insert new highlight with nullable `bookId`. Link to existing book if title+author match.
+
+## Open Agent Handoff Bugs
