@@ -178,7 +178,10 @@ struct WallpaperGenerator {
     private func drawTextOverlay(highlight: Highlight, in rect: NSRect, displayScaleFactor: CGFloat) {
         let quoteText = highlight.quoteText.trimmingCharacters(in: .whitespacesAndNewlines)
         let quote = quoteText.isEmpty ? " " : quoteText
-        let attribution = "\(highlight.bookTitle) - \(highlight.author)".trimmingCharacters(in: .whitespacesAndNewlines)
+        let attribution = Self.formattedAttribution(
+            bookTitle: highlight.bookTitle,
+            author: highlight.author
+        )
         let maxTextWidth = rect.width * 0.7
         let quoteFontSize = Constants.quoteFontSize * displayScaleFactor
         let attributionFontSize = Constants.attributionFontSize * displayScaleFactor
@@ -204,22 +207,20 @@ struct WallpaperGenerator {
             attributes: quoteAttributes
         ).integral
 
-        let attributionBounds = (attribution as NSString).boundingRect(
-            with: CGSize(width: maxTextWidth, height: .greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: attributionAttributes
-        ).integral
+        let attributionBounds: NSRect
+        if let attribution {
+            attributionBounds = (attribution as NSString).boundingRect(
+                with: CGSize(width: maxTextWidth, height: .greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                attributes: attributionAttributes
+            ).integral
+        } else {
+            attributionBounds = .zero
+        }
 
-        let spacing = Constants.textSpacing * displayScaleFactor
+        let spacing = attribution == nil ? 0 : Constants.textSpacing * displayScaleFactor
         let totalHeight = quoteBounds.height + spacing + attributionBounds.height
         let baseY = (rect.height - totalHeight) / 2
-
-        let attributionRect = NSRect(
-            x: (rect.width - attributionBounds.width) / 2,
-            y: baseY,
-            width: attributionBounds.width,
-            height: attributionBounds.height
-        )
 
         let quoteRect = NSRect(
             x: (rect.width - quoteBounds.width) / 2,
@@ -229,11 +230,37 @@ struct WallpaperGenerator {
         )
 
         (quote as NSString).draw(with: quoteRect, options: .usesLineFragmentOrigin, attributes: quoteAttributes)
-        (attribution as NSString).draw(
-            with: attributionRect,
-            options: .usesLineFragmentOrigin,
-            attributes: attributionAttributes
-        )
+        if let attribution {
+            let attributionRect = NSRect(
+                x: (rect.width - attributionBounds.width) / 2,
+                y: baseY,
+                width: attributionBounds.width,
+                height: attributionBounds.height
+            )
+            (attribution as NSString).draw(
+                with: attributionRect,
+                options: .usesLineFragmentOrigin,
+                attributes: attributionAttributes
+            )
+        }
+    }
+
+    static func formattedAttribution(bookTitle: String?, author: String?) -> String? {
+        let trimmedTitle = bookTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedAuthor = author?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let components: [String] = [trimmedTitle, trimmedAuthor].compactMap { value in
+            guard let value, !value.isEmpty else {
+                return nil
+            }
+            return value
+        }
+
+        guard !components.isEmpty else {
+            return nil
+        }
+
+        return components.joined(separator: " - ")
     }
 
     private func renderImage(size: CGSize, draw: (NSRect) -> Void) -> NSImage {

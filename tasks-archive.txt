@@ -460,3 +460,10 @@ Add `isEnabled INTEGER NOT NULL DEFAULT 1` to the `highlights` table. Write migr
 Change `bookId` on the `highlights` table to allow `NULL` for manually added quotes with no book association. Write migration. Update all queries referencing `bookId` to handle `NULL` gracefully.
 
 
+
+**T74 — Update wallpaper renderer for missing book title and author**
+In `WallpaperGenerator.swift`, handle empty/nil `bookTitle` and `author` and omit the attribution line entirely rather than rendering blank space.
+
+
+**T75 — Replace Import section with Quotes navigation row in Settings**
+Remove the Import section from the main settings view. Add a Quotes row navigating in-place to `QuotesListView`. Move import button and status into the Quotes list view header.
