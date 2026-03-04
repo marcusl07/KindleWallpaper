@@ -472,3 +472,6 @@ Remove the Import section from the main settings view. Add a Quotes row navigati
 Create `QuotesListView` with real-time search across quote text/book title/author, sort toggle (alphabetical by book / most recently added). Each row shows truncated quote text + book title + author.
 
 
+**T82 — Implement Set as Current Wallpaper from detail view**
+Wire `Set as Current Wallpaper` in `QuoteDetailView` to force that specific highlight through the rotation pipeline immediately. Reuse `requestWallpaperRotation` with a forced highlight parameter.
+

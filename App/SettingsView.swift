@@ -520,7 +520,11 @@ private struct QuotesListView: View {
                     )
                 } else {
                     List(displayedHighlights) { highlight in
-                        quoteRow(highlight)
+                        NavigationLink {
+                            QuoteDetailView(highlight: highlight)
+                        } label: {
+                            quoteRow(highlight)
+                        }
                     }
                     .listStyle(.inset)
                 }
@@ -602,6 +606,80 @@ private struct QuotesListView: View {
 
     private func refreshHighlights() {
         highlights = appState.loadAllHighlights()
+    }
+}
+
+private struct QuoteDetailView: View {
+    @EnvironmentObject private var appState: AppState
+
+    let highlight: Highlight
+
+    @State private var wallpaperRequestMessage: String?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(highlight.quoteText)
+                        .font(.title3)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(QuotesListPresentationModel.bookTitleText(for: highlight))
+                            .font(.headline)
+                        Text("•")
+                            .foregroundStyle(.tertiary)
+                        Text(QuotesListPresentationModel.authorText(for: highlight))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Button("Set as Current Wallpaper") {
+                    let didRequestRotation = appState.requestWallpaperRotation(forcedHighlight: highlight)
+                    wallpaperRequestMessage = didRequestRotation
+                        ? "Wallpaper update requested."
+                        : "Wallpaper update already in progress."
+                }
+
+                if let wallpaperRequestMessage {
+                    Text(wallpaperRequestMessage)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    detailRow(label: "Location", value: detailLocationText)
+                    detailRow(label: "Date Added", value: formattedDate(highlight.dateAdded))
+                    detailRow(label: "Last Shown", value: formattedDate(highlight.lastShownAt))
+                    detailRow(label: "Included in Rotation", value: highlight.isEnabled ? "Yes" : "No")
+                }
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .navigationTitle("Quote")
+    }
+
+    private var detailLocationText: String {
+        let trimmedLocation = highlight.location?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmedLocation.isEmpty ? "Not available" : trimmedLocation
+    }
+
+    private func detailRow(label: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text(value)
+        }
+    }
+
+    private func formattedDate(_ date: Date?) -> String {
+        guard let date else {
+            return "Not available"
+        }
+        return date.formatted(date: .abbreviated, time: .shortened)
     }
 }
 

@@ -275,18 +275,18 @@ final class AppState: ObservableObject {
     }
 
     @discardableResult
-    func rotateWallpaper() -> Bool {
-        rotateWallpaperWithOutcome().didRotate
+    func rotateWallpaper(forcedHighlight: Highlight? = nil) -> Bool {
+        rotateWallpaperWithOutcome(forcedHighlight: forcedHighlight).didRotate
     }
 
     @discardableResult
-    func requestWallpaperRotation() -> Bool {
+    func requestWallpaperRotation(forcedHighlight: Highlight? = nil) -> Bool {
         guard !isRotationInProgress else {
             return false
         }
 
         isRotationInProgress = true
-        let context = makeRotationPipelineContext()
+        let context = makeRotationPipelineContext(forcedHighlight: forcedHighlight)
         executeRotationWork { [weak self] in
             let execution = AppState.runWallpaperRotationPipeline(using: context)
             self?.deliverRotationResult { [weak self] in
@@ -300,22 +300,22 @@ final class AppState: ObservableObject {
         return true
     }
 
-    nonisolated func requestWallpaperRotationSynchronously() -> Bool {
+    nonisolated func requestWallpaperRotationSynchronously(forcedHighlight: Highlight? = nil) -> Bool {
         if Thread.isMainThread {
             return MainActor.assumeIsolated {
-                requestWallpaperRotation()
+                requestWallpaperRotation(forcedHighlight: forcedHighlight)
             }
         }
 
         return DispatchQueue.main.sync {
             MainActor.assumeIsolated {
-                requestWallpaperRotation()
+                requestWallpaperRotation(forcedHighlight: forcedHighlight)
             }
         }
     }
 
     @discardableResult
-    func rotateWallpaperWithOutcome() -> WallpaperRotationOutcome {
+    func rotateWallpaperWithOutcome(forcedHighlight: Highlight? = nil) -> WallpaperRotationOutcome {
         guard !isRotationInProgress else {
             return .alreadyInProgress
         }
@@ -325,7 +325,9 @@ final class AppState: ObservableObject {
             isRotationInProgress = false
         }
 
-        let execution = AppState.runWallpaperRotationPipeline(using: makeRotationPipelineContext())
+        let execution = AppState.runWallpaperRotationPipeline(
+            using: makeRotationPipelineContext(forcedHighlight: forcedHighlight)
+        )
         publishRotationExecution(execution)
         return execution.outcome
     }
@@ -336,7 +338,7 @@ final class AppState: ObservableObject {
     }
 
     private struct RotationPipelineContext {
-        let pickNextHighlight: PickNextHighlight
+        let selectHighlight: () -> Highlight?
         let loadBackgroundImageURLs: LoadBackgroundImageURLs
         let selectBackgroundImageURL: SelectBackgroundImageURL
         let transformQuoteTextForDisplay: (String) -> String
@@ -356,10 +358,14 @@ final class AppState: ObservableObject {
         let lastChangedAt: Date?
     }
 
-    private func makeRotationPipelineContext() -> RotationPipelineContext {
+    private func makeRotationPipelineContext(forcedHighlight: Highlight? = nil) -> RotationPipelineContext {
         let capitalizeHighlightText = userDefaults.capitalizeHighlightText
+        let resolvedForcedHighlight = forcedHighlight
+        let pickNextHighlight = self.pickNextHighlight
         return RotationPipelineContext(
-            pickNextHighlight: pickNextHighlight,
+            selectHighlight: {
+                resolvedForcedHighlight ?? pickNextHighlight()
+            },
             loadBackgroundImageURLs: loadBackgroundImageURLs,
             selectBackgroundImageURL: selectBackgroundImageURL,
             transformQuoteTextForDisplay: { quoteText in
@@ -382,7 +388,7 @@ final class AppState: ObservableObject {
     }
 
     nonisolated private static func runWallpaperRotationPipeline(using context: RotationPipelineContext) -> RotationExecution {
-        guard let highlight = context.pickNextHighlight() else {
+        guard let highlight = context.selectHighlight() else {
             return RotationExecution(
                 outcome: .noActivePool,
                 currentQuotePreview: nil,

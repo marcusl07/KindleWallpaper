@@ -32,9 +32,6 @@ Wire enable/disable in `QuoteDetailView` to update `highlights.isEnabled` in the
 **T81 — Implement delete quote**
 Wire delete in `QuoteDetailView` to remove highlight from database. Confirmation alert before deleting. Return to list after deletion.
 
-**T82 — Implement Set as Current Wallpaper from detail view**
-Wire `Set as Current Wallpaper` in `QuoteDetailView` to force that specific highlight through the rotation pipeline immediately. Reuse `requestWallpaperRotation` with a forced highlight parameter.
-
 **T83 — Implement manual add quote**
 Wire `+` button in `QuotesListView` to open `QuoteEditView` in add mode. On save, insert new highlight with nullable `bookId`. Link to existing book if title+author match.
 
