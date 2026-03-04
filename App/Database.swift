@@ -32,7 +32,7 @@ enum DatabaseManager {
     private static let createHighlightsTableSQL = """
     CREATE TABLE IF NOT EXISTS highlights (
         id          TEXT PRIMARY KEY,
-        bookId      TEXT NOT NULL,
+        bookId      TEXT,
         quoteText   TEXT NOT NULL,
         bookTitle   TEXT NOT NULL,
         author      TEXT NOT NULL,
@@ -52,6 +52,11 @@ enum DatabaseManager {
     private static let createHighlightsBookIDLastShownAtIndexSQL = """
     CREATE INDEX IF NOT EXISTS idx_highlights_bookId_lastShownAt
     ON highlights(bookId, lastShownAt);
+    """
+
+    private static let activeHighlightsPredicateSQL = """
+    (bookId IS NULL OR bookId IN (SELECT id FROM books WHERE isEnabled = 1))
+      AND isEnabled = 1
     """
 
     private static let iso8601Formatter: ISO8601DateFormatter = {
@@ -81,6 +86,71 @@ enum DatabaseManager {
                 ADD COLUMN isEnabled INTEGER NOT NULL DEFAULT 1
                 """
             )
+        }
+
+        migrator.registerMigration("makeHighlightsBookIDNullable") { database in
+            let columnInfoRows = try Row.fetchAll(database, sql: "PRAGMA table_info(highlights)")
+            guard
+                let bookIDColumn = columnInfoRows.first(where: { ($0["name"] as String?) == "bookId" })
+            else {
+                return
+            }
+
+            let isBookIDNotNull: Int = bookIDColumn["notnull"]
+            guard isBookIDNotNull != 0 else {
+                return
+            }
+
+            try database.execute(
+                sql: """
+                CREATE TABLE highlights_migrated (
+                    id          TEXT PRIMARY KEY,
+                    bookId      TEXT,
+                    quoteText   TEXT NOT NULL,
+                    bookTitle   TEXT NOT NULL,
+                    author      TEXT NOT NULL,
+                    location    TEXT,
+                    dateAdded   TEXT,
+                    lastShownAt TEXT,
+                    isEnabled   INTEGER NOT NULL DEFAULT 1,
+                    dedupeKey   TEXT NOT NULL UNIQUE
+                );
+                """
+            )
+
+            try database.execute(
+                sql: """
+                INSERT INTO highlights_migrated (
+                    id,
+                    bookId,
+                    quoteText,
+                    bookTitle,
+                    author,
+                    location,
+                    dateAdded,
+                    lastShownAt,
+                    isEnabled,
+                    dedupeKey
+                )
+                SELECT
+                    id,
+                    bookId,
+                    quoteText,
+                    bookTitle,
+                    author,
+                    location,
+                    dateAdded,
+                    lastShownAt,
+                    isEnabled,
+                    dedupeKey
+                FROM highlights
+                """
+            )
+
+            try database.execute(sql: "DROP TABLE highlights")
+            try database.execute(sql: "ALTER TABLE highlights_migrated RENAME TO highlights")
+            try database.execute(sql: createHighlightsBookIDIndexSQL)
+            try database.execute(sql: createHighlightsBookIDLastShownAtIndexSQL)
         }
 
         return migrator
@@ -178,7 +248,7 @@ enum DatabaseManager {
                     """,
                     arguments: [
                         highlight.id.uuidString,
-                        highlight.bookId.uuidString,
+                        highlight.bookId?.uuidString,
                         highlight.quoteText,
                         highlight.bookTitle,
                         highlight.author,
@@ -269,8 +339,7 @@ enum DatabaseManager {
                     sql: """
                     SELECT COUNT(*)
                     FROM highlights
-                    WHERE bookId IN (SELECT id FROM books WHERE isEnabled = 1)
-                      AND isEnabled = 1
+                    WHERE \(activeHighlightsPredicateSQL)
                     """
                 ) ?? 0
 
@@ -283,8 +352,7 @@ enum DatabaseManager {
                     sql: """
                     SELECT COUNT(*)
                     FROM highlights
-                    WHERE bookId IN (SELECT id FROM books WHERE isEnabled = 1)
-                      AND isEnabled = 1
+                    WHERE \(activeHighlightsPredicateSQL)
                       AND lastShownAt IS NULL
                     """
                 ) ?? 0
@@ -294,8 +362,7 @@ enum DatabaseManager {
                         sql: """
                         UPDATE highlights
                         SET lastShownAt = NULL
-                        WHERE bookId IN (SELECT id FROM books WHERE isEnabled = 1)
-                          AND isEnabled = 1
+                        WHERE \(activeHighlightsPredicateSQL)
                         """
                     )
 
@@ -304,8 +371,7 @@ enum DatabaseManager {
                         sql: """
                         SELECT COUNT(*)
                         FROM highlights
-                        WHERE bookId IN (SELECT id FROM books WHERE isEnabled = 1)
-                          AND isEnabled = 1
+                        WHERE \(activeHighlightsPredicateSQL)
                           AND lastShownAt IS NULL
                         """
                     ) ?? 0
@@ -321,8 +387,7 @@ enum DatabaseManager {
                     sql: """
                     SELECT id, bookId, quoteText, bookTitle, author, location, dateAdded, lastShownAt, isEnabled
                     FROM highlights
-                    WHERE bookId IN (SELECT id FROM books WHERE isEnabled = 1)
-                      AND isEnabled = 1
+                    WHERE \(activeHighlightsPredicateSQL)
                       AND lastShownAt IS NULL
                     LIMIT 1 OFFSET ?
                     """,
@@ -418,6 +483,8 @@ enum DatabaseManager {
     private static func computeDedupeKey(for highlight: Highlight) -> String {
         DedupeKeyBuilder.makeKey(
             bookId: highlight.bookId,
+            bookTitle: highlight.bookTitle,
+            author: highlight.author,
             location: highlight.location,
             quoteText: highlight.quoteText
         )
@@ -438,10 +505,10 @@ enum DatabaseManager {
             fatalError("Invalid highlight id in database row")
         }
 
-        guard
-            let bookIDValue: String = row["bookId"],
-            let bookID = UUID(uuidString: bookIDValue)
-        else {
+        let bookIDValue: String? = row["bookId"]
+        let bookID = bookIDValue.flatMap { UUID(uuidString: $0) }
+
+        if bookIDValue != nil && bookID == nil {
             fatalError("Invalid highlight bookId in database row")
         }
 

@@ -455,3 +455,8 @@ Delete `showBooksWindow()`, the books window controller, and the `.kindleWallSho
 Add `isEnabled INTEGER NOT NULL DEFAULT 1` to the `highlights` table. Write migration for existing databases. Update the active-pool query to filter on `highlights.isEnabled = 1`.
 
 
+
+**T73 — Make `bookId` nullable on `highlights` table**
+Change `bookId` on the `highlights` table to allow `NULL` for manually added quotes with no book association. Write migration. Update all queries referencing `bookId` to handle `NULL` gracefully.
+
+

@@ -14,9 +14,6 @@ This file is the working context for agents. When an item is completed, move it 
 
 ## Phase 13 — Quote Management
 
-**T73 — Make `bookId` nullable on `highlights` table**
-Change `bookId` on the `highlights` table to allow `NULL` for manually added quotes with no book association. Write migration. Update all queries referencing `bookId` to handle `NULL` gracefully.
-
 **T74 — Update wallpaper renderer for missing book title and author**
 In `WallpaperGenerator.swift`, handle empty/nil `bookTitle` and `author` and omit the attribution line entirely rather than rendering blank space.
 

@@ -64,7 +64,10 @@ struct ImportCoordinator {
         var missingBookMappingCount = 0
 
         for highlight in parsed.highlights {
-            guard let persistedBookID = persistedBookIDsByParsedID[highlight.bookId] else {
+            guard
+                let parsedBookID = highlight.bookId,
+                let persistedBookID = persistedBookIDsByParsedID[parsedBookID]
+            else {
                 missingBookMappingCount += 1
                 continue
             }

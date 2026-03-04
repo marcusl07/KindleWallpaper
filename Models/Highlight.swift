@@ -2,7 +2,7 @@ import Foundation
 
 struct Highlight: Identifiable {
     let id: UUID
-    let bookId: UUID
+    let bookId: UUID?
     let quoteText: String
     let bookTitle: String
     let author: String
@@ -13,7 +13,7 @@ struct Highlight: Identifiable {
 
     init(
         id: UUID,
-        bookId: UUID,
+        bookId: UUID?,
         quoteText: String,
         bookTitle: String,
         author: String,
