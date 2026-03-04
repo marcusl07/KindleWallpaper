@@ -507,16 +507,16 @@ private struct QuotesListView: View {
 
             Group {
                 if highlights.isEmpty {
-                    ContentUnavailableView(
-                        "No Quotes Yet",
+                    QuotesEmptyStateView(
+                        title: "No Quotes Yet",
                         systemImage: "quote.opening",
-                        description: Text("Import `My Clippings.txt` to build your quote library.")
+                        description: "Import `My Clippings.txt` to build your quote library."
                     )
                 } else if displayedHighlights.isEmpty {
-                    ContentUnavailableView(
-                        "No Matching Quotes",
+                    QuotesEmptyStateView(
+                        title: "No Matching Quotes",
                         systemImage: "magnifyingglass",
-                        description: Text("Try a different search term or switch the sort.")
+                        description: "Try a different search term or switch the sort."
                     )
                 } else {
                     List(displayedHighlights) { highlight in
@@ -606,6 +606,29 @@ private struct QuotesListView: View {
 
     private func refreshHighlights() {
         highlights = appState.loadAllHighlights()
+    }
+}
+
+private struct QuotesEmptyStateView: View {
+    let title: String
+    let systemImage: String
+    let description: String
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.system(size: 28, weight: .medium))
+                .foregroundStyle(.secondary)
+
+            Text(title)
+                .font(.headline)
+
+            Text(.init(description))
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(24)
     }
 }
 
