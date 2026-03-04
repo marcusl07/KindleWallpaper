@@ -17,9 +17,6 @@ This file is the working context for agents. When an item is completed, move it 
 **T74 — Update wallpaper renderer for missing book title and author**
 In `WallpaperGenerator.swift`, handle empty/nil `bookTitle` and `author` and omit the attribution line entirely rather than rendering blank space.
 
-**T76 — Build Quotes list view with search and sort**
-Create `QuotesListView` with real-time search across quote text/book title/author, sort toggle (alphabetical by book / most recently added). Each row shows truncated quote text + book title + author.
-
 **T77 — Add filter controls to Quotes list view**
 Add filters to `QuotesListView`: by book title, author, enabled/disabled books only, manually added only. Filters compose with search.
 

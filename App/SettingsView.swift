@@ -386,31 +386,252 @@ private enum SettingsMessageTone {
     }
 }
 
+enum QuotesListSortMode: String, CaseIterable, Identifiable {
+    case mostRecentlyAdded
+    case alphabeticalByBook
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .mostRecentlyAdded:
+            return "Most Recent"
+        case .alphabeticalByBook:
+            return "Book A-Z"
+        }
+    }
+}
+
+private enum QuotesListPresentationModel {
+    static func displayedHighlights(
+        from highlights: [Highlight],
+        searchText: String,
+        sortMode: QuotesListSortMode
+    ) -> [Highlight] {
+        highlights
+            .filter { matchesSearch($0, searchText: searchText) }
+            .sorted { lhs, rhs in
+                switch sortMode {
+                case .mostRecentlyAdded:
+                    return compareByMostRecent(lhs, rhs)
+                case .alphabeticalByBook:
+                    return compareAlphabetically(lhs, rhs)
+                }
+            }
+    }
+
+    static func previewText(for quoteText: String) -> String {
+        let collapsedWhitespace = quoteText.replacingOccurrences(
+            of: #"\s+"#,
+            with: " ",
+            options: .regularExpression
+        )
+        let trimmed = collapsedWhitespace.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Untitled quote" : trimmed
+    }
+
+    static func bookTitleText(for highlight: Highlight) -> String {
+        fallbackText(from: highlight.bookTitle, placeholder: "Unknown Book")
+    }
+
+    static func authorText(for highlight: Highlight) -> String {
+        fallbackText(from: highlight.author, placeholder: "Unknown Author")
+    }
+
+    private static func matchesSearch(_ highlight: Highlight, searchText: String) -> Bool {
+        let trimmedSearchText = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedSearchText.isEmpty else {
+            return true
+        }
+
+        let searchableFields = [
+            previewText(for: highlight.quoteText),
+            bookTitleText(for: highlight),
+            authorText(for: highlight)
+        ]
+
+        return searchableFields.contains { field in
+            field.localizedCaseInsensitiveContains(trimmedSearchText)
+        }
+    }
+
+    private static func compareByMostRecent(_ lhs: Highlight, _ rhs: Highlight) -> Bool {
+        switch (lhs.dateAdded, rhs.dateAdded) {
+        case let (lhsDate?, rhsDate?) where lhsDate != rhsDate:
+            return lhsDate > rhsDate
+        case (_?, nil):
+            return true
+        case (nil, _?):
+            return false
+        default:
+            return compareAlphabetically(lhs, rhs)
+        }
+    }
+
+    private static func compareAlphabetically(_ lhs: Highlight, _ rhs: Highlight) -> Bool {
+        let lhsKey = [
+            bookTitleText(for: lhs),
+            authorText(for: lhs),
+            previewText(for: lhs.quoteText)
+        ]
+        let rhsKey = [
+            bookTitleText(for: rhs),
+            authorText(for: rhs),
+            previewText(for: rhs.quoteText)
+        ]
+
+        for (lhsValue, rhsValue) in zip(lhsKey, rhsKey) where lhsValue.caseInsensitiveCompare(rhsValue) != .orderedSame {
+            return lhsValue.localizedCaseInsensitiveCompare(rhsValue) == .orderedAscending
+        }
+
+        return lhs.id.uuidString < rhs.id.uuidString
+    }
+
+    private static func fallbackText(from rawValue: String, placeholder: String) -> String {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? placeholder : trimmed
+    }
+}
+
 private struct QuotesListView: View {
     @EnvironmentObject private var appState: AppState
+    @State private var searchText = ""
+    @State private var sortMode: QuotesListSortMode = .mostRecentlyAdded
+    @State private var highlights: [Highlight] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             QuotesImportHeaderView()
 
-            List {
-                if appState.totalHighlightCount == 0 {
-                    Text("No quotes imported yet.")
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+            controlsRow
+
+            Group {
+                if highlights.isEmpty {
+                    ContentUnavailableView(
+                        "No Quotes Yet",
+                        systemImage: "quote.opening",
+                        description: Text("Import `My Clippings.txt` to build your quote library.")
+                    )
+                } else if displayedHighlights.isEmpty {
+                    ContentUnavailableView(
+                        "No Matching Quotes",
+                        systemImage: "magnifyingglass",
+                        description: Text("Try a different search term or switch the sort.")
+                    )
                 } else {
-                    Text("\(appState.totalHighlightCount) quotes available. Search, sort, and detail tools arrive in the next task.")
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    List(displayedHighlights) { highlight in
+                        quoteRow(highlight)
+                    }
+                    .listStyle(.inset)
                 }
             }
-            .listStyle(.inset)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .searchable(text: $searchText, prompt: "Search quotes, books, or authors")
+        .onAppear(perform: refreshHighlights)
+        .onReceive(appState.$totalHighlightCount) { _ in
+            refreshHighlights()
+        }
+    }
+
+    private var displayedHighlights: [Highlight] {
+        QuotesListPresentationModel.displayedHighlights(
+            from: highlights,
+            searchText: searchText,
+            sortMode: sortMode
+        )
+    }
+
+    private var controlsRow: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Picker("Sort", selection: $sortMode) {
+                ForEach(QuotesListSortMode.allCases) { mode in
+                    Text(mode.title)
+                        .tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 280)
+
+            Spacer(minLength: 12)
+
+            Text(resultCountSummary)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var resultCountSummary: String {
+        if highlights.isEmpty {
+            return "0 quotes"
+        }
+
+        let displayedCount = displayedHighlights.count
+        let noun = displayedCount == 1 ? "quote" : "quotes"
+
+        if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "\(displayedCount) \(noun)"
+        }
+
+        return "\(displayedCount) of \(highlights.count) \(highlights.count == 1 ? "quote" : "quotes")"
+    }
+
+    private func quoteRow(_ highlight: Highlight) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(QuotesListPresentationModel.previewText(for: highlight.quoteText))
+                .font(.body)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(QuotesListPresentationModel.bookTitleText(for: highlight))
+                    .font(.callout.weight(.medium))
+                Text("•")
+                    .foregroundStyle(.tertiary)
+                Text(QuotesListPresentationModel.authorText(for: highlight))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 4)
+    }
+
+    private func refreshHighlights() {
+        highlights = appState.loadAllHighlights()
     }
 }
+
+#if TESTING
+enum QuotesListViewTestProbe {
+    static func displayedHighlightIDs(
+        from highlights: [Highlight],
+        searchText: String,
+        sortMode: QuotesListSortMode
+    ) -> [UUID] {
+        QuotesListPresentationModel.displayedHighlights(
+            from: highlights,
+            searchText: searchText,
+            sortMode: sortMode
+        ).map(\.id)
+    }
+
+    static func previewText(for quoteText: String) -> String {
+        QuotesListPresentationModel.previewText(for: quoteText)
+    }
+
+    static func bookTitleText(for highlight: Highlight) -> String {
+        QuotesListPresentationModel.bookTitleText(for: highlight)
+    }
+
+    static func authorText(for highlight: Highlight) -> String {
+        QuotesListPresentationModel.authorText(for: highlight)
+    }
+}
+#endif
 
 private struct QuotesImportHeaderView: View {
     @EnvironmentObject private var appState: AppState

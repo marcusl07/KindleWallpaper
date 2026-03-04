@@ -467,3 +467,8 @@ In `WallpaperGenerator.swift`, handle empty/nil `bookTitle` and `author` and omi
 
 **T75 — Replace Import section with Quotes navigation row in Settings**
 Remove the Import section from the main settings view. Add a Quotes row navigating in-place to `QuotesListView`. Move import button and status into the Quotes list view header.
+
+**T76 — Build Quotes list view with search and sort**
+Create `QuotesListView` with real-time search across quote text/book title/author, sort toggle (alphabetical by book / most recently added). Each row shows truncated quote text + book title + author.
+
+

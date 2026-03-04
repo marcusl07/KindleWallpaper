@@ -86,6 +86,7 @@ final class AppState: ObservableObject {
     typealias SetBookEnabled = (UUID, Bool) -> Void
     typealias SetAllBooksEnabled = (Bool) -> Void
     typealias FetchAllBooks = () -> [Book]
+    typealias FetchAllHighlights = () -> [Highlight]
     typealias FetchTotalHighlightCount = () -> Int
     typealias LoadBackgroundPreviewState = () -> BackgroundPreviewState
     typealias SaveBackgroundImageSelection = (URL) throws -> Void
@@ -121,6 +122,7 @@ final class AppState: ObservableObject {
     private let setBookEnabledAction: SetBookEnabled
     private let setAllBooksEnabledAction: SetAllBooksEnabled
     private let fetchAllBooks: FetchAllBooks
+    private let fetchAllHighlights: FetchAllHighlights
     private let fetchTotalHighlightCount: FetchTotalHighlightCount
     private let loadBackgroundPreviewStateAction: LoadBackgroundPreviewState
     private let saveBackgroundImageSelectionAction: SaveBackgroundImageSelection
@@ -164,6 +166,7 @@ final class AppState: ObservableObject {
         setBookEnabled: @escaping SetBookEnabled = { _, _ in },
         setAllBooksEnabled: @escaping SetAllBooksEnabled = { _ in },
         fetchAllBooks: @escaping FetchAllBooks = { [] },
+        fetchAllHighlights: @escaping FetchAllHighlights = { [] },
         fetchTotalHighlightCount: @escaping FetchTotalHighlightCount = { 0 },
         loadBackgroundPreviewState: LoadBackgroundPreviewState? = nil,
         saveBackgroundImageSelection: @escaping SaveBackgroundImageSelection = { _ in },
@@ -258,6 +261,7 @@ final class AppState: ObservableObject {
         self.setBookEnabledAction = setBookEnabled
         self.setAllBooksEnabledAction = setAllBooksEnabled
         self.fetchAllBooks = fetchAllBooks
+        self.fetchAllHighlights = fetchAllHighlights
         self.fetchTotalHighlightCount = fetchTotalHighlightCount
         self.loadBackgroundPreviewStateAction = resolvedLoadBackgroundPreviewState
         self.saveBackgroundImageSelectionAction = saveBackgroundImageSelection
@@ -543,6 +547,10 @@ final class AppState: ObservableObject {
         books = fetchAllBooks()
     }
 
+    func loadAllHighlights() -> [Highlight] {
+        fetchAllHighlights()
+    }
+
     func setBookEnabled(id: UUID, enabled: Bool) {
         performBookMutation {
             guard books.first(where: { $0.id == id })?.isEnabled != enabled else {
@@ -724,6 +732,7 @@ extension AppState {
             setBookEnabled: DatabaseManager.setBookEnabled(id:enabled:),
             setAllBooksEnabled: DatabaseManager.setAllBooksEnabled(enabled:),
             fetchAllBooks: DatabaseManager.fetchAllBooks,
+            fetchAllHighlights: DatabaseManager.fetchAllHighlights,
             fetchTotalHighlightCount: DatabaseManager.totalHighlightCount,
             loadBackgroundPreviewState: {
                 let result = backgroundStore.loadBackgroundImageCollection()

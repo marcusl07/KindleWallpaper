@@ -464,6 +464,30 @@ enum DatabaseManager {
         }
     }
 
+    static func fetchAllHighlights() -> [Highlight] {
+        do {
+            return try shared.read { database in
+                let rows = try Row.fetchAll(
+                    database,
+                    sql: """
+                    SELECT id, bookId, quoteText, bookTitle, author, location, dateAdded, lastShownAt, isEnabled
+                    FROM highlights
+                    ORDER BY
+                        CASE WHEN dateAdded IS NULL THEN 1 ELSE 0 END ASC,
+                        dateAdded DESC,
+                        bookTitle COLLATE NOCASE ASC,
+                        author COLLATE NOCASE ASC,
+                        quoteText COLLATE NOCASE ASC
+                    """
+                )
+
+                return rows.map(highlight(from:))
+            }
+        } catch {
+            fatalError("Failed to fetch all highlights: \(error)")
+        }
+    }
+
     static func totalHighlightCount() -> Int {
         do {
             return try shared.read { database in
