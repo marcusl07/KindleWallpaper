@@ -212,6 +212,66 @@ private func testCleanupProtectsEntireCurrentGenerationBatch() {
     }
 }
 
+private func testCleanupProtectsCanonicalizedPersistedWallpaperPaths() {
+    let fileManager = FileManager.default
+    let tempDirectory = makeTemporaryDirectory(prefix: "kindlewall-t62-canonical")
+    defer { try? fileManager.removeItem(at: tempDirectory) }
+
+    let realAppSupportDirectory = tempDirectory.appendingPathComponent("real", isDirectory: true)
+    let symlinkedAppSupportDirectory = tempDirectory.appendingPathComponent("symlinked", isDirectory: true)
+    do {
+        try fileManager.createDirectory(at: realAppSupportDirectory, withIntermediateDirectories: true)
+        try fileManager.createSymbolicLink(
+            atPath: symlinkedAppSupportDirectory.path,
+            withDestinationPath: realAppSupportDirectory.path
+        )
+    } catch {
+        fail("Unable to configure symlinked app support directory: \(error)")
+    }
+
+    var protectedURLs: [URL] = []
+    let generator = makeGenerator(
+        appSupportDirectory: realAppSupportDirectory,
+        retainedGeneratedFileCount: 1,
+        protectedGeneratedWallpapersProvider: { protectedURLs }
+    )
+
+    let target = WallpaperGenerator.RenderTarget(identifier: "main", pixelWidth: 48, pixelHeight: 32)
+    let first = generator.generateWallpapers(
+        highlight: makeHighlight(quoteText: "First canonical"),
+        backgroundURL: nil,
+        targets: [target],
+        rotationID: "canonical-1"
+    )
+    guard let firstURL = first.first?.fileURL else {
+        fail("Expected first canonical generated wallpaper URL")
+    }
+    protectedURLs = [
+        URL(fileURLWithPath: firstURL.path.replacingOccurrences(
+            of: realAppSupportDirectory.path,
+            with: symlinkedAppSupportDirectory.path
+        ))
+    ]
+
+    _ = generator.generateWallpapers(
+        highlight: makeHighlight(quoteText: "Second canonical"),
+        backgroundURL: nil,
+        targets: [target],
+        rotationID: "canonical-2"
+    )
+    _ = generator.generateWallpapers(
+        highlight: makeHighlight(quoteText: "Third canonical"),
+        backgroundURL: nil,
+        targets: [target],
+        rotationID: "canonical-3"
+    )
+
+    expect(
+        fileManager.fileExists(atPath: firstURL.path),
+        "Expected canonicalized protected wallpaper path to survive cleanup"
+    )
+}
+
 @MainActor
 private func testAppStateStoresReusableWallpaperOnlyAfterSuccessfulSingleApply() {
     let defaults = makeDefaults()
@@ -363,6 +423,7 @@ private func testAppStateStoresTargetedReusableWallpapersAfterSuccessfulApply() 
 testStoredGeneratedWallpapersPruneMissingFiles()
 testCleanupPreservesProtectedAppliedWallpaper()
 testCleanupProtectsEntireCurrentGenerationBatch()
+testCleanupProtectsCanonicalizedPersistedWallpaperPaths()
 
 await MainActor.run {
     testAppStateStoresReusableWallpaperOnlyAfterSuccessfulSingleApply()

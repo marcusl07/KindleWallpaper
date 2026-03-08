@@ -29,10 +29,22 @@ require_pattern "$WALLPAPER_GENERATOR_FILE" 'cleanupGeneratedWallpapers\(' "clea
 require_pattern "$WALLPAPER_GENERATOR_FILE" 'protecting:[[:space:]]*generatedWallpapers\.map\(\\\.fileURL\)[[:space:]]*\+[[:space:]]*protectedGeneratedWallpapersProvider\(\)' "protected cleanup argument"
 
 cp "$ROOT_DIR/scripts/verify_t62_main.swift" "$TMP_DIR/main.swift"
+cat > "$TMP_DIR/QuoteEditSaveRequest.swift" <<'SWIFT'
+import Foundation
+
+struct QuoteEditSaveRequest {
+    let bookId: UUID?
+    let quoteText: String
+    let bookTitle: String
+    let author: String
+    let location: String?
+}
+SWIFT
 
 swiftc \
   -module-cache-path "$TMP_DIR/module-cache" \
   "$TMP_DIR/main.swift" \
+  "$TMP_DIR/QuoteEditSaveRequest.swift" \
   "$ROOT_DIR/App/AppState.swift" \
   "$ROOT_DIR/App/ScheduleSettings.swift" \
   "$ROOT_DIR/App/WallpaperGenerator.swift" \

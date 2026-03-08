@@ -372,10 +372,22 @@ struct WallpaperGenerator {
             }
 
             let protectedFilePathSet = Set(
-                protectedFileURLs.map { $0.standardizedFileURL.path }
+                protectedFileURLs.map(canonicalFilePath(for:))
+            )
+            let protectedFileIdentifierSet = Set(
+                protectedFileURLs.compactMap(fileResourceIdentifier(for:))
             )
             let unprotectedFiles = sortedFiles.filter { fileURL in
-                !protectedFilePathSet.contains(fileURL.standardizedFileURL.path)
+                if protectedFilePathSet.contains(canonicalFilePath(for: fileURL)) {
+                    return false
+                }
+                guard !protectedFileIdentifierSet.isEmpty else {
+                    return true
+                }
+                guard let fileIdentifier = fileResourceIdentifier(for: fileURL) else {
+                    return true
+                }
+                return !protectedFileIdentifierSet.contains(fileIdentifier)
             }
 
             let staleFiles = unprotectedFiles.dropFirst(retainedGeneratedFileCount)
@@ -392,6 +404,18 @@ struct WallpaperGenerator {
         return values?.contentModificationDate
             ?? values?.creationDate
             ?? .distantPast
+    }
+
+    private func canonicalFilePath(for url: URL) -> String {
+        url.standardizedFileURL
+            .resolvingSymlinksInPath()
+            .path
+    }
+
+    private func fileResourceIdentifier(for url: URL) -> AnyHashable? {
+        let canonicalURL = url.standardizedFileURL.resolvingSymlinksInPath()
+        let values = try? canonicalURL.resourceValues(forKeys: [.fileResourceIdentifierKey])
+        return values?.fileResourceIdentifier as? AnyHashable
     }
 
     private func normalizedSize(_ size: CGSize) -> CGSize {
