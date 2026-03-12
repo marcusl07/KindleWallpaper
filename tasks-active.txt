@@ -26,9 +26,6 @@ Create `QuoteDetailView` showing full quote text, book, author, location, date a
 **T79 — Build Quote edit/add view**
 Create `QuoteEditView` for editing all fields (quote text, book title, author, location). All fields optional except quote text. If book title + author match existing book, link to it. Save/Cancel.
 
-**T80 — Implement per-quote enable/disable toggle**
-Wire enable/disable in `QuoteDetailView` to update `highlights.isEnabled` in the database via `AppState`. Disabled quotes excluded from rotation pool.
-
 **T81 — Implement delete quote**
 Wire delete in `QuoteDetailView` to remove highlight from database. Confirmation alert before deleting. Return to list after deletion.
 
