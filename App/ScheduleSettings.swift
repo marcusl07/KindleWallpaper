@@ -63,6 +63,7 @@ extension UserDefaults {
         static let dailyMinute = "scheduleDailyMinute"
         static let lastChangedAt = "lastChangedAt"
         static let capitalizeHighlightText = "capitalizeHighlightText"
+        static let didPruneStaleWallpaperHistory = "didPruneStaleWallpaperHistory"
         static let reusableGeneratedWallpaperPathsByTarget = "reusableGeneratedWallpaperPathsByTarget"
     }
 
@@ -173,6 +174,15 @@ extension UserDefaults {
         }
         set {
             set(newValue, forKey: ScheduleKeys.capitalizeHighlightText)
+        }
+    }
+
+    var didPruneStaleWallpaperHistory: Bool {
+        get {
+            bool(forKey: ScheduleKeys.didPruneStaleWallpaperHistory)
+        }
+        set {
+            set(newValue, forKey: ScheduleKeys.didPruneStaleWallpaperHistory)
         }
     }
 

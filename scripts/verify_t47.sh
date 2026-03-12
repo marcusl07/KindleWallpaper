@@ -49,6 +49,7 @@ swiftc \
   "$ROOT_DIR/App/MenuBarView.swift" \
   "$ROOT_DIR/App/WallpaperScheduler.swift" \
   "$ROOT_DIR/App/VolumeWatcher.swift" \
+  "$ROOT_DIR/App/WallpaperHistoryPruner.swift" \
   "$ROOT_DIR/App/KindleWallApp.swift" \
   "$ROOT_DIR/Models/Book.swift" \
   "$ROOT_DIR/Models/Highlight.swift"

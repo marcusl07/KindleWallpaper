@@ -6,6 +6,7 @@ import Combine
 
 #if !TESTING
 @main
+#endif
 @MainActor
 struct KindleWallApp: App {
     @StateObject private var appState: AppState
@@ -17,6 +18,8 @@ struct KindleWallApp: App {
     #endif
 
     init() {
+        Self.pruneStaleWallpaperHistoryIfNeeded()
+
         let appState = Self.makeAppState()
         _appState = StateObject(wrappedValue: appState)
 
@@ -66,6 +69,30 @@ struct KindleWallApp: App {
         #endif
     }
 
+    nonisolated private static func pruneStaleWallpaperHistoryIfNeeded(
+        userDefaults: UserDefaults = .standard,
+        fileManager: FileManager = .default,
+        indexPlistURL: URL? = nil,
+        kindleWallDirectoryURL: URL? = nil
+    ) {
+        guard !userDefaults.didPruneStaleWallpaperHistory else {
+            return
+        }
+
+        defer {
+            userDefaults.didPruneStaleWallpaperHistory = true
+        }
+
+        let pruner = WallpaperHistoryPruner(
+            fileManager: fileManager,
+            indexPlistURL: indexPlistURL
+        )
+        let stalePaths = pruner.staleKindleWallPNGPaths(
+            kindleWallDirectoryURL: kindleWallDirectoryURL ?? AppSupportPaths.kindleWallDirectory(fileManager: fileManager)
+        )
+        pruner.prune(pathsToPrune: stalePaths)
+    }
+
     #if canImport(AppKit)
     private static func makeMountListener(appState: AppState) -> VolumeWatcher.MountListener? {
         let publishImportStatusOnMain: VolumeWatcher.PublishImportStatus = { status in
@@ -93,6 +120,23 @@ struct KindleWallApp: App {
     }
 
     #endif
+}
+
+#if TESTING
+extension KindleWallApp {
+    nonisolated static func testPruneStaleWallpaperHistoryIfNeeded(
+        userDefaults: UserDefaults,
+        fileManager: FileManager = .default,
+        indexPlistURL: URL,
+        kindleWallDirectoryURL: URL
+    ) {
+        pruneStaleWallpaperHistoryIfNeeded(
+            userDefaults: userDefaults,
+            fileManager: fileManager,
+            indexPlistURL: indexPlistURL,
+            kindleWallDirectoryURL: kindleWallDirectoryURL
+        )
+    }
 }
 #endif
 

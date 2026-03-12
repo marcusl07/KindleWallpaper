@@ -13,6 +13,7 @@
 		630FD92E3719C965D0208253 /* Highlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86F9EA5F3C2418D8AA0D9365 /* Highlight.swift */; };
 		7067D38042A1BC59897C1BAE /* BackgroundImageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 766BDB43991580ED0548AE8A /* BackgroundImageStore.swift */; };
 		7B3B362B8C4C4A9FB94F2A01 /* AppSupportPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B3B362B8C4C4A9FB94F2B01 /* AppSupportPaths.swift */; };
+		C4A63C367F7F45A8B7C1E9A4 /* WallpaperHistoryPruner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8CF98599C7E4756A3DCC1D9 /* WallpaperHistoryPruner.swift */; };
 		B91FD28C7AEC1D1726DD6E98 /* ScheduleSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7722C3B4FB0A66E04C7BB28 /* ScheduleSettings.swift */; };
 		C06D7617B1725A8B722A3626 /* ClippingsParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7702F347CAD3C65FDA7851 /* ClippingsParser.swift */; };
 		C11C4AA58645E3A2602523DC /* VolumeWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 653DF17A62F70DE93E169341 /* VolumeWatcher.swift */; };
@@ -32,6 +33,7 @@
 		86F9EA5F3C2418D8AA0D9365 /* Highlight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Highlight.swift; sourceTree = "<group>"; };
 		931DFDD6D12D8887EA968760 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		CC8B64D95E36400593AA3402 /* WallpaperGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperGenerator.swift; sourceTree = "<group>"; };
+		C8CF98599C7E4756A3DCC1D9 /* WallpaperHistoryPruner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperHistoryPruner.swift; sourceTree = "<group>"; };
 		E7722C3B4FB0A66E04C7BB28 /* ScheduleSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleSettings.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -76,6 +78,7 @@
 				E7722C3B4FB0A66E04C7BB28 /* ScheduleSettings.swift */,
 				653DF17A62F70DE93E169341 /* VolumeWatcher.swift */,
 				CC8B64D95E36400593AA3402 /* WallpaperGenerator.swift */,
+				C8CF98599C7E4756A3DCC1D9 /* WallpaperHistoryPruner.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -170,6 +173,7 @@
 				B91FD28C7AEC1D1726DD6E98 /* ScheduleSettings.swift in Sources */,
 				C11C4AA58645E3A2602523DC /* VolumeWatcher.swift in Sources */,
 				CC8B64D95E36400593AA3401 /* WallpaperGenerator.swift in Sources */,
+				C4A63C367F7F45A8B7C1E9A4 /* WallpaperHistoryPruner.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
