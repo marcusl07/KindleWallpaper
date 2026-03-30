@@ -41,6 +41,25 @@ struct SettingsView: View {
                 }
             }
         }
+        .toolbar {
+            ToolbarItemGroup(placement: .navigation) {
+                Button {
+                    navigationModel.goBack()
+                } label: {
+                    Image(systemName: "chevron.left")
+                }
+                .help("Back")
+                .disabled(!navigationModel.canGoBack)
+
+                Button {
+                    navigationModel.goForward()
+                } label: {
+                    Image(systemName: "chevron.right")
+                }
+                .help("Forward")
+                .disabled(!navigationModel.canGoForward)
+            }
+        }
         .frame(minWidth: 680, maxWidth: .infinity, minHeight: 520, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
             refreshBackgroundSummary()

@@ -1,7 +1,6 @@
 import SwiftUI
 #if canImport(AppKit)
 import AppKit
-import Combine
 #endif
 
 #if !TESTING
@@ -219,16 +218,12 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 @MainActor
-private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate, NSToolbarDelegate {
+private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
     private weak var appState: AppState?
     private var settingsWindowController: NSWindowController?
-    private var settingsNavigationModel: SettingsNavigationModel?
-    private var settingsNavigationObservation: AnyCancellable?
     private var backgroundsWindowController: NSWindowController?
     private var backgroundsWindowObserver: NSObjectProtocol?
     private var appDidResignActiveObserver: NSObjectProtocol?
-    private weak var settingsBackToolbarItem: NSToolbarItem?
-    private weak var settingsForwardToolbarItem: NSToolbarItem?
 
     init(appState: AppState) {
         self.appState = appState
@@ -315,13 +310,11 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate, NSToo
         }
 
         let navigationModel = SettingsNavigationModel()
-        settingsNavigationModel = navigationModel
         let settingsView = SettingsView(navigationModel: navigationModel)
             .environmentObject(appState)
         let hostingController = NSHostingController(rootView: settingsView)
         let window = NSWindow(contentViewController: hostingController)
         configureSettingsWindow(window)
-        installSettingsNavigationObservation(for: navigationModel)
 
         let controller = NSWindowController(window: window)
         settingsWindowController = controller
@@ -363,73 +356,7 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate, NSToo
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.toolbarStyle = .unified
-        let toolbar = NSToolbar(identifier: "KindleWallSettingsToolbar")
-        toolbar.allowsUserCustomization = false
-        toolbar.autosavesConfiguration = false
-        toolbar.displayMode = .iconOnly
-        toolbar.delegate = self
-        window.toolbar = toolbar
         window.delegate = self
-    }
-
-    private func installSettingsNavigationObservation(for navigationModel: SettingsNavigationModel) {
-        settingsNavigationObservation = navigationModel.$canGoBack
-            .combineLatest(navigationModel.$canGoForward)
-            .sink { [weak self] canGoBack, canGoForward in
-                self?.settingsBackToolbarItem?.isEnabled = canGoBack
-                self?.settingsForwardToolbarItem?.isEnabled = canGoForward
-            }
-    }
-
-    @objc
-    private func goBackInSettingsWindow() {
-        settingsNavigationModel?.goBack()
-    }
-
-    @objc
-    private func goForwardInSettingsWindow() {
-        settingsNavigationModel?.goForward()
-    }
-
-    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.settingsBackNavigation, .settingsForwardNavigation]
-    }
-
-    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.settingsBackNavigation, .settingsForwardNavigation]
-    }
-
-    func toolbar(
-        _ toolbar: NSToolbar,
-        itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
-        willBeInsertedIntoToolbar flag: Bool
-    ) -> NSToolbarItem? {
-        switch itemIdentifier {
-        case .settingsBackNavigation:
-            let item = NSToolbarItem(itemIdentifier: itemIdentifier)
-            item.label = "Back"
-            item.toolTip = "Back"
-            item.image = NSImage(systemSymbolName: "chevron.left", accessibilityDescription: "Back")
-            item.target = self
-            item.action = #selector(goBackInSettingsWindow)
-            item.isBordered = true
-            item.isEnabled = settingsNavigationModel?.canGoBack ?? false
-            settingsBackToolbarItem = item
-            return item
-        case .settingsForwardNavigation:
-            let item = NSToolbarItem(itemIdentifier: itemIdentifier)
-            item.label = "Forward"
-            item.toolTip = "Forward"
-            item.image = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: "Forward")
-            item.target = self
-            item.action = #selector(goForwardInSettingsWindow)
-            item.isBordered = true
-            item.isEnabled = settingsNavigationModel?.canGoForward ?? false
-            settingsForwardToolbarItem = item
-            return item
-        default:
-            return nil
-        }
     }
 
     private func configureBackgroundsWindow(_ window: NSWindow) {
@@ -448,21 +375,12 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate, NSToo
         }
         if settingsWindowController?.window === closedWindow {
             settingsWindowController = nil
-            settingsNavigationModel = nil
-            settingsNavigationObservation = nil
-            settingsBackToolbarItem = nil
-            settingsForwardToolbarItem = nil
             return
         }
         if backgroundsWindowController?.window === closedWindow {
             backgroundsWindowController = nil
         }
     }
-}
-
-private extension NSToolbarItem.Identifier {
-    static let settingsBackNavigation = NSToolbarItem.Identifier("kindlewall.settings.back")
-    static let settingsForwardNavigation = NSToolbarItem.Identifier("kindlewall.settings.forward")
 }
 
 #if TESTING
@@ -482,14 +400,6 @@ private extension SettingsWindowCoordinator {
 
     var testIsSettingsWindowVisible: Bool {
         settingsWindowController?.window?.isVisible ?? false
-    }
-
-    var testHasSettingsToolbar: Bool {
-        settingsWindowController?.window?.toolbar != nil
-    }
-
-    var testSettingsToolbarItemCount: Int {
-        settingsWindowController?.window?.toolbar?.items.count ?? 0
     }
 
     var testSettingsToolbarStyle: NSWindow.ToolbarStyle? {
@@ -544,14 +454,6 @@ struct SettingsWindowCoordinatorTestProbe {
 
     var isSettingsWindowVisible: Bool {
         coordinator.testIsSettingsWindowVisible
-    }
-
-    var hasSettingsToolbar: Bool {
-        coordinator.testHasSettingsToolbar
-    }
-
-    var settingsToolbarItemCount: Int {
-        coordinator.testSettingsToolbarItemCount
     }
 
     var settingsToolbarStyle: NSWindow.ToolbarStyle? {

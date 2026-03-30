@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP_FILE="$ROOT_DIR/App/KindleWallApp.swift"
+SETTINGS_FILE="$ROOT_DIR/App/SettingsView.swift"
 
 require_pattern() {
   local pattern="$1"
@@ -10,6 +11,16 @@ require_pattern() {
 
   if ! rg -q "$pattern" "$APP_FILE"; then
     echo "Verification failed: missing $description in App/KindleWallApp.swift" >&2
+    exit 1
+  fi
+}
+
+require_settings_pattern() {
+  local pattern="$1"
+  local description="$2"
+
+  if ! rg -q "$pattern" "$SETTINGS_FILE"; then
+    echo "Verification failed: missing $description in App/SettingsView.swift" >&2
     exit 1
   fi
 }
@@ -40,9 +51,20 @@ require_pattern "settingsWindowController[[:space:]]*=[[:space:]]*nil" "teardown
 require_pattern "window\\.canHide[[:space:]]*=[[:space:]]*false" "window canHide disabled"
 require_pattern "window\\.hidesOnDeactivate[[:space:]]*=[[:space:]]*false" "window hidesOnDeactivate disabled"
 require_pattern "window\\.delegate[[:space:]]*=[[:space:]]*self" "coordinator owns window delegate"
+require_pattern "window\\.toolbarStyle[[:space:]]*=[[:space:]]*\\.unified" "unified toolbar style"
+
+# Settings navigation should be owned by SwiftUI so destination toolbars can coexist.
+require_settings_pattern "ToolbarItemGroup\\(placement:[[:space:]]*\\.navigation\\)" "SwiftUI navigation toolbar group"
+require_settings_pattern "navigationModel\\.goBack\\(\\)" "SwiftUI back button action"
+require_settings_pattern "navigationModel\\.goForward\\(\\)" "SwiftUI forward button action"
+require_settings_pattern "disabled\\(!navigationModel\\.canGoBack\\)" "back button disabled state"
+require_settings_pattern "disabled\\(!navigationModel\\.canGoForward\\)" "forward button disabled state"
 
 # Ensure legacy ad-hoc open path is not reintroduced.
 forbid_pattern "func[[:space:]]+openSettingsWindow\\(\\)" "legacy openSettingsWindow method"
+forbid_pattern "NSToolbarDelegate" "custom settings toolbar delegate"
+forbid_pattern "settingsBackNavigation" "legacy AppKit back toolbar item identifier"
+forbid_pattern "settingsForwardNavigation" "legacy AppKit forward toolbar item identifier"
 
 TMP_DIR="$(mktemp -d /tmp/kindlewall_t48.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
