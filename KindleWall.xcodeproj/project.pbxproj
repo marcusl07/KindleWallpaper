@@ -10,31 +10,47 @@
 		006BFF281CE13CB5B2AA67E6 /* Book.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67E7F15FCB23FBD77BC647C6 /* Book.swift */; };
 		0F47113C8F5C5C3A9CDF9C42 /* KindleWallApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67306A31618FE6581F9F81F4 /* KindleWallApp.swift */; };
 		154FAA67B9134B920BB2E402 /* Database.swift in Sources */ = {isa = PBXBuildFile; fileRef = 126D2BED290D16D70E707B68 /* Database.swift */; };
+		28774E1A69A7CBA9EC0CEADB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9659821AC668F464106C9FC7 /* SettingsView.swift */; };
+		502DA8517C345512E26AA2A5 /* AppSupportPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC30AE2587D563491B3028B /* AppSupportPaths.swift */; };
+		B2C3D4E5F60718293A4B5C6D /* BackgroundImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* BackgroundImageLoader.swift */; };
+		6174323980834111C7C77097 /* WallpaperScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE978DC2E088D8352D1AB370 /* WallpaperScheduler.swift */; };
 		630FD92E3719C965D0208253 /* Highlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86F9EA5F3C2418D8AA0D9365 /* Highlight.swift */; };
+		6FDE593A8A8A6CA93220C98F /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30FF8ED41FBB6C774BCADD5 /* AppState.swift */; };
 		7067D38042A1BC59897C1BAE /* BackgroundImageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 766BDB43991580ED0548AE8A /* BackgroundImageStore.swift */; };
-		7B3B362B8C4C4A9FB94F2A01 /* AppSupportPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B3B362B8C4C4A9FB94F2B01 /* AppSupportPaths.swift */; };
-		C4A63C367F7F45A8B7C1E9A4 /* WallpaperHistoryPruner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8CF98599C7E4756A3DCC1D9 /* WallpaperHistoryPruner.swift */; };
+		86DEA4128C7AA27D22CA5442 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C88BA03AB2C2B7841ADC4755 /* MenuBarView.swift */; };
+		8CFDB5D51168C39C9A5EEBCD /* WallpaperSetter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C88B20A7755CD6200EE4E3F /* WallpaperSetter.swift */; };
+		B355BB125C0BFE9298F3C07C /* WallpaperGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E25B22876E6C4FDA140A324 /* WallpaperGenerator.swift */; };
 		B91FD28C7AEC1D1726DD6E98 /* ScheduleSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7722C3B4FB0A66E04C7BB28 /* ScheduleSettings.swift */; };
+		C4A63C367F7F45A8B7C1E9A4 /* WallpaperHistoryPruner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8CF98599C7E4756A3DCC1D9 /* WallpaperHistoryPruner.swift */; };
 		C06D7617B1725A8B722A3626 /* ClippingsParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7702F347CAD3C65FDA7851 /* ClippingsParser.swift */; };
 		C11C4AA58645E3A2602523DC /* VolumeWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 653DF17A62F70DE93E169341 /* VolumeWatcher.swift */; };
-		CC8B64D95E36400593AA3401 /* WallpaperGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC8B64D95E36400593AA3402 /* WallpaperGenerator.swift */; };
+		D6C797343A84594057ADD624 /* ImportCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DF13C66AA67590AFF96E390 /* ImportCoordinator.swift */; };
+		E3490F35A7ACB433674887C9 /* DedupeKeyBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A563B48FBC2B662891DFB65 /* DedupeKeyBuilder.swift */; };
 		E9181E2AB7C4C596E1EAD8AD /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 9551A09A2327039A1281BEA5 /* GRDB */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		126D2BED290D16D70E707B68 /* Database.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Database.swift; sourceTree = "<group>"; };
 		1D7702F347CAD3C65FDA7851 /* ClippingsParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClippingsParser.swift; sourceTree = "<group>"; };
+		5C88B20A7755CD6200EE4E3F /* WallpaperSetter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperSetter.swift; sourceTree = "<group>"; };
+		5DF13C66AA67590AFF96E390 /* ImportCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportCoordinator.swift; sourceTree = "<group>"; };
 		653DF17A62F70DE93E169341 /* VolumeWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VolumeWatcher.swift; sourceTree = "<group>"; };
 		67306A31618FE6581F9F81F4 /* KindleWallApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KindleWallApp.swift; sourceTree = "<group>"; };
 		67E7F15FCB23FBD77BC647C6 /* Book.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Book.swift; sourceTree = "<group>"; };
+		6E25B22876E6C4FDA140A324 /* WallpaperGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperGenerator.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B5C /* BackgroundImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundImageLoader.swift; sourceTree = "<group>"; };
 		766BDB43991580ED0548AE8A /* BackgroundImageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundImageStore.swift; sourceTree = "<group>"; };
-		7B3B362B8C4C4A9FB94F2B01 /* AppSupportPaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSupportPaths.swift; sourceTree = "<group>"; };
 		811E26389F17F084542DAAF7 /* KindleWall.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KindleWall.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		86F9EA5F3C2418D8AA0D9365 /* Highlight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Highlight.swift; sourceTree = "<group>"; };
+		8A563B48FBC2B662891DFB65 /* DedupeKeyBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DedupeKeyBuilder.swift; sourceTree = "<group>"; };
 		931DFDD6D12D8887EA968760 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		CC8B64D95E36400593AA3402 /* WallpaperGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperGenerator.swift; sourceTree = "<group>"; };
+		9659821AC668F464106C9FC7 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		C88BA03AB2C2B7841ADC4755 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
+		CCC30AE2587D563491B3028B /* AppSupportPaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSupportPaths.swift; sourceTree = "<group>"; };
 		C8CF98599C7E4756A3DCC1D9 /* WallpaperHistoryPruner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperHistoryPruner.swift; sourceTree = "<group>"; };
 		E7722C3B4FB0A66E04C7BB28 /* ScheduleSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleSettings.swift; sourceTree = "<group>"; };
+		F30FF8ED41FBB6C774BCADD5 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		FE978DC2E088D8352D1AB370 /* WallpaperScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperScheduler.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -70,15 +86,22 @@
 		34D11B167C7ACAEF878BFE92 /* App */ = {
 			isa = PBXGroup;
 			children = (
-				7B3B362B8C4C4A9FB94F2B01 /* AppSupportPaths.swift */,
+				F30FF8ED41FBB6C774BCADD5 /* AppState.swift */,
+				CCC30AE2587D563491B3028B /* AppSupportPaths.swift */,
+				A1B2C3D4E5F60718293A4B5C /* BackgroundImageLoader.swift */,
 				766BDB43991580ED0548AE8A /* BackgroundImageStore.swift */,
 				126D2BED290D16D70E707B68 /* Database.swift */,
+				5DF13C66AA67590AFF96E390 /* ImportCoordinator.swift */,
 				931DFDD6D12D8887EA968760 /* Info.plist */,
 				67306A31618FE6581F9F81F4 /* KindleWallApp.swift */,
+				C88BA03AB2C2B7841ADC4755 /* MenuBarView.swift */,
 				E7722C3B4FB0A66E04C7BB28 /* ScheduleSettings.swift */,
+				9659821AC668F464106C9FC7 /* SettingsView.swift */,
 				653DF17A62F70DE93E169341 /* VolumeWatcher.swift */,
-				CC8B64D95E36400593AA3402 /* WallpaperGenerator.swift */,
+				6E25B22876E6C4FDA140A324 /* WallpaperGenerator.swift */,
 				C8CF98599C7E4756A3DCC1D9 /* WallpaperHistoryPruner.swift */,
+				FE978DC2E088D8352D1AB370 /* WallpaperScheduler.swift */,
+				5C88B20A7755CD6200EE4E3F /* WallpaperSetter.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -87,6 +110,7 @@
 			isa = PBXGroup;
 			children = (
 				67E7F15FCB23FBD77BC647C6 /* Book.swift */,
+				8A563B48FBC2B662891DFB65 /* DedupeKeyBuilder.swift */,
 				86F9EA5F3C2418D8AA0D9365 /* Highlight.swift */,
 			);
 			path = Models;
@@ -163,17 +187,25 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				7B3B362B8C4C4A9FB94F2A01 /* AppSupportPaths.swift in Sources */,
+				6FDE593A8A8A6CA93220C98F /* AppState.swift in Sources */,
+				502DA8517C345512E26AA2A5 /* AppSupportPaths.swift in Sources */,
+				B2C3D4E5F60718293A4B5C6D /* BackgroundImageLoader.swift in Sources */,
 				7067D38042A1BC59897C1BAE /* BackgroundImageStore.swift in Sources */,
 				006BFF281CE13CB5B2AA67E6 /* Book.swift in Sources */,
 				C06D7617B1725A8B722A3626 /* ClippingsParser.swift in Sources */,
 				154FAA67B9134B920BB2E402 /* Database.swift in Sources */,
+				E3490F35A7ACB433674887C9 /* DedupeKeyBuilder.swift in Sources */,
 				630FD92E3719C965D0208253 /* Highlight.swift in Sources */,
+				D6C797343A84594057ADD624 /* ImportCoordinator.swift in Sources */,
 				0F47113C8F5C5C3A9CDF9C42 /* KindleWallApp.swift in Sources */,
+				86DEA4128C7AA27D22CA5442 /* MenuBarView.swift in Sources */,
 				B91FD28C7AEC1D1726DD6E98 /* ScheduleSettings.swift in Sources */,
+				28774E1A69A7CBA9EC0CEADB /* SettingsView.swift in Sources */,
 				C11C4AA58645E3A2602523DC /* VolumeWatcher.swift in Sources */,
-				CC8B64D95E36400593AA3401 /* WallpaperGenerator.swift in Sources */,
+				B355BB125C0BFE9298F3C07C /* WallpaperGenerator.swift in Sources */,
 				C4A63C367F7F45A8B7C1E9A4 /* WallpaperHistoryPruner.swift in Sources */,
+				6174323980834111C7C77097 /* WallpaperScheduler.swift in Sources */,
+				8CFDB5D51168C39C9A5EEBCD /* WallpaperSetter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

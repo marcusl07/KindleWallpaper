@@ -83,8 +83,11 @@ final class AppState: ObservableObject {
     typealias StoreReusableGeneratedWallpapers = ([GeneratedWallpaper]) -> Void
     typealias ReapplyStoredWallpaper = () -> Bool
     typealias MarkHighlightShown = (UUID) -> Void
+    typealias InsertHighlight = (Highlight) -> Void
+    typealias DeleteHighlight = (UUID) -> Void
     typealias SetBookEnabled = (UUID, Bool) -> Void
     typealias SetAllBooksEnabled = (Bool) -> Void
+    typealias SetHighlightEnabled = (UUID, Bool) -> Void
     typealias FetchAllBooks = () -> [Book]
     typealias FetchAllHighlights = () -> [Highlight]
     typealias FetchTotalHighlightCount = () -> Int
@@ -119,8 +122,11 @@ final class AppState: ObservableObject {
     private let storeReusableGeneratedWallpapers: StoreReusableGeneratedWallpapers
     private let reapplyStoredWallpaper: ReapplyStoredWallpaper
     private let markHighlightShown: MarkHighlightShown
+    private let insertHighlightAction: InsertHighlight
+    private let deleteHighlightAction: DeleteHighlight
     private let setBookEnabledAction: SetBookEnabled
     private let setAllBooksEnabledAction: SetAllBooksEnabled
+    private let setHighlightEnabledAction: SetHighlightEnabled
     private let fetchAllBooks: FetchAllBooks
     private let fetchAllHighlights: FetchAllHighlights
     private let fetchTotalHighlightCount: FetchTotalHighlightCount
@@ -163,8 +169,11 @@ final class AppState: ObservableObject {
         storeReusableGeneratedWallpapers: @escaping StoreReusableGeneratedWallpapers = { _ in },
         reapplyStoredWallpaper: @escaping ReapplyStoredWallpaper = { false },
         markHighlightShown: @escaping MarkHighlightShown,
+        insertHighlight: @escaping InsertHighlight = { _ in },
+        deleteHighlight: @escaping DeleteHighlight = { _ in },
         setBookEnabled: @escaping SetBookEnabled = { _, _ in },
         setAllBooksEnabled: @escaping SetAllBooksEnabled = { _ in },
+        setHighlightEnabled: @escaping SetHighlightEnabled = { _, _ in },
         fetchAllBooks: @escaping FetchAllBooks = { [] },
         fetchAllHighlights: @escaping FetchAllHighlights = { [] },
         fetchTotalHighlightCount: @escaping FetchTotalHighlightCount = { 0 },
@@ -258,8 +267,11 @@ final class AppState: ObservableObject {
         self.storeReusableGeneratedWallpapers = storeReusableGeneratedWallpapers
         self.reapplyStoredWallpaper = reapplyStoredWallpaper
         self.markHighlightShown = markHighlightShown
+        self.insertHighlightAction = insertHighlight
+        self.deleteHighlightAction = deleteHighlight
         self.setBookEnabledAction = setBookEnabled
         self.setAllBooksEnabledAction = setAllBooksEnabled
+        self.setHighlightEnabledAction = setHighlightEnabled
         self.fetchAllBooks = fetchAllBooks
         self.fetchAllHighlights = fetchAllHighlights
         self.fetchTotalHighlightCount = fetchTotalHighlightCount
@@ -557,6 +569,28 @@ final class AppState: ObservableObject {
         fetchAllHighlights()
     }
 
+    func addManualQuote(_ request: QuoteEditSaveRequest) {
+        insertHighlightAction(
+            Highlight(
+                id: UUID(),
+                bookId: request.bookId,
+                quoteText: request.quoteText,
+                bookTitle: request.bookTitle,
+                author: request.author,
+                location: request.location,
+                dateAdded: now(),
+                lastShownAt: nil,
+                isEnabled: true
+            )
+        )
+        refreshLibraryState()
+    }
+
+    func deleteHighlight(id: UUID) {
+        deleteHighlightAction(id)
+        refreshLibraryState()
+    }
+
     func setBookEnabled(id: UUID, enabled: Bool) {
         performBookMutation {
             guard books.first(where: { $0.id == id })?.isEnabled != enabled else {
@@ -575,6 +609,10 @@ final class AppState: ObservableObject {
             setAllBooksEnabledAction(enabled)
             return true
         }
+    }
+
+    func setHighlightEnabled(id: UUID, enabled: Bool) {
+        setHighlightEnabledAction(id, enabled)
     }
 
     func refreshScheduleState() {
@@ -735,8 +773,11 @@ extension AppState {
                 )) ?? false
             },
             markHighlightShown: DatabaseManager.markHighlightShown(id:),
+            insertHighlight: DatabaseManager.insertHighlightIfNew(_:),
+            deleteHighlight: DatabaseManager.deleteHighlight(id:),
             setBookEnabled: DatabaseManager.setBookEnabled(id:enabled:),
             setAllBooksEnabled: DatabaseManager.setAllBooksEnabled(enabled:),
+            setHighlightEnabled: DatabaseManager.setHighlightEnabled(id:enabled:),
             fetchAllBooks: DatabaseManager.fetchAllBooks,
             fetchAllHighlights: DatabaseManager.fetchAllHighlights,
             fetchTotalHighlightCount: DatabaseManager.totalHighlightCount,

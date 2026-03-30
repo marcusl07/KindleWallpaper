@@ -402,13 +402,174 @@ enum QuotesListSortMode: String, CaseIterable, Identifiable {
     }
 }
 
+enum QuotesListBookStatusFilterMode: String, CaseIterable, Identifiable {
+    case allBooks
+    case enabledBooksOnly
+    case disabledBooksOnly
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .allBooks:
+            return "All Books"
+        case .enabledBooksOnly:
+            return "Enabled Books"
+        case .disabledBooksOnly:
+            return "Disabled Books"
+        }
+    }
+}
+
+enum QuotesListSourceFilterMode: String, CaseIterable, Identifiable {
+    case allQuotes
+    case manualOnly
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .allQuotes:
+            return "All Quotes"
+        case .manualOnly:
+            return "Manual Only"
+        }
+    }
+}
+
+private struct QuotesListFilters {
+    var selectedBookTitle: String?
+    var selectedAuthor: String?
+    var bookStatus: QuotesListBookStatusFilterMode = .allBooks
+    var source: QuotesListSourceFilterMode = .allQuotes
+
+    var isActive: Bool {
+        selectedBookTitle != nil ||
+        selectedAuthor != nil ||
+        bookStatus != .allBooks ||
+        source != .allQuotes
+    }
+}
+
+struct QuoteEditSaveRequest {
+    let bookId: UUID?
+    let quoteText: String
+    let bookTitle: String
+    let author: String
+    let location: String?
+}
+
+private struct QuoteEditDraft {
+    var quoteText: String
+    var bookTitle: String
+    var author: String
+    var location: String
+
+    init(
+        quoteText: String,
+        bookTitle: String,
+        author: String,
+        location: String
+    ) {
+        self.quoteText = quoteText
+        self.bookTitle = bookTitle
+        self.author = author
+        self.location = location
+    }
+
+    init(highlight: Highlight?) {
+        quoteText = highlight?.quoteText ?? ""
+        bookTitle = highlight?.bookTitle ?? ""
+        author = highlight?.author ?? ""
+        location = highlight?.location ?? ""
+    }
+}
+
+private enum QuoteEditPresentationModel {
+    static func title(for highlight: Highlight?) -> String {
+        highlight == nil ? "Add Quote" : "Edit Quote"
+    }
+
+    static func canSave(quoteText: String) -> Bool {
+        !trimmedValue(quoteText).isEmpty
+    }
+
+    static func matchedBook(
+        bookTitle: String,
+        author: String,
+        books: [Book]
+    ) -> Book? {
+        guard
+            let normalizedTitle = normalizedMatchValue(bookTitle),
+            let normalizedAuthor = normalizedMatchValue(author)
+        else {
+            return nil
+        }
+
+        return books.first { book in
+            normalizedMatchValue(book.title) == normalizedTitle &&
+            normalizedMatchValue(book.author) == normalizedAuthor
+        }
+    }
+
+    static func saveRequest(
+        draft: QuoteEditDraft,
+        books: [Book]
+    ) -> QuoteEditSaveRequest {
+        let trimmedQuoteText = trimmedValue(draft.quoteText)
+        let trimmedLocation = trimmedOptionalValue(draft.location)
+
+        if let matchedBook = matchedBook(
+            bookTitle: draft.bookTitle,
+            author: draft.author,
+            books: books
+        ) {
+            return QuoteEditSaveRequest(
+                bookId: matchedBook.id,
+                quoteText: trimmedQuoteText,
+                bookTitle: matchedBook.title,
+                author: matchedBook.author,
+                location: trimmedLocation
+            )
+        }
+
+        return QuoteEditSaveRequest(
+            bookId: nil,
+            quoteText: trimmedQuoteText,
+            bookTitle: trimmedValue(draft.bookTitle),
+            author: trimmedValue(draft.author),
+            location: trimmedLocation
+        )
+    }
+
+    private static func normalizedMatchValue(_ rawValue: String) -> String? {
+        let trimmed = trimmedValue(rawValue)
+        guard !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+    }
+
+    private static func trimmedValue(_ rawValue: String) -> String {
+        rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func trimmedOptionalValue(_ rawValue: String) -> String? {
+        let trimmed = trimmedValue(rawValue)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
 private enum QuotesListPresentationModel {
     static func displayedHighlights(
         from highlights: [Highlight],
         searchText: String,
-        sortMode: QuotesListSortMode
+        sortMode: QuotesListSortMode,
+        filters: QuotesListFilters,
+        bookEnabledByID: [UUID: Bool]
     ) -> [Highlight] {
         highlights
+            .filter { matchesFilters($0, filters: filters, bookEnabledByID: bookEnabledByID) }
             .filter { matchesSearch($0, searchText: searchText) }
             .sorted { lhs, rhs in
                 switch sortMode {
@@ -418,6 +579,14 @@ private enum QuotesListPresentationModel {
                     return compareAlphabetically(lhs, rhs)
                 }
             }
+    }
+
+    static func availableBookTitles(from highlights: [Highlight]) -> [String] {
+        uniqueSortedValues(from: highlights.map(bookTitleText(for:)))
+    }
+
+    static func availableAuthors(from highlights: [Highlight]) -> [String] {
+        uniqueSortedValues(from: highlights.map(authorText(for:)))
     }
 
     static func previewText(for quoteText: String) -> String {
@@ -436,6 +605,40 @@ private enum QuotesListPresentationModel {
 
     static func authorText(for highlight: Highlight) -> String {
         fallbackText(from: highlight.author, placeholder: "Unknown Author")
+    }
+
+    private static func matchesFilters(
+        _ highlight: Highlight,
+        filters: QuotesListFilters,
+        bookEnabledByID: [UUID: Bool]
+    ) -> Bool {
+        if let selectedBookTitle = filters.selectedBookTitle,
+           bookTitleText(for: highlight) != selectedBookTitle {
+            return false
+        }
+
+        if let selectedAuthor = filters.selectedAuthor,
+           authorText(for: highlight) != selectedAuthor {
+            return false
+        }
+
+        switch filters.source {
+        case .allQuotes:
+            break
+        case .manualOnly:
+            guard highlight.bookId == nil else {
+                return false
+            }
+        }
+
+        switch filters.bookStatus {
+        case .allBooks:
+            return true
+        case .enabledBooksOnly:
+            return bookEnabledState(for: highlight, bookEnabledByID: bookEnabledByID) == true
+        case .disabledBooksOnly:
+            return bookEnabledState(for: highlight, bookEnabledByID: bookEnabledByID) == false
+        }
     }
 
     private static func matchesSearch(_ highlight: Highlight, searchText: String) -> Bool {
@@ -491,13 +694,44 @@ private enum QuotesListPresentationModel {
         let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? placeholder : trimmed
     }
+
+    private static func uniqueSortedValues(from values: [String]) -> [String] {
+        let sortedValues = values.sorted { lhs, rhs in
+            lhs.localizedCaseInsensitiveCompare(rhs) == .orderedAscending
+        }
+
+        var dedupedValues: [String] = []
+        dedupedValues.reserveCapacity(sortedValues.count)
+
+        for value in sortedValues {
+            if dedupedValues.last?.localizedCaseInsensitiveCompare(value) == .orderedSame {
+                continue
+            }
+            dedupedValues.append(value)
+        }
+
+        return dedupedValues
+    }
+
+    private static func bookEnabledState(
+        for highlight: Highlight,
+        bookEnabledByID: [UUID: Bool]
+    ) -> Bool? {
+        guard let bookId = highlight.bookId else {
+            return nil
+        }
+
+        return bookEnabledByID[bookId]
+    }
 }
 
 private struct QuotesListView: View {
     @EnvironmentObject private var appState: AppState
     @State private var searchText = ""
     @State private var sortMode: QuotesListSortMode = .mostRecentlyAdded
+    @State private var filters = QuotesListFilters()
     @State private var highlights: [Highlight] = []
+    @State private var isPresentingAddQuote = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -516,7 +750,7 @@ private struct QuotesListView: View {
                     QuotesEmptyStateView(
                         title: "No Matching Quotes",
                         systemImage: "magnifyingglass",
-                        description: "Try a different search term or switch the sort."
+                        description: "Try a different search term or adjust the filters."
                     )
                 } else {
                     List(displayedHighlights) { highlight in
@@ -534,6 +768,33 @@ private struct QuotesListView: View {
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .searchable(text: $searchText, prompt: "Search quotes, books, or authors")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    isPresentingAddQuote = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .help("Add Quote")
+            }
+        }
+        .sheet(isPresented: $isPresentingAddQuote) {
+            NavigationStack {
+                QuoteEditView(
+                    highlight: nil,
+                    books: appState.books,
+                    onCancel: {
+                        isPresentingAddQuote = false
+                    },
+                    onSave: { request in
+                        appState.addManualQuote(request)
+                        refreshHighlights()
+                        isPresentingAddQuote = false
+                    }
+                )
+            }
+            .frame(minWidth: 520, minHeight: 460)
+        }
         .onAppear(perform: refreshHighlights)
         .onReceive(appState.$totalHighlightCount) { _ in
             refreshHighlights()
@@ -544,26 +805,78 @@ private struct QuotesListView: View {
         QuotesListPresentationModel.displayedHighlights(
             from: highlights,
             searchText: searchText,
-            sortMode: sortMode
+            sortMode: sortMode,
+            filters: filters,
+            bookEnabledByID: bookEnabledByID
         )
     }
 
     private var controlsRow: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Picker("Sort", selection: $sortMode) {
-                ForEach(QuotesListSortMode.allCases) { mode in
-                    Text(mode.title)
-                        .tag(mode)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
+                Picker("Sort", selection: $sortMode) {
+                    ForEach(QuotesListSortMode.allCases) { mode in
+                        Text(mode.title)
+                            .tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 280)
+
+                Spacer(minLength: 12)
+
+                Text(resultCountSummary)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .center, spacing: 12) {
+                    Picker("Book", selection: $filters.selectedBookTitle) {
+                        Text("All Books")
+                            .tag(nil as String?)
+
+                        ForEach(availableBookTitles, id: \.self) { title in
+                            Text(title)
+                                .tag(title as String?)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    Picker("Author", selection: $filters.selectedAuthor) {
+                        Text("All Authors")
+                            .tag(nil as String?)
+
+                        ForEach(availableAuthors, id: \.self) { author in
+                            Text(author)
+                                .tag(author as String?)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    Picker("Book Status", selection: $filters.bookStatus) {
+                        ForEach(QuotesListBookStatusFilterMode.allCases) { mode in
+                            Text(mode.title)
+                                .tag(mode)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    Picker("Manual Added", selection: $filters.source) {
+                        ForEach(QuotesListSourceFilterMode.allCases) { mode in
+                            Text(mode.title)
+                                .tag(mode)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    if filters.isActive {
+                        Button("Reset Filters") {
+                            filters = QuotesListFilters()
+                        }
+                    }
                 }
             }
-            .pickerStyle(.segmented)
-            .frame(maxWidth: 280)
-
-            Spacer(minLength: 12)
-
-            Text(resultCountSummary)
-                .font(.callout)
-                .foregroundStyle(.secondary)
         }
     }
 
@@ -575,11 +888,27 @@ private struct QuotesListView: View {
         let displayedCount = displayedHighlights.count
         let noun = displayedCount == 1 ? "quote" : "quotes"
 
-        if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if !hasActiveQuery {
             return "\(displayedCount) \(noun)"
         }
 
         return "\(displayedCount) of \(highlights.count) \(highlights.count == 1 ? "quote" : "quotes")"
+    }
+
+    private var availableBookTitles: [String] {
+        QuotesListPresentationModel.availableBookTitles(from: highlights)
+    }
+
+    private var availableAuthors: [String] {
+        QuotesListPresentationModel.availableAuthors(from: highlights)
+    }
+
+    private var bookEnabledByID: [UUID: Bool] {
+        Dictionary(uniqueKeysWithValues: appState.books.map { ($0.id, $0.isEnabled) })
+    }
+
+    private var hasActiveQuery: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || filters.isActive
     }
 
     private func quoteRow(_ highlight: Highlight) -> some View {
@@ -606,6 +935,27 @@ private struct QuotesListView: View {
 
     private func refreshHighlights() {
         highlights = appState.loadAllHighlights()
+        reconcileFilters()
+    }
+
+    private func updateStoredHighlight(_ updatedHighlight: Highlight) {
+        guard let index = highlights.firstIndex(where: { $0.id == updatedHighlight.id }) else {
+            return
+        }
+
+        highlights[index] = updatedHighlight
+    }
+
+    private func reconcileFilters() {
+        if let selectedBookTitle = filters.selectedBookTitle,
+           !availableBookTitles.contains(selectedBookTitle) {
+            filters.selectedBookTitle = nil
+        }
+
+        if let selectedAuthor = filters.selectedAuthor,
+           !availableAuthors.contains(selectedAuthor) {
+            filters.selectedAuthor = nil
+        }
     }
 }
 
@@ -633,11 +983,19 @@ private struct QuotesEmptyStateView: View {
 }
 
 private struct QuoteDetailView: View {
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var appState: AppState
 
-    let highlight: Highlight
-
+    @State private var highlight: Highlight
+    private let onHighlightUpdated: (Highlight) -> Void
+    @State private var isShowingDeleteConfirmation = false
     @State private var wallpaperRequestMessage: String?
+    @State private var toggleMessage: String?
+
+    init(highlight: Highlight, onHighlightUpdated: @escaping (Highlight) -> Void = { _ in }) {
+        _highlight = State(initialValue: highlight)
+        self.onHighlightUpdated = onHighlightUpdated
+    }
 
     var body: some View {
         ScrollView {
@@ -658,11 +1016,23 @@ private struct QuoteDetailView: View {
                     }
                 }
 
-                Button("Set as Current Wallpaper") {
-                    let didRequestRotation = appState.requestWallpaperRotation(forcedHighlight: highlight)
-                    wallpaperRequestMessage = didRequestRotation
-                        ? "Wallpaper update requested."
-                        : "Wallpaper update already in progress."
+                HStack(spacing: 12) {
+                    Button("Set as Current Wallpaper") {
+                        let didRequestRotation = appState.requestWallpaperRotation(forcedHighlight: highlight)
+                        wallpaperRequestMessage = didRequestRotation
+                            ? "Wallpaper update requested."
+                            : "Wallpaper update already in progress."
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    Button(Self.toggleButtonTitle(isEnabled: highlight.isEnabled)) {
+                        toggleHighlightEnabled()
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                Button("Delete Quote", role: .destructive) {
+                    isShowingDeleteConfirmation = true
                 }
 
                 if let wallpaperRequestMessage {
@@ -671,22 +1041,51 @@ private struct QuoteDetailView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                if let toggleMessage {
+                    Text(toggleMessage)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+
                 VStack(alignment: .leading, spacing: 12) {
                     detailRow(label: "Location", value: detailLocationText)
                     detailRow(label: "Date Added", value: formattedDate(highlight.dateAdded))
                     detailRow(label: "Last Shown", value: formattedDate(highlight.lastShownAt))
-                    detailRow(label: "Included in Rotation", value: highlight.isEnabled ? "Yes" : "No")
+                    detailRow(
+                        label: "Included in Rotation",
+                        value: Self.effectiveRotationStatusText(
+                            quoteIsEnabled: highlight.isEnabled,
+                            bookIsEnabled: linkedBookIsEnabled
+                        )
+                    )
                 }
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .navigationTitle("Quote")
+        .alert("Delete Quote?", isPresented: $isShowingDeleteConfirmation) {
+            Button("Delete", role: .destructive) {
+                appState.deleteHighlight(id: highlight.id)
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This quote will be removed from your library.")
+        }
     }
 
     private var detailLocationText: String {
         let trimmedLocation = highlight.location?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmedLocation.isEmpty ? "Not available" : trimmedLocation
+    }
+
+    private var linkedBookIsEnabled: Bool? {
+        guard let bookID = highlight.bookId else {
+            return nil
+        }
+
+        return appState.books.first(where: { $0.id == bookID })?.isEnabled
     }
 
     private func detailRow(label: String, value: String) -> some View {
@@ -704,19 +1103,180 @@ private struct QuoteDetailView: View {
         }
         return date.formatted(date: .abbreviated, time: .shortened)
     }
+
+    private func toggleHighlightEnabled() {
+        let enabled = !highlight.isEnabled
+        appState.setHighlightEnabled(id: highlight.id, enabled: enabled)
+
+        let updatedHighlight = Self.updatedHighlight(highlight, isEnabled: enabled)
+        highlight = updatedHighlight
+        onHighlightUpdated(updatedHighlight)
+        toggleMessage = Self.toggleStatusMessage(
+            isEnabled: enabled,
+            bookIsEnabled: linkedBookIsEnabled
+        )
+    }
+
+    static func toggleButtonTitle(isEnabled: Bool) -> String {
+        isEnabled ? "Disable from Rotation" : "Enable for Rotation"
+    }
+
+    static func effectiveRotationStatusText(quoteIsEnabled: Bool, bookIsEnabled: Bool?) -> String {
+        guard quoteIsEnabled else {
+            return "No"
+        }
+
+        if bookIsEnabled == false {
+            return "No (book disabled)"
+        }
+
+        return "Yes"
+    }
+
+    static func toggleStatusMessage(isEnabled: Bool, bookIsEnabled: Bool?) -> String {
+        if isEnabled {
+            return bookIsEnabled == false
+                ? "Quote enabled. It will rotate once its book is enabled."
+                : "Quote enabled for rotation."
+        }
+
+        return "Quote removed from rotation."
+    }
+
+    static func updatedHighlight(_ highlight: Highlight, isEnabled: Bool) -> Highlight {
+        Highlight(
+            id: highlight.id,
+            bookId: highlight.bookId,
+            quoteText: highlight.quoteText,
+            bookTitle: highlight.bookTitle,
+            author: highlight.author,
+            location: highlight.location,
+            dateAdded: highlight.dateAdded,
+            lastShownAt: isEnabled ? nil : highlight.lastShownAt,
+            isEnabled: isEnabled
+        )
+    }
+}
+
+struct QuoteEditView: View {
+    let highlight: Highlight?
+    let books: [Book]
+    let onCancel: () -> Void
+    let onSave: (QuoteEditSaveRequest) -> Void
+
+    @State private var draft: QuoteEditDraft
+
+    init(
+        highlight: Highlight?,
+        books: [Book],
+        onCancel: @escaping () -> Void,
+        onSave: @escaping (QuoteEditSaveRequest) -> Void
+    ) {
+        self.highlight = highlight
+        self.books = books
+        self.onCancel = onCancel
+        self.onSave = onSave
+        _draft = State(initialValue: QuoteEditDraft(highlight: highlight))
+    }
+
+    var body: some View {
+        Form {
+            Section("Quote") {
+                TextEditor(text: $draft.quoteText)
+                    .frame(minHeight: 180)
+            }
+
+            Section("Details") {
+                TextField("Book Title", text: $draft.bookTitle)
+                TextField("Author", text: $draft.author)
+                TextField("Location", text: $draft.location)
+
+                LabeledContent("Linked Book") {
+                    if let matchedBook {
+                        Text("\(matchedBook.title) by \(matchedBook.author)")
+                    } else {
+                        Text("None")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .navigationTitle(title)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") {
+                    onCancel()
+                }
+            }
+
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Save") {
+                    onSave(QuoteEditPresentationModel.saveRequest(draft: draft, books: books))
+                }
+                .disabled(!canSave)
+            }
+        }
+    }
+
+    private var title: String {
+        QuoteEditPresentationModel.title(for: highlight)
+    }
+
+    private var matchedBook: Book? {
+        QuoteEditPresentationModel.matchedBook(
+            bookTitle: draft.bookTitle,
+            author: draft.author,
+            books: books
+        )
+    }
+
+    private var canSave: Bool {
+        QuoteEditPresentationModel.canSave(quoteText: draft.quoteText)
+    }
 }
 
 #if TESTING
+enum QuoteDetailViewTestProbe {
+    static func toggleButtonTitle(isEnabled: Bool) -> String {
+        QuoteDetailView.toggleButtonTitle(isEnabled: isEnabled)
+    }
+
+    static func effectiveRotationStatusText(quoteIsEnabled: Bool, bookIsEnabled: Bool?) -> String {
+        QuoteDetailView.effectiveRotationStatusText(quoteIsEnabled: quoteIsEnabled, bookIsEnabled: bookIsEnabled)
+    }
+
+    static func toggleStatusMessage(isEnabled: Bool, bookIsEnabled: Bool?) -> String {
+        QuoteDetailView.toggleStatusMessage(isEnabled: isEnabled, bookIsEnabled: bookIsEnabled)
+    }
+
+    static func updatedHighlight(_ highlight: Highlight, isEnabled: Bool) -> Highlight {
+        QuoteDetailView.updatedHighlight(highlight, isEnabled: isEnabled)
+    }
+}
+
 enum QuotesListViewTestProbe {
     static func displayedHighlightIDs(
         from highlights: [Highlight],
         searchText: String,
-        sortMode: QuotesListSortMode
+        sortMode: QuotesListSortMode,
+        books: [Book] = [],
+        selectedBookTitle: String? = nil,
+        selectedAuthor: String? = nil,
+        bookStatus: QuotesListBookStatusFilterMode = .allBooks,
+        source: QuotesListSourceFilterMode = .allQuotes
     ) -> [UUID] {
         QuotesListPresentationModel.displayedHighlights(
             from: highlights,
             searchText: searchText,
-            sortMode: sortMode
+            sortMode: sortMode,
+            filters: QuotesListFilters(
+                selectedBookTitle: selectedBookTitle,
+                selectedAuthor: selectedAuthor,
+                bookStatus: bookStatus,
+                source: source
+            ),
+            bookEnabledByID: Dictionary(uniqueKeysWithValues: books.map { ($0.id, $0.isEnabled) })
         ).map(\.id)
     }
 
@@ -730,6 +1290,71 @@ enum QuotesListViewTestProbe {
 
     static func authorText(for highlight: Highlight) -> String {
         QuotesListPresentationModel.authorText(for: highlight)
+    }
+
+    static func availableBookTitles(from highlights: [Highlight]) -> [String] {
+        QuotesListPresentationModel.availableBookTitles(from: highlights)
+    }
+
+    static func availableAuthors(from highlights: [Highlight]) -> [String] {
+        QuotesListPresentationModel.availableAuthors(from: highlights)
+    }
+}
+
+enum QuoteEditViewTestProbe {
+    struct DraftSnapshot {
+        let quoteText: String
+        let bookTitle: String
+        let author: String
+        let location: String
+    }
+
+    static func title(for highlight: Highlight?) -> String {
+        QuoteEditPresentationModel.title(for: highlight)
+    }
+
+    static func draftSnapshot(from highlight: Highlight?) -> DraftSnapshot {
+        let draft = QuoteEditDraft(highlight: highlight)
+        return DraftSnapshot(
+            quoteText: draft.quoteText,
+            bookTitle: draft.bookTitle,
+            author: draft.author,
+            location: draft.location
+        )
+    }
+
+    static func canSave(quoteText: String) -> Bool {
+        QuoteEditPresentationModel.canSave(quoteText: quoteText)
+    }
+
+    static func matchedBookID(
+        bookTitle: String,
+        author: String,
+        books: [Book]
+    ) -> UUID? {
+        QuoteEditPresentationModel.matchedBook(
+            bookTitle: bookTitle,
+            author: author,
+            books: books
+        )?.id
+    }
+
+    static func saveRequest(
+        quoteText: String,
+        bookTitle: String,
+        author: String,
+        location: String,
+        books: [Book]
+    ) -> QuoteEditSaveRequest {
+        QuoteEditPresentationModel.saveRequest(
+            draft: QuoteEditDraft(
+                quoteText: quoteText,
+                bookTitle: bookTitle,
+                author: author,
+                location: location
+            ),
+            books: books
+        )
     }
 }
 #endif

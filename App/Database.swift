@@ -331,6 +331,34 @@ enum DatabaseManager {
         }
     }
 
+    static func setHighlightEnabled(id: UUID, enabled: Bool) {
+        do {
+            try shared.write { database in
+                try database.execute(
+                    sql: """
+                    UPDATE highlights
+                    SET isEnabled = ?
+                    WHERE id = ?
+                    """,
+                    arguments: [enabled ? 1 : 0, id.uuidString]
+                )
+
+                if enabled {
+                    try database.execute(
+                        sql: """
+                        UPDATE highlights
+                        SET lastShownAt = NULL
+                        WHERE id = ?
+                        """,
+                        arguments: [id.uuidString]
+                    )
+                }
+            }
+        } catch {
+            fatalError("Failed to set highlight enabled state: \(error)")
+        }
+    }
+
     static func pickNextHighlight() -> Highlight? {
         do {
             return try shared.write { database in
@@ -417,6 +445,22 @@ enum DatabaseManager {
             }
         } catch {
             fatalError("Failed to mark highlight as shown: \(error)")
+        }
+    }
+
+    static func deleteHighlight(id: UUID) {
+        do {
+            try shared.write { database in
+                try database.execute(
+                    sql: """
+                    DELETE FROM highlights
+                    WHERE id = ?
+                    """,
+                    arguments: [id.uuidString]
+                )
+            }
+        } catch {
+            fatalError("Failed to delete highlight: \(error)")
         }
     }
 
