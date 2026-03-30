@@ -14,22 +14,35 @@ This file is the working context for agents. When an item is completed, move it 
 
 ## Phase 13 — Quote Management
 
-**T74 — Update wallpaper renderer for missing book title and author**
-In `WallpaperGenerator.swift`, handle empty/nil `bookTitle` and `author` and omit the attribution line entirely rather than rendering blank space.
-
-**T77 — Add filter controls to Quotes list view**
-Add filters to `QuotesListView`: by book title, author, enabled/disabled books only, manually added only. Filters compose with search.
-
 **T78 — Build Quote detail view**
 Create `QuoteDetailView` showing full quote text, book, author, location, date added, last shown. Actions: Edit, Set as Current Wallpaper, Enable/Disable from rotation, Delete with confirmation.
 
 **T79 — Build Quote edit/add view**
 Create `QuoteEditView` for editing all fields (quote text, book title, author, location). All fields optional except quote text. If book title + author match existing book, link to it. Save/Cancel.
 
-**T81 — Implement delete quote**
-Wire delete in `QuoteDetailView` to remove highlight from database. Confirmation alert before deleting. Return to list after deletion.
+---
 
-**T83 — Implement manual add quote**
-Wire `+` button in `QuotesListView` to open `QuoteEditView` in add mode. On save, insert new highlight with nullable `bookId`. Link to existing book if title+author match.
+## Phase 14 — Wallpaper Restore Reliability
+
+**T64a — Make wallpaper restore outcomes explicit**
+In `WallpaperSetter.swift` and `AppState.swift`, replace the current `Bool`-style restore result with a structured outcome that distinguishes full restore, partial restore, no stored wallpapers, no connected screens, and apply failure. Add `scripts/verify_t64.sh` and `scripts/verify_t64_main.swift` coverage for each outcome while preserving current app behavior.
+
+**T64b — Introduce a display topology coordinator boundary**
+Create `DisplayTopologyCoordinator.swift` and move wake-triggered restore orchestration out of `KindleWallApp.swift` into that coordinator. Keep this slice wake-only so the app remains behaviorally equivalent while centralizing lifecycle policy and adding focused verification coverage.
+
+**T64c — Handle display reconfiguration with debounced restore**
+Extend `DisplayTopologyCoordinator.swift` and `KindleWallApp.swift` to observe display-configuration changes in addition to wake events, then debounce event bursts into a single restore pass after topology settles. Cover wake-then-reconfigure and repeated reconfiguration sequences in `scripts/verify_t64.sh` / `scripts/verify_t64_main.swift`.
+
+**T64d — Make wallpaper-assignment persistence operations explicit**
+In `ScheduleSettings.swift` and `AppState.swift`, replace the current replace-only persistence helper with explicit operations for replacing, merging, and clearing saved wallpaper assignments. Keep runtime behavior equivalent in this slice, and add targeted verification so later topology fixes can use these operations intentionally.
+
+**T64e — Extract display identity and remapping heuristics**
+Create `DisplayIdentityResolver.swift` and move display matching/remapping policy out of `WallpaperSetter.swift`, keeping `WallpaperSetter` focused on applying assignments. Wire `AppState.swift` to use the resolver for restore matching, and add adversarial tests for main-display changes, reordering, same-resolution displays, missing displays, and extra displays.
+
+**T64f — Prevent transient reduced topologies from erasing full assignments**
+Update `AppState.swift`, `ScheduleSettings.swift`, and `DisplayTopologyCoordinator.swift` so a temporary one-display snapshot does not immediately replace a previously saved two-display assignment set. Add integration coverage in `scripts/verify_t64.sh` / `scripts/verify_t64_main.swift` for two displays -> transient one display -> reconnect -> successful restore without losing the second assignment.
+
+**T64g — Add no-op apply guards and final restore cleanup**
+Tighten `DisplayTopologyCoordinator.swift`, `WallpaperSetter.swift`, and `KindleWallApp.swift` to skip redundant restore/apply cycles when the desired assignment is already active, and remove obsolete wake-specific glue left behind by earlier slices. Finish `scripts/verify_t64.sh` / `scripts/verify_t64_main.swift` with end-to-end coverage for the full wake/reconfigure/reconnect flow.
 
 ## Open Agent Handoff Bugs
