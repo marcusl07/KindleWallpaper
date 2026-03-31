@@ -496,3 +496,8 @@ In `WallpaperSetter.swift` and `AppState.swift`, replace the current `Bool`-styl
 
 **T64b — Introduce a display topology coordinator boundary**
 Create `DisplayTopologyCoordinator.swift` and move wake-triggered restore orchestration out of `KindleWallApp.swift` into that coordinator. Keep this slice wake-only so the app remains behaviorally equivalent while centralizing lifecycle policy and adding focused verification coverage.
+
+**T64d — Make wallpaper-assignment persistence operations explicit**
+In `ScheduleSettings.swift` and `AppState.swift`, replace the current replace-only persistence helper with explicit operations for replacing, merging, and clearing saved wallpaper assignments. Keep runtime behavior equivalent in this slice, and add targeted verification so later topology fixes can use these operations intentionally.
+
+## Open Agent Handoff Bugs

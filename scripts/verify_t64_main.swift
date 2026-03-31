@@ -17,6 +17,38 @@ private func expectEqual<T: Equatable>(_ actual: T, _ expected: T, _ message: St
     }
 }
 
+private func makeDefaults() -> UserDefaults {
+    let suiteName = "KindleWall-T64-\(UUID().uuidString)"
+    guard let defaults = UserDefaults(suiteName: suiteName) else {
+        fail("Unable to create isolated UserDefaults suite")
+    }
+
+    defaults.removePersistentDomain(forName: suiteName)
+    defaults.set(suiteName, forKey: "__verifySuiteName")
+    return defaults
+}
+
+private func clearDefaults(_ defaults: UserDefaults) {
+    guard let suiteName = defaults.string(forKey: "__verifySuiteName"), !suiteName.isEmpty else {
+        return
+    }
+
+    defaults.removePersistentDomain(forName: suiteName)
+}
+
+private func makeHighlight(id: UUID = UUID(), quoteText: String = "Quote") -> Highlight {
+    Highlight(
+        id: id,
+        bookId: UUID(),
+        quoteText: quoteText,
+        bookTitle: "Book",
+        author: "Author",
+        location: nil,
+        dateAdded: nil,
+        lastShownAt: nil
+    )
+}
+
 private func makeTemporaryDirectory(prefix: String) -> URL {
     let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent("\(prefix)-\(UUID().uuidString)", isDirectory: true)
@@ -66,6 +98,87 @@ private func makeWakeRestoreAppState(
         reapplyStoredWallpaper: reapplyStoredWallpaper,
         markHighlightShown: markHighlightShown
     )
+}
+
+private func testReplaceReusableGeneratedWallpapersReplacesStoredSnapshot() {
+    let defaults = makeDefaults()
+    defer { clearDefaults(defaults) }
+
+    let directory = makeTemporaryDirectory(prefix: "kindlewall-t64-replace")
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let originalURL = makeWallpaper(directory: directory, name: "display-a-original.png")
+    let replacementURL = makeWallpaper(directory: directory, name: "display-a-replacement.png")
+    let removedURL = makeWallpaper(directory: directory, name: "display-b.png")
+
+    defaults.replaceReusableGeneratedWallpapers([
+        StoredGeneratedWallpaper(targetIdentifier: "display-a", fileURL: originalURL),
+        StoredGeneratedWallpaper(targetIdentifier: "display-b", fileURL: removedURL)
+    ])
+    defaults.replaceReusableGeneratedWallpapers([
+        StoredGeneratedWallpaper(targetIdentifier: "display-a", fileURL: replacementURL)
+    ])
+
+    let storedWallpapers = defaults.loadReusableGeneratedWallpapers()
+    expectEqual(storedWallpapers.count, 1, "Expected replace to drop omitted wallpaper assignments")
+    expectEqual(storedWallpapers[0].targetIdentifier, "display-a", "Expected replace to keep the requested target identifier")
+    expectEqual(
+        storedWallpapers[0].fileURL.standardizedFileURL,
+        replacementURL.standardizedFileURL,
+        "Expected replace to overwrite the existing target entry"
+    )
+}
+
+private func testMergeReusableGeneratedWallpapersMergesByTargetIdentifier() {
+    let defaults = makeDefaults()
+    defer { clearDefaults(defaults) }
+
+    let directory = makeTemporaryDirectory(prefix: "kindlewall-t64-merge")
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let originalAURL = makeWallpaper(directory: directory, name: "display-a-original.png")
+    let originalBURL = makeWallpaper(directory: directory, name: "display-b-original.png")
+    let replacementBURL = makeWallpaper(directory: directory, name: "display-b-replacement.png")
+    let addedCURL = makeWallpaper(directory: directory, name: "display-c.png")
+
+    defaults.replaceReusableGeneratedWallpapers([
+        StoredGeneratedWallpaper(targetIdentifier: "display-a", fileURL: originalAURL),
+        StoredGeneratedWallpaper(targetIdentifier: "display-b", fileURL: originalBURL)
+    ])
+    defaults.mergeReusableGeneratedWallpapers([
+        StoredGeneratedWallpaper(targetIdentifier: "display-b", fileURL: replacementBURL),
+        StoredGeneratedWallpaper(targetIdentifier: "display-c", fileURL: addedCURL)
+    ])
+
+    let storedWallpapers = defaults.loadReusableGeneratedWallpapers()
+    expectEqual(storedWallpapers.count, 3, "Expected merge to preserve untouched assignments and add new ones")
+    expectEqual(storedWallpapers[0].targetIdentifier, "display-a", "Expected merge to preserve existing unmatched targets")
+    expectEqual(storedWallpapers[0].fileURL.standardizedFileURL, originalAURL.standardizedFileURL, "Expected merge to preserve the existing target URL")
+    expectEqual(storedWallpapers[1].targetIdentifier, "display-b", "Expected merge to keep the replaced target identifier")
+    expectEqual(storedWallpapers[1].fileURL.standardizedFileURL, replacementBURL.standardizedFileURL, "Expected merge to overwrite matching targets")
+    expectEqual(storedWallpapers[2].targetIdentifier, "display-c", "Expected merge to append newly merged targets")
+    expectEqual(storedWallpapers[2].fileURL.standardizedFileURL, addedCURL.standardizedFileURL, "Expected merge to store the added target URL")
+}
+
+private func testClearReusableGeneratedWallpapersRemovesStoredAssignments() {
+    let defaults = makeDefaults()
+    defer { clearDefaults(defaults) }
+
+    let directory = makeTemporaryDirectory(prefix: "kindlewall-t64-clear")
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let wallpaperURL = makeWallpaper(directory: directory, name: "display-a.png")
+    defaults.replaceReusableGeneratedWallpapers([
+        StoredGeneratedWallpaper(targetIdentifier: "display-a", fileURL: wallpaperURL)
+    ])
+
+    defaults.clearReusableGeneratedWallpapers()
+
+    expect(
+        defaults.object(forKey: "reusableGeneratedWallpaperPathsByTarget") == nil,
+        "Expected clear to remove the persisted assignments key"
+    )
+    expectEqual(defaults.loadReusableGeneratedWallpapers(), [], "Expected clear to leave no stored wallpaper assignments")
 }
 
 private func testFullRestoreForAllScreensWallpaper() {
@@ -234,7 +347,16 @@ private func testAppStateReapplyForwardsStructuredOutcome() {
     var reapplyCallCount = 0
     var markHighlightShownCount = 0
 
-    let appState = makeWakeRestoreAppState(
+    let appState = AppState(
+        pickNextHighlight: {
+            fail("Expected wake restore not to request a new highlight")
+        },
+        generateWallpaper: { _, _ in
+            fail("Expected wake restore not to generate a new wallpaper")
+        },
+        setWallpaper: { _ in
+            fail("Expected wake restore not to use the rotation apply path")
+        },
         reapplyStoredWallpaper: {
             reapplyCallCount += 1
             return .partialRestore
@@ -248,6 +370,135 @@ private func testAppStateReapplyForwardsStructuredOutcome() {
     expectEqual(outcome, .partialRestore, "Expected AppState wake restore to forward the structured outcome")
     expectEqual(reapplyCallCount, 1, "Expected AppState wake restore to delegate exactly once")
     expectEqual(markHighlightShownCount, 0, "Expected wake restore not to advance rotation state")
+}
+
+@MainActor
+private func testAppStateRotationUsesReplacePersistenceOnly() {
+    let directory = makeTemporaryDirectory(prefix: "kindlewall-t64-appstate-replace")
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let wallpaperURL = makeWallpaper(directory: directory, name: "applied.png")
+    var replacedWallpapers: [[AppState.GeneratedWallpaper]] = []
+    var mergeCallCount = 0
+    var clearCallCount = 0
+    var markedHighlights: [UUID] = []
+
+    let appState = AppState(
+        pickNextHighlight: { makeHighlight(quoteText: "Persist through replace") },
+        generateWallpaper: { _, _ in wallpaperURL },
+        setWallpaper: { _ in },
+        storedWallpaperAssignmentPersistence: AppState.StoredWallpaperAssignmentPersistence(
+            replace: { wallpapers in
+                replacedWallpapers.append(wallpapers)
+            },
+            merge: { _ in
+                mergeCallCount += 1
+            },
+            clear: {
+                clearCallCount += 1
+            }
+        ),
+        markHighlightShown: { markedHighlights.append($0) }
+    )
+
+    let outcome = appState.rotateWallpaperWithOutcome()
+    expectEqual(outcome, .success, "Expected successful rotation to report success")
+    expectEqual(replacedWallpapers.count, 1, "Expected successful rotation to persist through replace exactly once")
+    expectEqual(
+        replacedWallpapers[0],
+        [
+            AppState.GeneratedWallpaper(
+                targetIdentifier: StoredGeneratedWallpaper.allScreensTargetIdentifier,
+                fileURL: wallpaperURL
+            )
+        ],
+        "Expected successful single-screen rotation to persist the all-screens assignment"
+    )
+    expectEqual(mergeCallCount, 0, "Expected successful rotation not to merge persisted assignments")
+    expectEqual(clearCallCount, 0, "Expected successful rotation not to clear persisted assignments")
+    expectEqual(markedHighlights.count, 1, "Expected successful rotation to mark the selected highlight as shown")
+}
+
+@MainActor
+private func testAppStateRotationFailureSkipsPersistenceOperations() {
+    var replaceCallCount = 0
+    var mergeCallCount = 0
+    var clearCallCount = 0
+    var markHighlightShownCount = 0
+
+    let appState = AppState(
+        pickNextHighlight: { makeHighlight(quoteText: "Do not persist") },
+        generateWallpaper: { _, _ in URL(fileURLWithPath: "/tmp/failed.png") },
+        setWallpaper: { _ in
+            throw TestError.applyFailed
+        },
+        storedWallpaperAssignmentPersistence: AppState.StoredWallpaperAssignmentPersistence(
+            replace: { _ in
+                replaceCallCount += 1
+            },
+            merge: { _ in
+                mergeCallCount += 1
+            },
+            clear: {
+                clearCallCount += 1
+            }
+        ),
+        markHighlightShown: { _ in
+            markHighlightShownCount += 1
+        }
+    )
+
+    let outcome = appState.rotateWallpaperWithOutcome()
+    expectEqual(
+        outcome,
+        .wallpaperApplyFailure(.applyError),
+        "Expected apply failures to be surfaced without mutating persisted assignments"
+    )
+    expectEqual(replaceCallCount, 0, "Expected failed rotation not to replace persisted assignments")
+    expectEqual(mergeCallCount, 0, "Expected failed rotation not to merge persisted assignments")
+    expectEqual(clearCallCount, 0, "Expected failed rotation not to clear persisted assignments")
+    expectEqual(markHighlightShownCount, 0, "Expected failed rotation not to mark highlights as shown")
+}
+
+@MainActor
+private func testAppStateExplicitMergeAndClearForwardToPersistenceBoundary() {
+    let directory = makeTemporaryDirectory(prefix: "kindlewall-t64-appstate-explicit")
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let wallpaperURL = makeWallpaper(directory: directory, name: "merged.png")
+    let mergedWallpaper = AppState.GeneratedWallpaper(targetIdentifier: "display-a", fileURL: wallpaperURL)
+    var mergedWallpapers: [[AppState.GeneratedWallpaper]] = []
+    var clearCallCount = 0
+
+    let appState = AppState(
+        pickNextHighlight: { nil },
+        generateWallpaper: { _, _ in
+            fail("Expected explicit persistence forwarding test not to rotate wallpapers")
+        },
+        setWallpaper: { _ in
+            fail("Expected explicit persistence forwarding test not to apply wallpapers")
+        },
+        storedWallpaperAssignmentPersistence: AppState.StoredWallpaperAssignmentPersistence(
+            replace: { _ in
+                fail("Expected explicit merge/clear forwarding not to call replace")
+            },
+            merge: { wallpapers in
+                mergedWallpapers.append(wallpapers)
+            },
+            clear: {
+                clearCallCount += 1
+            }
+        ),
+        markHighlightShown: { _ in
+            fail("Expected explicit persistence forwarding test not to mark highlights")
+        }
+    )
+
+    appState.mergeStoredWallpaperAssignments([mergedWallpaper])
+    appState.clearStoredWallpaperAssignments()
+
+    expectEqual(mergedWallpapers, [[mergedWallpaper]], "Expected AppState.mergeStoredWallpaperAssignments to forward the generated wallpapers unchanged")
+    expectEqual(clearCallCount, 1, "Expected AppState.clearStoredWallpaperAssignments to forward exactly once")
 }
 
 @MainActor
@@ -332,6 +583,9 @@ private func testDisplayTopologyCoordinatorUsesLatestAppState() {
     expectEqual(secondAppStateCallCount, 1, "Expected coordinator to use the latest app state after reconfiguration")
 }
 
+testReplaceReusableGeneratedWallpapersReplacesStoredSnapshot()
+testMergeReusableGeneratedWallpapersMergesByTargetIdentifier()
+testClearReusableGeneratedWallpapersRemovesStoredAssignments()
 testFullRestoreForAllScreensWallpaper()
 testFullRestoreForTargetedScreens()
 testPartialRestoreWhenTopologyIsReduced()
@@ -341,6 +595,9 @@ testApplyFailureOutcome()
 
 await MainActor.run {
     testAppStateReapplyForwardsStructuredOutcome()
+    testAppStateRotationUsesReplacePersistenceOnly()
+    testAppStateRotationFailureSkipsPersistenceOperations()
+    testAppStateExplicitMergeAndClearForwardToPersistenceBoundary()
     testDisplayTopologyCoordinatorRestoresOnWakeNotification()
     testDisplayTopologyCoordinatorStartIsIdempotent()
     testDisplayTopologyCoordinatorUsesLatestAppState()

@@ -20,10 +20,12 @@ require_pattern() {
 }
 
 require_pattern "$SCHEDULE_SETTINGS_FILE" 'struct[[:space:]]+StoredGeneratedWallpaper' "stored generated wallpaper value type"
-require_pattern "$SCHEDULE_SETTINGS_FILE" 'func[[:space:]]+storeReusableGeneratedWallpapers' "generated wallpaper persistence writer"
+require_pattern "$SCHEDULE_SETTINGS_FILE" 'func[[:space:]]+replaceReusableGeneratedWallpapers' "generated wallpaper replace helper"
+require_pattern "$SCHEDULE_SETTINGS_FILE" 'func[[:space:]]+mergeReusableGeneratedWallpapers' "generated wallpaper merge helper"
+require_pattern "$SCHEDULE_SETTINGS_FILE" 'func[[:space:]]+clearReusableGeneratedWallpapers' "generated wallpaper clear helper"
 require_pattern "$SCHEDULE_SETTINGS_FILE" 'func[[:space:]]+loadReusableGeneratedWallpapers' "generated wallpaper persistence loader"
-require_pattern "$APP_STATE_FILE" 'typealias[[:space:]]+StoreReusableGeneratedWallpapers' "reusable wallpaper persistence boundary"
-require_pattern "$APP_STATE_FILE" 'context\.storeReusableGeneratedWallpapers\(appliedGeneratedWallpapers\)' "post-apply reusable wallpaper persistence"
+require_pattern "$APP_STATE_FILE" 'struct[[:space:]]+StoredWallpaperAssignmentPersistence' "reusable wallpaper persistence boundary"
+require_pattern "$APP_STATE_FILE" 'context\.replaceStoredWallpaperAssignments\(appliedGeneratedWallpapers\)' "post-apply reusable wallpaper replace persistence"
 require_pattern "$WALLPAPER_GENERATOR_FILE" 'protectedGeneratedWallpapersProvider' "protected wallpaper provider dependency"
 require_pattern "$WALLPAPER_GENERATOR_FILE" 'cleanupGeneratedWallpapers\(' "cleanup helper invocation"
 require_pattern "$WALLPAPER_GENERATOR_FILE" 'protecting:[[:space:]]*generatedWallpapers\.map\(\\\.fileURL\)[[:space:]]*\+[[:space:]]*protectedGeneratedWallpapersProvider\(\)' "protected cleanup argument"
@@ -50,6 +52,7 @@ swiftc \
   "$ROOT_DIR/App/WallpaperGenerator.swift" \
   "$ROOT_DIR/App/BackgroundImageLoader.swift" \
   "$ROOT_DIR/App/AppSupportPaths.swift" \
+  "$ROOT_DIR/App/WallpaperSetter.swift" \
   "$ROOT_DIR/Models/Book.swift" \
   "$ROOT_DIR/Models/Highlight.swift" \
   -o "$TMP_DIR/verify_t62_main"

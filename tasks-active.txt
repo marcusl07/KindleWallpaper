@@ -27,9 +27,6 @@ Create `QuoteEditView` for editing all fields (quote text, book title, author, l
 **T64c — Handle display reconfiguration with debounced restore**
 Extend `DisplayTopologyCoordinator.swift` and `KindleWallApp.swift` to observe display-configuration changes in addition to wake events, then debounce event bursts into a single restore pass after topology settles. Cover wake-then-reconfigure and repeated reconfiguration sequences in `scripts/verify_t64.sh` / `scripts/verify_t64_main.swift`.
 
-**T64d — Make wallpaper-assignment persistence operations explicit**
-In `ScheduleSettings.swift` and `AppState.swift`, replace the current replace-only persistence helper with explicit operations for replacing, merging, and clearing saved wallpaper assignments. Keep runtime behavior equivalent in this slice, and add targeted verification so later topology fixes can use these operations intentionally.
-
 **T64e — Extract display identity and remapping heuristics**
 Create `DisplayIdentityResolver.swift` and move display matching/remapping policy out of `WallpaperSetter.swift`, keeping `WallpaperSetter` focused on applying assignments. Wire `AppState.swift` to use the resolver for restore matching, and add adversarial tests for main-display changes, reordering, same-resolution displays, missing displays, and extra displays.
 
@@ -38,5 +35,3 @@ Update `AppState.swift`, `ScheduleSettings.swift`, and `DisplayTopologyCoordinat
 
 **T64g — Add no-op apply guards and final restore cleanup**
 Tighten `DisplayTopologyCoordinator.swift`, `WallpaperSetter.swift`, and `KindleWallApp.swift` to skip redundant restore/apply cycles when the desired assignment is already active, and remove obsolete wake-specific glue left behind by earlier slices. Finish `scripts/verify_t64.sh` / `scripts/verify_t64_main.swift` with end-to-end coverage for the full wake/reconfigure/reconnect flow.
-
-## Open Agent Handoff Bugs

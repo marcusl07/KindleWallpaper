@@ -186,19 +186,25 @@ extension UserDefaults {
         }
     }
 
-    func storeReusableGeneratedWallpapers(_ wallpapers: [StoredGeneratedWallpaper]) {
+    func replaceReusableGeneratedWallpapers(_ wallpapers: [StoredGeneratedWallpaper]) {
+        persistReusableGeneratedWallpaperPaths(Self.persistedWallpaperPaths(from: wallpapers))
+    }
+
+    func mergeReusableGeneratedWallpapers(_ wallpapers: [StoredGeneratedWallpaper]) {
         guard !wallpapers.isEmpty else {
-            removeObject(forKey: ScheduleKeys.reusableGeneratedWallpaperPathsByTarget)
             return
         }
 
-        let persistedPaths = Dictionary(
-            wallpapers.map { wallpaper in
-                (wallpaper.targetIdentifier, wallpaper.fileURL.standardizedFileURL.path)
-            },
-            uniquingKeysWith: { _, latest in latest }
-        )
-        set(persistedPaths, forKey: ScheduleKeys.reusableGeneratedWallpaperPathsByTarget)
+        var persistedPaths = reusableGeneratedWallpaperPathsByTarget()
+        let mergedPaths = Self.persistedWallpaperPaths(from: wallpapers)
+        for (targetIdentifier, path) in mergedPaths {
+            persistedPaths[targetIdentifier] = path
+        }
+        persistReusableGeneratedWallpaperPaths(persistedPaths)
+    }
+
+    func clearReusableGeneratedWallpapers() {
+        removeObject(forKey: ScheduleKeys.reusableGeneratedWallpaperPathsByTarget)
     }
 
     func loadReusableGeneratedWallpapers(
@@ -269,6 +275,55 @@ extension UserDefaults {
         }
 
         return nil
+    }
+
+    private func persistReusableGeneratedWallpaperPaths(_ persistedPaths: [String: String]) {
+        guard !persistedPaths.isEmpty else {
+            removeObject(forKey: ScheduleKeys.reusableGeneratedWallpaperPathsByTarget)
+            return
+        }
+
+        set(persistedPaths, forKey: ScheduleKeys.reusableGeneratedWallpaperPathsByTarget)
+    }
+
+    private func reusableGeneratedWallpaperPathsByTarget() -> [String: String] {
+        guard let storedPaths = dictionary(forKey: ScheduleKeys.reusableGeneratedWallpaperPathsByTarget) else {
+            return [:]
+        }
+
+        var persistedPaths: [String: String] = [:]
+        persistedPaths.reserveCapacity(storedPaths.count)
+
+        for (targetIdentifier, rawPathValue) in storedPaths {
+            guard let path = rawPathValue as? String else {
+                continue
+            }
+
+            let normalizedTargetIdentifier = targetIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedPath = path.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard
+                !normalizedTargetIdentifier.isEmpty,
+                !normalizedPath.isEmpty
+            else {
+                continue
+            }
+
+            persistedPaths[normalizedTargetIdentifier] = URL(fileURLWithPath: normalizedPath).standardizedFileURL.path
+        }
+
+        return persistedPaths
+    }
+
+    private static func persistedWallpaperPaths(from wallpapers: [StoredGeneratedWallpaper]) -> [String: String] {
+        Dictionary(
+            wallpapers.map { wallpaper in
+                (
+                    wallpaper.targetIdentifier.trimmingCharacters(in: .whitespacesAndNewlines),
+                    wallpaper.fileURL.standardizedFileURL.path
+                )
+            }.filter { !$0.0.isEmpty && !$0.1.isEmpty },
+            uniquingKeysWith: { _, latest in latest }
+        )
     }
 
     private static func normalizedDailyHour(_ value: Int) -> Int {

@@ -72,6 +72,18 @@ final class AppState: ObservableObject {
         }
     }
 
+    struct StoredWallpaperAssignmentPersistence {
+        let replace: ([GeneratedWallpaper]) -> Void
+        let merge: ([GeneratedWallpaper]) -> Void
+        let clear: () -> Void
+
+        static let noOp = StoredWallpaperAssignmentPersistence(
+            replace: { _ in },
+            merge: { _ in },
+            clear: {}
+        )
+    }
+
     typealias WallpaperRestoreOutcome = WallpaperSetter.RestoreOutcome
     typealias PickNextHighlight = () -> Highlight?
     typealias LoadBackgroundImageURLs = () -> [URL]
@@ -81,7 +93,6 @@ final class AppState: ObservableObject {
     typealias SetWallpaper = (URL) throws -> Void
     typealias PrepareWallpaperRotation = () -> WallpaperRotationPlan?
     typealias GenerateWallpapers = (Highlight, URL?, [WallpaperTarget]) -> [GeneratedWallpaper]
-    typealias StoreReusableGeneratedWallpapers = ([GeneratedWallpaper]) -> Void
     typealias ReapplyStoredWallpaper = () -> WallpaperRestoreOutcome
     typealias MarkHighlightShown = (UUID) -> Void
     typealias InsertHighlight = (Highlight) -> Void
@@ -120,7 +131,7 @@ final class AppState: ObservableObject {
     private let setWallpaper: SetWallpaper
     private let prepareWallpaperRotation: PrepareWallpaperRotation?
     private let generateWallpapers: GenerateWallpapers?
-    private let storeReusableGeneratedWallpapers: StoreReusableGeneratedWallpapers
+    private let storedWallpaperAssignmentPersistence: StoredWallpaperAssignmentPersistence
     private let reapplyStoredWallpaper: ReapplyStoredWallpaper
     private let markHighlightShown: MarkHighlightShown
     private let insertHighlightAction: InsertHighlight
@@ -167,7 +178,7 @@ final class AppState: ObservableObject {
         setWallpaper: @escaping SetWallpaper,
         prepareWallpaperRotation: PrepareWallpaperRotation? = nil,
         generateWallpapers: GenerateWallpapers? = nil,
-        storeReusableGeneratedWallpapers: @escaping StoreReusableGeneratedWallpapers = { _ in },
+        storedWallpaperAssignmentPersistence: StoredWallpaperAssignmentPersistence = .noOp,
         reapplyStoredWallpaper: @escaping ReapplyStoredWallpaper = { .noStoredWallpapers },
         markHighlightShown: @escaping MarkHighlightShown,
         insertHighlight: @escaping InsertHighlight = { _ in },
@@ -265,7 +276,7 @@ final class AppState: ObservableObject {
         self.setWallpaper = setWallpaper
         self.prepareWallpaperRotation = prepareWallpaperRotation
         self.generateWallpapers = generateWallpapers
-        self.storeReusableGeneratedWallpapers = storeReusableGeneratedWallpapers
+        self.storedWallpaperAssignmentPersistence = storedWallpaperAssignmentPersistence
         self.reapplyStoredWallpaper = reapplyStoredWallpaper
         self.markHighlightShown = markHighlightShown
         self.insertHighlightAction = insertHighlight
@@ -350,6 +361,18 @@ final class AppState: ObservableObject {
         reapplyStoredWallpaper()
     }
 
+    func replaceStoredWallpaperAssignments(_ wallpapers: [GeneratedWallpaper]) {
+        storedWallpaperAssignmentPersistence.replace(wallpapers)
+    }
+
+    func mergeStoredWallpaperAssignments(_ wallpapers: [GeneratedWallpaper]) {
+        storedWallpaperAssignmentPersistence.merge(wallpapers)
+    }
+
+    func clearStoredWallpaperAssignments() {
+        storedWallpaperAssignmentPersistence.clear()
+    }
+
     private struct RotationPipelineContext {
         let selectHighlight: () -> Highlight?
         let loadBackgroundImageURLs: LoadBackgroundImageURLs
@@ -359,7 +382,7 @@ final class AppState: ObservableObject {
         let setWallpaper: SetWallpaper
         let prepareWallpaperRotation: PrepareWallpaperRotation?
         let generateWallpapers: GenerateWallpapers?
-        let storeReusableGeneratedWallpapers: StoreReusableGeneratedWallpapers
+        let replaceStoredWallpaperAssignments: ([GeneratedWallpaper]) -> Void
         let markHighlightShown: MarkHighlightShown
         let setLastChangedAt: (Date) -> Void
         let now: Now
@@ -391,7 +414,9 @@ final class AppState: ObservableObject {
             setWallpaper: setWallpaper,
             prepareWallpaperRotation: prepareWallpaperRotation,
             generateWallpapers: generateWallpapers,
-            storeReusableGeneratedWallpapers: storeReusableGeneratedWallpapers,
+            replaceStoredWallpaperAssignments: { [self] wallpapers in
+                self.replaceStoredWallpaperAssignments(wallpapers)
+            },
             markHighlightShown: markHighlightShown,
             setLastChangedAt: { [userDefaults] changedAt in
                 userDefaults.lastChangedAt = changedAt
@@ -472,7 +497,7 @@ final class AppState: ObservableObject {
             }
         }
 
-        context.storeReusableGeneratedWallpapers(appliedGeneratedWallpapers)
+        context.replaceStoredWallpaperAssignments(appliedGeneratedWallpapers)
         context.markHighlightShown(highlight.id)
         let changedAt = context.now()
         context.setLastChangedAt(changedAt)
@@ -678,6 +703,15 @@ final class AppState: ObservableObject {
 
 #if canImport(GRDB)
 extension AppState {
+    private static func storedGeneratedWallpapers(from wallpapers: [GeneratedWallpaper]) -> [StoredGeneratedWallpaper] {
+        wallpapers.map { wallpaper in
+            StoredGeneratedWallpaper(
+                targetIdentifier: wallpaper.targetIdentifier,
+                fileURL: wallpaper.fileURL
+            )
+        }
+    }
+
     private static func warningMessage(from outcome: BackgroundImageStore.LoadCollectionOutcome) -> String? {
         switch outcome {
         case .success, .empty:
@@ -751,16 +785,21 @@ extension AppState {
                     )
                 }
             },
-            storeReusableGeneratedWallpapers: { generatedWallpapers in
-                userDefaults.storeReusableGeneratedWallpapers(
-                    generatedWallpapers.map { wallpaper in
-                        StoredGeneratedWallpaper(
-                            targetIdentifier: wallpaper.targetIdentifier,
-                            fileURL: wallpaper.fileURL
-                        )
-                    }
-                )
-            },
+            storedWallpaperAssignmentPersistence: StoredWallpaperAssignmentPersistence(
+                replace: { generatedWallpapers in
+                    userDefaults.replaceReusableGeneratedWallpapers(
+                        Self.storedGeneratedWallpapers(from: generatedWallpapers)
+                    )
+                },
+                merge: { generatedWallpapers in
+                    userDefaults.mergeReusableGeneratedWallpapers(
+                        Self.storedGeneratedWallpapers(from: generatedWallpapers)
+                    )
+                },
+                clear: {
+                    userDefaults.clearReusableGeneratedWallpapers()
+                }
+            ),
             reapplyStoredWallpaper: {
                 let storedWallpapers = userDefaults.loadReusableGeneratedWallpapers()
                 guard !storedWallpapers.isEmpty else {

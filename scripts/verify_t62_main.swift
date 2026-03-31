@@ -80,6 +80,36 @@ private func makeGenerator(
     )
 }
 
+private func makeStoredWallpaperAssignmentPersistence(
+    defaults: UserDefaults
+) -> AppState.StoredWallpaperAssignmentPersistence {
+    AppState.StoredWallpaperAssignmentPersistence(
+        replace: { wallpapers in
+            defaults.replaceReusableGeneratedWallpapers(
+                wallpapers.map { wallpaper in
+                    StoredGeneratedWallpaper(
+                        targetIdentifier: wallpaper.targetIdentifier,
+                        fileURL: wallpaper.fileURL
+                    )
+                }
+            )
+        },
+        merge: { wallpapers in
+            defaults.mergeReusableGeneratedWallpapers(
+                wallpapers.map { wallpaper in
+                    StoredGeneratedWallpaper(
+                        targetIdentifier: wallpaper.targetIdentifier,
+                        fileURL: wallpaper.fileURL
+                    )
+                }
+            )
+        },
+        clear: {
+            defaults.clearReusableGeneratedWallpapers()
+        }
+    )
+}
+
 private func setModificationDate(_ date: Date, for fileURL: URL) {
     do {
         try FileManager.default.setAttributes(
@@ -103,7 +133,7 @@ private func testStoredGeneratedWallpapersPruneMissingFiles() {
 
     FileManager.default.createFile(atPath: existingURL.path, contents: Data("ok".utf8))
 
-    defaults.storeReusableGeneratedWallpapers([
+    defaults.replaceReusableGeneratedWallpapers([
         StoredGeneratedWallpaper(targetIdentifier: "display-a", fileURL: existingURL),
         StoredGeneratedWallpaper(targetIdentifier: "display-b", fileURL: missingURL)
     ])
@@ -289,16 +319,7 @@ private func testAppStateStoresReusableWallpaperOnlyAfterSuccessfulSingleApply()
         loadBackgroundImageURL: { nil },
         generateWallpaper: { _, _ in successURL },
         setWallpaper: { _ in },
-        storeReusableGeneratedWallpapers: { wallpapers in
-            defaults.storeReusableGeneratedWallpapers(
-                wallpapers.map { wallpaper in
-                    StoredGeneratedWallpaper(
-                        targetIdentifier: wallpaper.targetIdentifier,
-                        fileURL: wallpaper.fileURL
-                    )
-                }
-            )
-        },
+        storedWallpaperAssignmentPersistence: makeStoredWallpaperAssignmentPersistence(defaults: defaults),
         markHighlightShown: { _ in }
     )
 
@@ -320,7 +341,7 @@ private func testAppStateStoresReusableWallpaperOnlyAfterSuccessfulSingleApply()
         "Expected single-wallpaper apply to persist the generated wallpaper file URL"
     )
 
-    defaults.storeReusableGeneratedWallpapers([])
+    defaults.clearReusableGeneratedWallpapers()
     let failureURL = tempDirectory.appendingPathComponent("failed.png", isDirectory: false)
     FileManager.default.createFile(atPath: failureURL.path, contents: Data("failure".utf8))
     let failingAppState = AppState(
@@ -332,16 +353,7 @@ private func testAppStateStoresReusableWallpaperOnlyAfterSuccessfulSingleApply()
             struct TestError: Error {}
             throw TestError()
         },
-        storeReusableGeneratedWallpapers: { wallpapers in
-            defaults.storeReusableGeneratedWallpapers(
-                wallpapers.map { wallpaper in
-                    StoredGeneratedWallpaper(
-                        targetIdentifier: wallpaper.targetIdentifier,
-                        fileURL: wallpaper.fileURL
-                    )
-                }
-            )
-        },
+        storedWallpaperAssignmentPersistence: makeStoredWallpaperAssignmentPersistence(defaults: defaults),
         markHighlightShown: { _ in }
     )
 
@@ -396,16 +408,7 @@ private func testAppStateStoresTargetedReusableWallpapersAfterSuccessfulApply() 
                 AppState.GeneratedWallpaper(targetIdentifier: "display-b", fileURL: secondURL)
             ]
         },
-        storeReusableGeneratedWallpapers: { wallpapers in
-            defaults.storeReusableGeneratedWallpapers(
-                wallpapers.map { wallpaper in
-                    StoredGeneratedWallpaper(
-                        targetIdentifier: wallpaper.targetIdentifier,
-                        fileURL: wallpaper.fileURL
-                    )
-                }
-            )
-        },
+        storedWallpaperAssignmentPersistence: makeStoredWallpaperAssignmentPersistence(defaults: defaults),
         markHighlightShown: { _ in }
     )
 
