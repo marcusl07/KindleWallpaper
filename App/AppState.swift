@@ -885,7 +885,7 @@ extension AppState {
                     targets: generatorTargets
                 ).map { generated in
                     let target = targetsByIdentifier[generated.targetIdentifier]
-                    GeneratedWallpaper(
+                    return GeneratedWallpaper(
                         targetIdentifier: generated.targetIdentifier,
                         fileURL: generated.fileURL,
                         pixelWidth: target?.pixelWidth,
@@ -920,13 +920,9 @@ extension AppState {
                     return .noStoredWallpapers
                 }
 
-                let resolvedScreens = DisplayIdentityResolver.resolvedConnectedScreens()
-                return DisplayIdentityResolver.restoreStoredWallpapers(
+                return WallpaperSetter.restoreStoredWallpapers(
                     storedWallpapers,
-                    resolvedScreens: resolvedScreens,
-                    currentDesktopImageURL: { screen in
-                        NSWorkspace.shared.desktopImageURL(for: screen)
-                    }
+                    on: DisplayIdentityResolver.resolvedConnectedScreens()
                 )
             },
             markHighlightShown: DatabaseManager.markHighlightShown(id:),
