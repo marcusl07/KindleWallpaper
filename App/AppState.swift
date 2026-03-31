@@ -1,6 +1,9 @@
 import Combine
 import Dispatch
 import Foundation
+#if canImport(AppKit)
+import AppKit
+#endif
 
 private let wallpaperRotationQueue = DispatchQueue(
     label: "KindleWall.AppState.WallpaperRotation",
@@ -850,7 +853,16 @@ extension AppState {
                             imageURL: generated.fileURL
                         )
                     }
-                    try WallpaperSetter.trySetWallpapers(assignments: assignments, on: resolvedScreens)
+                    try WallpaperSetter.applyWallpapers(
+                        assignments: assignments,
+                        resolvedScreens: resolvedScreens,
+                        currentDesktopImageURL: { screen in
+                            NSWorkspace.shared.desktopImageURL(for: screen)
+                        },
+                        setDesktopImage: { url, screen in
+                            try NSWorkspace.shared.setDesktopImageURL(url, for: screen, options: [:])
+                        }
+                    )
                 }
             },
             generateWallpapers: { highlight, backgroundURL, targets in
@@ -911,7 +923,10 @@ extension AppState {
                 let resolvedScreens = DisplayIdentityResolver.resolvedConnectedScreens()
                 return DisplayIdentityResolver.restoreStoredWallpapers(
                     storedWallpapers,
-                    resolvedScreens: resolvedScreens
+                    resolvedScreens: resolvedScreens,
+                    currentDesktopImageURL: { screen in
+                        NSWorkspace.shared.desktopImageURL(for: screen)
+                    }
                 )
             },
             markHighlightShown: DatabaseManager.markHighlightShown(id:),

@@ -29,8 +29,10 @@ require_pattern "$WALLPAPER_SETTER_FILE" 'case[[:space:]]+noStoredWallpapers' "n
 require_pattern "$WALLPAPER_SETTER_FILE" 'case[[:space:]]+noConnectedScreens' "no connected screens outcome"
 require_pattern "$WALLPAPER_SETTER_FILE" 'case[[:space:]]+applyFailure' "apply failure outcome"
 require_pattern "$WALLPAPER_SETTER_FILE" 'func[[:space:]]+restoreStoredWallpapers' "explicit restore entrypoint"
+require_pattern "$WALLPAPER_SETTER_FILE" 'currentDesktopImageURL' "no-op current wallpaper guard hook"
 require_pattern "$DISPLAY_IDENTITY_RESOLVER_FILE" 'func[[:space:]]+resolvedAssignments' "display remapping plan builder"
 require_pattern "$DISPLAY_IDENTITY_RESOLVER_FILE" 'func[[:space:]]+resolvedConnectedScreens' "connected screen resolver"
+require_pattern "$DISPLAY_IDENTITY_RESOLVER_FILE" 'restorePlan\.assignments\.count[[:space:]]*==[[:space:]]*restorePlan\.expectedAssignmentCount' "restore outcome based on resolved assignments instead of raw apply count"
 require_pattern "$SCHEDULE_SETTINGS_FILE" 'func[[:space:]]+replaceReusableGeneratedWallpapers' "replace wallpaper persistence helper"
 require_pattern "$SCHEDULE_SETTINGS_FILE" 'func[[:space:]]+mergeReusableGeneratedWallpapers' "merge wallpaper persistence helper"
 require_pattern "$SCHEDULE_SETTINGS_FILE" 'func[[:space:]]+clearReusableGeneratedWallpapers' "clear wallpaper persistence helper"
@@ -53,7 +55,7 @@ require_pattern "$DISPLAY_TOPOLOGY_COORDINATOR_FILE" 'defaultRestoreDebounceInte
 require_pattern "$DISPLAY_TOPOLOGY_COORDINATOR_FILE" 'handleDisplayReconfigurationNotification' "display reconfiguration handler"
 require_pattern "$DISPLAY_TOPOLOGY_COORDINATOR_FILE" 'restoreGeneration' "debounced restore generation tracking"
 require_pattern "$APP_FILE" 'DisplayTopologyCoordinator\(' "app delegate display topology coordinator wiring"
-require_pattern "$APP_FILE" 'defaultRestoreDebounceInterval' "app uses debounced display restore interval"
+require_pattern "$APP_STATE_FILE" 'desktopImageURL\(for:' "live restore/apply compares current desktop images"
 if rg -q 'func[[:space:]]+reapplyStoredWallpaperIfAvailable\(\)[[:space:]]*->[[:space:]]*Bool' "$APP_STATE_FILE"; then
   echo "Verification failed: unexpected legacy Bool restore API in $APP_STATE_FILE" >&2
   exit 1

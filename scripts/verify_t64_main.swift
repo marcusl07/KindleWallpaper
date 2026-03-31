@@ -284,6 +284,40 @@ private func testPartialRestoreWhenTopologyIsReduced() {
     expectEqual(applied[0].0, "screen-a", "Expected matching connected screen to keep its wallpaper")
 }
 
+private func testRestoreSkipsApplyWhenTargetedAssignmentsAlreadyMatchActiveWallpapers() {
+    let directory = makeTemporaryDirectory(prefix: "kindlewall-t64-noop-targeted")
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let firstURL = makeWallpaper(directory: directory, name: "display-a.png")
+    let secondURL = makeWallpaper(directory: directory, name: "display-b.png")
+    let screens = [
+        makeResolvedScreen(screen: "screen-a", identifier: "display-a"),
+        makeResolvedScreen(screen: "screen-b", identifier: "display-b")
+    ]
+    let activeImagesByScreen = [
+        "screen-a": firstURL.standardizedFileURL,
+        "screen-b": secondURL.standardizedFileURL
+    ]
+
+    var applyCallCount = 0
+    let outcome = WallpaperSetter.restoreStoredWallpapers(
+        [
+            StoredGeneratedWallpaper(targetIdentifier: "display-a", fileURL: firstURL),
+            StoredGeneratedWallpaper(targetIdentifier: "display-b", fileURL: secondURL)
+        ],
+        resolvedScreens: screens,
+        currentDesktopImageURL: { screen in
+            activeImagesByScreen[screen]
+        },
+        setDesktopImage: { _, _ in
+            applyCallCount += 1
+        }
+    )
+
+    expectEqual(outcome, .fullRestore, "Expected an already-correct targeted restore to remain a full restore")
+    expectEqual(applyCallCount, 0, "Expected targeted restore to skip writes when every active wallpaper already matches")
+}
+
 private func testNoStoredWallpaperOutcome() {
     let screens = [
         makeResolvedScreen(screen: "screen-a", identifier: "display-a")
@@ -1132,6 +1166,208 @@ private func testAppStatePreservesStoredAssignmentsAcrossTransientReducedTopolog
     )
 }
 
+@MainActor
+private func testDisplayTopologyCoordinatorWakeReconfigureReconnectFlowRestoresOnlyMissingScreen() {
+    let defaults = makeDefaults()
+    defer { clearDefaults(defaults) }
+
+    let directory = makeTemporaryDirectory(prefix: "kindlewall-t64-wake-reconnect")
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let primaryTarget = AppState.WallpaperTarget(
+        identifier: "display-a",
+        pixelWidth: 1920,
+        pixelHeight: 1080,
+        backingScaleFactor: 1.0,
+        originX: 0,
+        originY: 0
+    )
+    let secondaryTarget = AppState.WallpaperTarget(
+        identifier: "display-b",
+        pixelWidth: 1920,
+        pixelHeight: 1080,
+        backingScaleFactor: 1.0,
+        originX: 1920,
+        originY: 0
+    )
+    let primaryScreen = makeResolvedScreen(
+        screen: "screen-a",
+        identifier: primaryTarget.identifier,
+        pixelWidth: primaryTarget.pixelWidth,
+        pixelHeight: primaryTarget.pixelHeight,
+        backingScaleFactor: primaryTarget.backingScaleFactor,
+        originX: primaryTarget.originX ?? 0,
+        originY: primaryTarget.originY ?? 0
+    )
+    let secondaryScreen = makeResolvedScreen(
+        screen: "screen-b",
+        identifier: secondaryTarget.identifier,
+        pixelWidth: secondaryTarget.pixelWidth,
+        pixelHeight: secondaryTarget.pixelHeight,
+        backingScaleFactor: secondaryTarget.backingScaleFactor,
+        originX: secondaryTarget.originX ?? 0,
+        originY: secondaryTarget.originY ?? 0
+    )
+
+    var currentTargets = [primaryTarget, secondaryTarget]
+    var currentResolvedScreens = [primaryScreen, secondaryScreen]
+    var activeImagesByScreen: [String: URL] = [:]
+    var appliedImagesByScreen: [String: URL] = [:]
+    var restoreOutcomes: [WallpaperSetter.RestoreOutcome] = []
+    var rotationNumber = 0
+    let scheduler = ManualRestoreScheduler()
+    let wakeNotificationName = Notification.Name("verify-t64-wake-reconnect-wake")
+    let displayNotificationName = Notification.Name("verify-t64-wake-reconnect-display")
+    let wakeCenter = NotificationCenter()
+    let displayCenter = NotificationCenter()
+
+    let appState = AppState(
+        pickNextHighlight: { makeHighlight(quoteText: "Wake reconnect flow") },
+        generateWallpaper: { _, _ in
+            fail("Expected wake/reconfigure/reconnect test to use multi-display generation")
+        },
+        setWallpaper: { _ in
+            fail("Expected wake/reconfigure/reconnect test not to use the all-screens apply path")
+        },
+        prepareWallpaperRotation: {
+            let resolvedScreens = currentResolvedScreens
+            let targets = currentTargets
+            return AppState.WallpaperRotationPlan(targets: targets) { generatedWallpapers in
+                let assignments = generatedWallpapers.map { generatedWallpaper in
+                    WallpaperSetter.WallpaperAssignment(
+                        screenIdentifier: generatedWallpaper.targetIdentifier,
+                        imageURL: generatedWallpaper.fileURL
+                    )
+                }
+                _ = WallpaperSetter.applyWallpapers(
+                    assignments: assignments,
+                    resolvedScreens: resolvedScreens,
+                    currentDesktopImageURL: { screen in
+                        activeImagesByScreen[screen]
+                    },
+                    setDesktopImage: { url, screen in
+                        let standardizedURL = url.standardizedFileURL
+                        activeImagesByScreen[screen] = standardizedURL
+                        appliedImagesByScreen[screen] = standardizedURL
+                    }
+                )
+            }
+        },
+        generateWallpapers: { _, _, targets in
+            rotationNumber += 1
+            return targets.map { target in
+                let wallpaperURL = makeWallpaper(
+                    directory: directory,
+                    name: "wake-reconnect-\(rotationNumber)-\(target.identifier).png"
+                )
+                return AppState.GeneratedWallpaper(
+                    targetIdentifier: target.identifier,
+                    fileURL: wallpaperURL,
+                    pixelWidth: target.pixelWidth,
+                    pixelHeight: target.pixelHeight,
+                    backingScaleFactor: Double(target.backingScaleFactor),
+                    originX: target.originX,
+                    originY: target.originY
+                )
+            }
+        },
+        storedWallpaperAssignmentPersistence: makeStoredWallpaperAssignmentPersistence(defaults: defaults),
+        reapplyStoredWallpaper: {
+            let outcome = DisplayIdentityResolver.restoreStoredWallpapers(
+                defaults.loadReusableGeneratedWallpapers(),
+                resolvedScreens: currentResolvedScreens,
+                currentDesktopImageURL: { screen in
+                    activeImagesByScreen[screen]
+                },
+                setDesktopImage: { url, screen in
+                    let standardizedURL = url.standardizedFileURL
+                    activeImagesByScreen[screen] = standardizedURL
+                    appliedImagesByScreen[screen] = standardizedURL
+                }
+            )
+            restoreOutcomes.append(outcome)
+            return outcome
+        },
+        markHighlightShown: { _ in }
+    )
+
+    let coordinator = DisplayTopologyCoordinator(
+        appState: appState,
+        notificationCenter: wakeCenter,
+        wakeNotificationName: wakeNotificationName,
+        displayReconfigurationNotificationCenter: displayCenter,
+        displayReconfigurationNotificationName: displayNotificationName,
+        debounceInterval: 0.25,
+        scheduleRestore: scheduler.schedule(generation:delay:operation:)
+    )
+
+    let initialRotationOutcome = appState.rotateWallpaperWithOutcome()
+    expectEqual(initialRotationOutcome, .success, "Expected the initial full-topology rotation to succeed")
+
+    let initialStoredWallpapers = defaults.loadReusableGeneratedWallpapers()
+    expectEqual(initialStoredWallpapers.count, 2, "Expected the initial rotation to persist both displays")
+    let initialStoredURLsByTarget = Dictionary(
+        uniqueKeysWithValues: initialStoredWallpapers.map { wallpaper in
+            (wallpaper.targetIdentifier, wallpaper.fileURL.standardizedFileURL)
+        }
+    )
+
+    currentTargets = [primaryTarget]
+    currentResolvedScreens = [primaryScreen]
+    appliedImagesByScreen.removeAll()
+
+    let reducedRotationOutcome = appState.rotateWallpaperWithOutcome()
+    expectEqual(reducedRotationOutcome, .success, "Expected the reduced-topology rotation to succeed")
+
+    let reducedStoredWallpapers = defaults.loadReusableGeneratedWallpapers()
+    let reducedStoredURLsByTarget = Dictionary(
+        uniqueKeysWithValues: reducedStoredWallpapers.map { wallpaper in
+            (wallpaper.targetIdentifier, wallpaper.fileURL.standardizedFileURL)
+        }
+    )
+    expectEqual(reducedStoredWallpapers.count, 2, "Expected reduced-topology rotation to preserve the disconnected display assignment")
+    expect(
+        reducedStoredURLsByTarget["display-a"] != initialStoredURLsByTarget["display-a"],
+        "Expected the connected display to receive a new wallpaper during reduced-topology rotation"
+    )
+    expectEqual(
+        reducedStoredURLsByTarget["display-b"],
+        initialStoredURLsByTarget["display-b"],
+        "Expected the disconnected display wallpaper to remain persisted for reconnect restore"
+    )
+
+    currentTargets = [primaryTarget, secondaryTarget]
+    currentResolvedScreens = [primaryScreen, secondaryScreen]
+    activeImagesByScreen["screen-a"] = reducedStoredURLsByTarget["display-a"]
+    activeImagesByScreen["screen-b"] = nil
+    appliedImagesByScreen.removeAll()
+    restoreOutcomes.removeAll()
+
+    coordinator.start()
+    wakeCenter.post(name: wakeNotificationName, object: nil)
+    displayCenter.post(name: displayNotificationName, object: nil)
+
+    expectEqual(scheduler.entries.count, 2, "Expected wake plus display reconfiguration to schedule two debounced restore attempts")
+
+    scheduler.fire(at: 0)
+    expectEqual(restoreOutcomes, [], "Expected the superseded wake restore not to run after the later reconfiguration")
+    expectEqual(appliedImagesByScreen, [:], "Expected the superseded wake restore not to apply any wallpapers")
+
+    scheduler.fire(at: 1)
+    expectEqual(restoreOutcomes, [.fullRestore], "Expected the settled reconnect restore to report a full restore")
+    expectEqual(appliedImagesByScreen.count, 1, "Expected reconnect restore to apply only the screen missing its wallpaper")
+    expectEqual(
+        appliedImagesByScreen["screen-a"],
+        nil,
+        "Expected reconnect restore to skip rewriting the screen that already had the desired wallpaper"
+    )
+    expectEqual(
+        appliedImagesByScreen["screen-b"],
+        reducedStoredURLsByTarget["display-b"],
+        "Expected reconnect restore to reapply the preserved wallpaper only to the missing screen"
+    )
+}
+
 testReplaceReusableGeneratedWallpapersReplacesStoredSnapshot()
 testMergeReusableGeneratedWallpapersMergesByTargetIdentifier()
 testClearReusableGeneratedWallpapersRemovesStoredAssignments()
@@ -1139,6 +1375,7 @@ testStoredWallpaperPersistenceRetainsDisplayMetadata()
 testFullRestoreForAllScreensWallpaper()
 testFullRestoreForTargetedScreens()
 testPartialRestoreWhenTopologyIsReduced()
+testRestoreSkipsApplyWhenTargetedAssignmentsAlreadyMatchActiveWallpapers()
 testNoStoredWallpaperOutcome()
 testNoConnectedScreensOutcome()
 testApplyFailureOutcome()
@@ -1157,6 +1394,7 @@ await MainActor.run {
     testAppStateRotationFailureSkipsPersistenceOperations()
     testAppStateExplicitMergeAndClearForwardToPersistenceBoundary()
     testAppStatePreservesStoredAssignmentsAcrossTransientReducedTopology()
+    testDisplayTopologyCoordinatorWakeReconfigureReconnectFlowRestoresOnlyMissingScreen()
 }
 
 print("verify_t64_main passed")

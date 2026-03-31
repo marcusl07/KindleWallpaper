@@ -158,10 +158,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         if let displayTopologyCoordinator {
             displayTopologyCoordinator.setAppState(appState)
         } else {
-            displayTopologyCoordinator = DisplayTopologyCoordinator(
-                appState: appState,
-                debounceInterval: DisplayTopologyCoordinator.defaultRestoreDebounceInterval
-            )
+            displayTopologyCoordinator = DisplayTopologyCoordinator(appState: appState)
         }
 
         if hasFinishedLaunching {

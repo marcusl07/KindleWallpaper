@@ -38,12 +38,14 @@ enum DisplayIdentityResolver {
     static func restoreStoredWallpapers<Screen>(
         _ wallpapers: [StoredGeneratedWallpaper],
         resolvedScreens: [WallpaperSetter.ResolvedScreen<Screen>],
+        currentDesktopImageURL: WallpaperSetter.CurrentDesktopImageURL<Screen>? = nil,
         setDesktopImage: (URL, Screen) throws -> Void
     ) -> WallpaperSetter.RestoreOutcome {
         do {
             return try reapplyStoredWallpapers(
                 wallpapers,
                 resolvedScreens: resolvedScreens,
+                currentDesktopImageURL: currentDesktopImageURL,
                 setDesktopImage: setDesktopImage
             )
         } catch {
@@ -55,6 +57,7 @@ enum DisplayIdentityResolver {
     static func reapplyStoredWallpapers<Screen>(
         _ wallpapers: [StoredGeneratedWallpaper],
         resolvedScreens: [WallpaperSetter.ResolvedScreen<Screen>],
+        currentDesktopImageURL: WallpaperSetter.CurrentDesktopImageURL<Screen>? = nil,
         setDesktopImage: (URL, Screen) throws -> Void
     ) rethrows -> WallpaperSetter.RestoreOutcome {
         guard !wallpapers.isEmpty else {
@@ -70,21 +73,23 @@ enum DisplayIdentityResolver {
             let wallpaper = wallpapers.first,
             wallpaper.targetIdentifier == StoredGeneratedWallpaper.allScreensTargetIdentifier
         {
-            try WallpaperSetter.applyWallpaper(
+            _ = try WallpaperSetter.applyWallpaper(
                 imageURL: wallpaper.fileURL,
                 screens: resolvedScreens.map(\.screen),
+                currentDesktopImageURL: currentDesktopImageURL,
                 setDesktopImage: setDesktopImage
             )
             return .fullRestore
         }
 
         let restorePlan = resolvedAssignments(for: wallpapers, resolvedScreens: resolvedScreens)
-        let appliedCount = try WallpaperSetter.applyWallpapers(
+        _ = try WallpaperSetter.applyWallpapers(
             assignments: restorePlan.assignments,
             resolvedScreens: resolvedScreens,
+            currentDesktopImageURL: currentDesktopImageURL,
             setDesktopImage: setDesktopImage
         )
-        return appliedCount == restorePlan.expectedAssignmentCount ? .fullRestore : .partialRestore
+        return restorePlan.assignments.count == restorePlan.expectedAssignmentCount ? .fullRestore : .partialRestore
     }
 
     static func resolvedAssignments<Screen>(

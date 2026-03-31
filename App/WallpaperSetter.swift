@@ -80,6 +80,8 @@ enum WallpaperSetter {
         let imageURL: URL
     }
 
+    typealias CurrentDesktopImageURL<Screen> = (Screen) -> URL?
+
     static func resolvedConnectedScreens(
         screensProvider: () -> [NSScreen] = { NSScreen.screens }
     ) -> [ResolvedScreen<NSScreen>] {
@@ -146,6 +148,9 @@ enum WallpaperSetter {
     static func restoreStoredWallpapers(
         _ wallpapers: [StoredGeneratedWallpaper],
         on resolvedScreens: [ResolvedScreen<NSScreen>],
+        currentDesktopImageURL: CurrentDesktopImageURL<NSScreen>? = { screen in
+            NSWorkspace.shared.desktopImageURL(for: screen)
+        },
         setDesktopImage: (URL, NSScreen) throws -> Void = { url, screen in
             try NSWorkspace.shared.setDesktopImageURL(url, for: screen, options: [:])
         }
@@ -153,6 +158,7 @@ enum WallpaperSetter {
         restoreStoredWallpapers(
             wallpapers,
             resolvedScreens: resolvedScreens,
+            currentDesktopImageURL: currentDesktopImageURL,
             setDesktopImage: setDesktopImage
         )
     }
@@ -161,11 +167,13 @@ enum WallpaperSetter {
     static func restoreStoredWallpapers<Screen>(
         _ wallpapers: [StoredGeneratedWallpaper],
         resolvedScreens: [ResolvedScreen<Screen>],
+        currentDesktopImageURL: CurrentDesktopImageURL<Screen>? = nil,
         setDesktopImage: (URL, Screen) throws -> Void
     ) -> RestoreOutcome {
         DisplayIdentityResolver.restoreStoredWallpapers(
             wallpapers,
             resolvedScreens: resolvedScreens,
+            currentDesktopImageURL: currentDesktopImageURL,
             setDesktopImage: setDesktopImage
         )
     }
@@ -174,11 +182,13 @@ enum WallpaperSetter {
     static func reapplyStoredWallpapers<Screen>(
         _ wallpapers: [StoredGeneratedWallpaper],
         resolvedScreens: [ResolvedScreen<Screen>],
+        currentDesktopImageURL: CurrentDesktopImageURL<Screen>? = nil,
         setDesktopImage: (URL, Screen) throws -> Void
     ) rethrows -> RestoreOutcome {
         try DisplayIdentityResolver.reapplyStoredWallpapers(
             wallpapers,
             resolvedScreens: resolvedScreens,
+            currentDesktopImageURL: currentDesktopImageURL,
             setDesktopImage: setDesktopImage
         )
     }
@@ -215,6 +225,7 @@ enum WallpaperSetter {
     static func applyWallpapers<Screen>(
         assignments: [WallpaperAssignment],
         resolvedScreens: [ResolvedScreen<Screen>],
+        currentDesktopImageURL: CurrentDesktopImageURL<Screen>? = nil,
         setDesktopImage: (URL, Screen) throws -> Void
     ) rethrows -> Int {
         let urlsByIdentifier = Dictionary(
@@ -229,6 +240,9 @@ enum WallpaperSetter {
             guard let imageURL = urlsByIdentifier[resolvedScreen.identifier] else {
                 continue
             }
+            if let currentDesktopImageURL, urlsMatch(currentDesktopImageURL(resolvedScreen.screen), imageURL) {
+                continue
+            }
             try setDesktopImage(imageURL, resolvedScreen.screen)
             appliedCount += 1
         }
@@ -240,6 +254,7 @@ enum WallpaperSetter {
         assignments: [WallpaperAssignment],
         screens: [Screen],
         screenIdentifier: (Screen, Int) -> String,
+        currentDesktopImageURL: CurrentDesktopImageURL<Screen>? = nil,
         setDesktopImage: (URL, Screen) throws -> Void
     ) rethrows -> Int {
         let resolvedScreens = screens.enumerated().map { index, screen in
@@ -253,6 +268,7 @@ enum WallpaperSetter {
         return try applyWallpapers(
             assignments: assignments,
             resolvedScreens: resolvedScreens,
+            currentDesktopImageURL: currentDesktopImageURL,
             setDesktopImage: setDesktopImage
         )
     }
@@ -260,11 +276,40 @@ enum WallpaperSetter {
     static func applyWallpaper<Screen>(
         imageURL: URL,
         screens: [Screen],
+        currentDesktopImageURL: CurrentDesktopImageURL<Screen>? = nil,
         setDesktopImage: (URL, Screen) throws -> Void
-    ) rethrows {
+    ) rethrows -> Int {
+        var appliedCount = 0
         for screen in screens {
+            if let currentDesktopImageURL, urlsMatch(currentDesktopImageURL(screen), imageURL) {
+                continue
+            }
             try setDesktopImage(imageURL, screen)
+            appliedCount += 1
         }
+        return appliedCount
+    }
+
+    @discardableResult
+    static func applyWallpaper<Screen>(
+        imageURL: URL,
+        screens: [Screen],
+        setDesktopImage: (URL, Screen) throws -> Void
+    ) rethrows -> Int {
+        try applyWallpaper(
+            imageURL: imageURL,
+            screens: screens,
+            currentDesktopImageURL: nil,
+            setDesktopImage: setDesktopImage
+        )
+    }
+
+    private static func urlsMatch(_ lhs: URL?, _ rhs: URL) -> Bool {
+        guard let lhs else {
+            return false
+        }
+
+        return lhs.standardizedFileURL == rhs.standardizedFileURL
     }
 
 }
