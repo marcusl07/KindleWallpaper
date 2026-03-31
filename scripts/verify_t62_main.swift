@@ -84,6 +84,9 @@ private func makeStoredWallpaperAssignmentPersistence(
     defaults: UserDefaults
 ) -> AppState.StoredWallpaperAssignmentPersistence {
     AppState.StoredWallpaperAssignmentPersistence(
+        load: {
+            defaults.loadReusableGeneratedWallpapers()
+        },
         replace: { wallpapers in
             defaults.replaceReusableGeneratedWallpapers(
                 wallpapers.map { wallpaper in

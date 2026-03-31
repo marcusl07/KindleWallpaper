@@ -114,11 +114,13 @@ final class AppState: ObservableObject {
     }
 
     struct StoredWallpaperAssignmentPersistence {
+        let load: () -> [StoredGeneratedWallpaper]
         let replace: ([GeneratedWallpaper]) -> Void
         let merge: ([GeneratedWallpaper]) -> Void
         let clear: () -> Void
 
         static let noOp = StoredWallpaperAssignmentPersistence(
+            load: { [] },
             replace: { _ in },
             merge: { _ in },
             clear: {}
@@ -423,7 +425,7 @@ final class AppState: ObservableObject {
         let setWallpaper: SetWallpaper
         let prepareWallpaperRotation: PrepareWallpaperRotation?
         let generateWallpapers: GenerateWallpapers?
-        let replaceStoredWallpaperAssignments: ([GeneratedWallpaper]) -> Void
+        let persistAppliedWallpaperAssignments: ([GeneratedWallpaper]) -> Void
         let markHighlightShown: MarkHighlightShown
         let setLastChangedAt: (Date) -> Void
         let now: Now
@@ -455,8 +457,8 @@ final class AppState: ObservableObject {
             setWallpaper: setWallpaper,
             prepareWallpaperRotation: prepareWallpaperRotation,
             generateWallpapers: generateWallpapers,
-            replaceStoredWallpaperAssignments: { [self] wallpapers in
-                self.replaceStoredWallpaperAssignments(wallpapers)
+            persistAppliedWallpaperAssignments: { [self] wallpapers in
+                self.persistAppliedWallpaperAssignments(wallpapers)
             },
             markHighlightShown: markHighlightShown,
             setLastChangedAt: { [userDefaults] changedAt in
@@ -538,7 +540,7 @@ final class AppState: ObservableObject {
             }
         }
 
-        context.replaceStoredWallpaperAssignments(appliedGeneratedWallpapers)
+        context.persistAppliedWallpaperAssignments(appliedGeneratedWallpapers)
         context.markHighlightShown(highlight.id)
         let changedAt = context.now()
         context.setLastChangedAt(changedAt)
@@ -599,6 +601,44 @@ final class AppState: ObservableObject {
             }
         }
         return nil
+    }
+
+    private func persistAppliedWallpaperAssignments(_ wallpapers: [GeneratedWallpaper]) {
+        if shouldMergePersistedWallpaperAssignments(with: wallpapers) {
+            mergeStoredWallpaperAssignments(wallpapers)
+            return
+        }
+
+        replaceStoredWallpaperAssignments(wallpapers)
+    }
+
+    private func shouldMergePersistedWallpaperAssignments(with wallpapers: [GeneratedWallpaper]) -> Bool {
+        let newTargetedIdentifiers = Set(
+            wallpapers.compactMap { wallpaper -> String? in
+                guard wallpaper.targetIdentifier != StoredGeneratedWallpaper.allScreensTargetIdentifier else {
+                    return nil
+                }
+                return wallpaper.targetIdentifier
+            }
+        )
+        guard newTargetedIdentifiers.count == wallpapers.count else {
+            return false
+        }
+
+        let storedTargetedIdentifiers = Set(
+            storedWallpaperAssignmentPersistence.load().compactMap { wallpaper -> String? in
+                guard wallpaper.targetIdentifier != StoredGeneratedWallpaper.allScreensTargetIdentifier else {
+                    return nil
+                }
+                return wallpaper.targetIdentifier
+            }
+        )
+        guard !storedTargetedIdentifiers.isEmpty else {
+            return false
+        }
+
+        return newTargetedIdentifiers.count < storedTargetedIdentifiers.count
+            && newTargetedIdentifiers.isSubset(of: storedTargetedIdentifiers)
     }
 
     private func publishRotationExecution(_ execution: RotationExecution) {
@@ -845,6 +885,9 @@ extension AppState {
                 }
             },
             storedWallpaperAssignmentPersistence: StoredWallpaperAssignmentPersistence(
+                load: {
+                    userDefaults.loadReusableGeneratedWallpapers()
+                },
                 replace: { generatedWallpapers in
                     userDefaults.replaceReusableGeneratedWallpapers(
                         Self.storedGeneratedWallpapers(from: generatedWallpapers)

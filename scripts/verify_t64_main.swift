@@ -374,6 +374,49 @@ private func makeRestoreTestingAppState(
     )
 }
 
+private func makeStoredWallpaperAssignmentPersistence(
+    defaults: UserDefaults
+) -> AppState.StoredWallpaperAssignmentPersistence {
+    AppState.StoredWallpaperAssignmentPersistence(
+        load: {
+            defaults.loadReusableGeneratedWallpapers()
+        },
+        replace: { wallpapers in
+            defaults.replaceReusableGeneratedWallpapers(
+                wallpapers.map { wallpaper in
+                    StoredGeneratedWallpaper(
+                        targetIdentifier: wallpaper.targetIdentifier,
+                        fileURL: wallpaper.fileURL,
+                        pixelWidth: wallpaper.pixelWidth,
+                        pixelHeight: wallpaper.pixelHeight,
+                        backingScaleFactor: wallpaper.backingScaleFactor,
+                        originX: wallpaper.originX,
+                        originY: wallpaper.originY
+                    )
+                }
+            )
+        },
+        merge: { wallpapers in
+            defaults.mergeReusableGeneratedWallpapers(
+                wallpapers.map { wallpaper in
+                    StoredGeneratedWallpaper(
+                        targetIdentifier: wallpaper.targetIdentifier,
+                        fileURL: wallpaper.fileURL,
+                        pixelWidth: wallpaper.pixelWidth,
+                        pixelHeight: wallpaper.pixelHeight,
+                        backingScaleFactor: wallpaper.backingScaleFactor,
+                        originX: wallpaper.originX,
+                        originY: wallpaper.originY
+                    )
+                }
+            )
+        },
+        clear: {
+            defaults.clearReusableGeneratedWallpapers()
+        }
+    )
+}
+
 private func testApplyFailureOutcome() {
     let directory = makeTemporaryDirectory(prefix: "kindlewall-t64-failure")
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -817,6 +860,7 @@ private func testAppStateRotationUsesReplacePersistenceOnly() {
         generateWallpaper: { _, _ in wallpaperURL },
         setWallpaper: { _ in },
         storedWallpaperAssignmentPersistence: AppState.StoredWallpaperAssignmentPersistence(
+            load: { [] },
             replace: { wallpapers in
                 replacedWallpapers.append(wallpapers)
             },
@@ -862,6 +906,7 @@ private func testAppStateRotationFailureSkipsPersistenceOperations() {
             throw TestError.applyFailed
         },
         storedWallpaperAssignmentPersistence: AppState.StoredWallpaperAssignmentPersistence(
+            load: { [] },
             replace: { _ in
                 replaceCallCount += 1
             },
@@ -908,6 +953,7 @@ private func testAppStateExplicitMergeAndClearForwardToPersistenceBoundary() {
             fail("Expected explicit persistence forwarding test not to apply wallpapers")
         },
         storedWallpaperAssignmentPersistence: AppState.StoredWallpaperAssignmentPersistence(
+            load: { [] },
             replace: { _ in
                 fail("Expected explicit merge/clear forwarding not to call replace")
             },
@@ -928,6 +974,162 @@ private func testAppStateExplicitMergeAndClearForwardToPersistenceBoundary() {
 
     expectEqual(mergedWallpapers, [[mergedWallpaper]], "Expected AppState.mergeStoredWallpaperAssignments to forward the generated wallpapers unchanged")
     expectEqual(clearCallCount, 1, "Expected AppState.clearStoredWallpaperAssignments to forward exactly once")
+}
+
+@MainActor
+private func testAppStatePreservesStoredAssignmentsAcrossTransientReducedTopology() {
+    let defaults = makeDefaults()
+    defer { clearDefaults(defaults) }
+
+    let directory = makeTemporaryDirectory(prefix: "kindlewall-t64-transient-topology")
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let primaryTarget = AppState.WallpaperTarget(
+        identifier: "display-a",
+        pixelWidth: 1920,
+        pixelHeight: 1080,
+        backingScaleFactor: 1.0,
+        originX: 0,
+        originY: 0
+    )
+    let secondaryTarget = AppState.WallpaperTarget(
+        identifier: "display-b",
+        pixelWidth: 1920,
+        pixelHeight: 1080,
+        backingScaleFactor: 1.0,
+        originX: 1920,
+        originY: 0
+    )
+    let primaryScreen = makeResolvedScreen(
+        screen: "screen-a",
+        identifier: primaryTarget.identifier,
+        pixelWidth: primaryTarget.pixelWidth,
+        pixelHeight: primaryTarget.pixelHeight,
+        backingScaleFactor: primaryTarget.backingScaleFactor,
+        originX: primaryTarget.originX ?? 0,
+        originY: primaryTarget.originY ?? 0
+    )
+    let secondaryScreen = makeResolvedScreen(
+        screen: "screen-b",
+        identifier: secondaryTarget.identifier,
+        pixelWidth: secondaryTarget.pixelWidth,
+        pixelHeight: secondaryTarget.pixelHeight,
+        backingScaleFactor: secondaryTarget.backingScaleFactor,
+        originX: secondaryTarget.originX ?? 0,
+        originY: secondaryTarget.originY ?? 0
+    )
+
+    var currentTargets = [primaryTarget, secondaryTarget]
+    var currentResolvedScreens = [primaryScreen, secondaryScreen]
+    var rotationNumber = 0
+    var restoredImagesByScreen: [String: URL] = [:]
+
+    let appState = AppState(
+        pickNextHighlight: { makeHighlight(quoteText: "Preserve transient topology state") },
+        generateWallpaper: { _, _ in
+            fail("Expected transient topology test to use multi-display rotation generation")
+        },
+        setWallpaper: { _ in
+            fail("Expected transient topology test not to use the all-screens apply path")
+        },
+        prepareWallpaperRotation: {
+            let resolvedScreens = currentResolvedScreens
+            let targets = currentTargets
+            return AppState.WallpaperRotationPlan(targets: targets) { generatedWallpapers in
+                let assignments = generatedWallpapers.map { generatedWallpaper in
+                    WallpaperSetter.WallpaperAssignment(
+                        screenIdentifier: generatedWallpaper.targetIdentifier,
+                        imageURL: generatedWallpaper.fileURL
+                    )
+                }
+                _ = WallpaperSetter.applyWallpapers(
+                    assignments: assignments,
+                    resolvedScreens: resolvedScreens,
+                    setDesktopImage: { (_: URL, _: String) in }
+                )
+            }
+        },
+        generateWallpapers: { _, _, targets in
+            rotationNumber += 1
+            return targets.map { target in
+                let wallpaperURL = makeWallpaper(
+                    directory: directory,
+                    name: "rotation-\(rotationNumber)-\(target.identifier).png"
+                )
+                return AppState.GeneratedWallpaper(
+                    targetIdentifier: target.identifier,
+                    fileURL: wallpaperURL,
+                    pixelWidth: target.pixelWidth,
+                    pixelHeight: target.pixelHeight,
+                    backingScaleFactor: Double(target.backingScaleFactor),
+                    originX: target.originX,
+                    originY: target.originY
+                )
+            }
+        },
+        storedWallpaperAssignmentPersistence: makeStoredWallpaperAssignmentPersistence(defaults: defaults),
+        reapplyStoredWallpaper: {
+            restoredImagesByScreen.removeAll()
+            return DisplayIdentityResolver.restoreStoredWallpapers(
+                defaults.loadReusableGeneratedWallpapers(),
+                resolvedScreens: currentResolvedScreens,
+                setDesktopImage: { url, screen in
+                    restoredImagesByScreen[screen] = url.standardizedFileURL
+                }
+            )
+        },
+        markHighlightShown: { _ in }
+    )
+
+    let initialRotationOutcome = appState.rotateWallpaperWithOutcome()
+    expectEqual(initialRotationOutcome, .success, "Expected the initial two-display rotation to succeed")
+
+    let initialStoredWallpapers = defaults.loadReusableGeneratedWallpapers()
+    expectEqual(initialStoredWallpapers.count, 2, "Expected the initial full-topology snapshot to persist both displays")
+    let initialStoredURLsByTarget = Dictionary(
+        uniqueKeysWithValues: initialStoredWallpapers.map { wallpaper in
+            (wallpaper.targetIdentifier, wallpaper.fileURL.standardizedFileURL)
+        }
+    )
+
+    currentTargets = [primaryTarget]
+    currentResolvedScreens = [primaryScreen]
+
+    let reducedRotationOutcome = appState.rotateWallpaperWithOutcome()
+    expectEqual(reducedRotationOutcome, .success, "Expected the transient reduced-topology rotation to succeed")
+
+    let reducedStoredWallpapers = defaults.loadReusableGeneratedWallpapers()
+    expectEqual(reducedStoredWallpapers.count, 2, "Expected the fuller stored snapshot to survive a transient reduced-topology rotation")
+    let reducedStoredURLsByTarget = Dictionary(
+        uniqueKeysWithValues: reducedStoredWallpapers.map { wallpaper in
+            (wallpaper.targetIdentifier, wallpaper.fileURL.standardizedFileURL)
+        }
+    )
+    expect(
+        reducedStoredURLsByTarget["display-a"] != initialStoredURLsByTarget["display-a"],
+        "Expected the connected display assignment to update during the transient reduced-topology rotation"
+    )
+    expectEqual(
+        reducedStoredURLsByTarget["display-b"],
+        initialStoredURLsByTarget["display-b"],
+        "Expected the disconnected display assignment to remain persisted during the transient reduced-topology rotation"
+    )
+
+    currentResolvedScreens = [primaryScreen, secondaryScreen]
+
+    let restoreOutcome = appState.reapplyStoredWallpaperIfAvailable()
+    expectEqual(restoreOutcome, .fullRestore, "Expected reconnect restore to reapply both stored display assignments")
+    expectEqual(restoredImagesByScreen.count, 2, "Expected reconnect restore to target both displays")
+    expectEqual(
+        restoredImagesByScreen["screen-a"],
+        reducedStoredURLsByTarget["display-a"],
+        "Expected the reconnected primary display to restore its latest persisted wallpaper"
+    )
+    expectEqual(
+        restoredImagesByScreen["screen-b"],
+        reducedStoredURLsByTarget["display-b"],
+        "Expected the reconnected secondary display to restore the preserved wallpaper"
+    )
 }
 
 testReplaceReusableGeneratedWallpapersReplacesStoredSnapshot()
@@ -954,6 +1156,7 @@ await MainActor.run {
     testAppStateRotationUsesReplacePersistenceOnly()
     testAppStateRotationFailureSkipsPersistenceOperations()
     testAppStateExplicitMergeAndClearForwardToPersistenceBoundary()
+    testAppStatePreservesStoredAssignmentsAcrossTransientReducedTopology()
 }
 
 print("verify_t64_main passed")

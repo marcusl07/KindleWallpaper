@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP_STATE_FILE="$ROOT_DIR/App/AppState.swift"
 SCHEDULE_SETTINGS_FILE="$ROOT_DIR/App/ScheduleSettings.swift"
 WALLPAPER_GENERATOR_FILE="$ROOT_DIR/App/WallpaperGenerator.swift"
+DISPLAY_IDENTITY_RESOLVER_FILE="$ROOT_DIR/App/DisplayIdentityResolver.swift"
 TMP_DIR="$(mktemp -d /tmp/kindlewall_t62.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -25,7 +26,8 @@ require_pattern "$SCHEDULE_SETTINGS_FILE" 'func[[:space:]]+mergeReusableGenerate
 require_pattern "$SCHEDULE_SETTINGS_FILE" 'func[[:space:]]+clearReusableGeneratedWallpapers' "generated wallpaper clear helper"
 require_pattern "$SCHEDULE_SETTINGS_FILE" 'func[[:space:]]+loadReusableGeneratedWallpapers' "generated wallpaper persistence loader"
 require_pattern "$APP_STATE_FILE" 'struct[[:space:]]+StoredWallpaperAssignmentPersistence' "reusable wallpaper persistence boundary"
-require_pattern "$APP_STATE_FILE" 'context\.replaceStoredWallpaperAssignments\(appliedGeneratedWallpapers\)' "post-apply reusable wallpaper replace persistence"
+require_pattern "$APP_STATE_FILE" 'let[[:space:]]+load:[[:space:]]*\(\)[[:space:]]*->[[:space:]]*\[StoredGeneratedWallpaper\]' "stored wallpaper loader boundary"
+require_pattern "$APP_STATE_FILE" 'context\.persistAppliedWallpaperAssignments\(appliedGeneratedWallpapers\)' "post-apply reusable wallpaper persistence routing"
 require_pattern "$WALLPAPER_GENERATOR_FILE" 'protectedGeneratedWallpapersProvider' "protected wallpaper provider dependency"
 require_pattern "$WALLPAPER_GENERATOR_FILE" 'cleanupGeneratedWallpapers\(' "cleanup helper invocation"
 require_pattern "$WALLPAPER_GENERATOR_FILE" 'protecting:[[:space:]]*generatedWallpapers\.map\(\\\.fileURL\)[[:space:]]*\+[[:space:]]*protectedGeneratedWallpapersProvider\(\)' "protected cleanup argument"
@@ -52,6 +54,7 @@ swiftc \
   "$ROOT_DIR/App/WallpaperGenerator.swift" \
   "$ROOT_DIR/App/BackgroundImageLoader.swift" \
   "$ROOT_DIR/App/AppSupportPaths.swift" \
+  "$DISPLAY_IDENTITY_RESOLVER_FILE" \
   "$ROOT_DIR/App/WallpaperSetter.swift" \
   "$ROOT_DIR/Models/Book.swift" \
   "$ROOT_DIR/Models/Highlight.swift" \

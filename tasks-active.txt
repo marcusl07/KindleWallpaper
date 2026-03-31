@@ -24,8 +24,5 @@ Create `QuoteEditView` for editing all fields (quote text, book title, author, l
 
 ## Phase 14 — Wallpaper Restore Reliability
 
-**T64f — Prevent transient reduced topologies from erasing full assignments**
-Update `AppState.swift`, `ScheduleSettings.swift`, and `DisplayTopologyCoordinator.swift` so a temporary one-display snapshot does not immediately replace a previously saved two-display assignment set. Add integration coverage in `scripts/verify_t64.sh` / `scripts/verify_t64_main.swift` for two displays -> transient one display -> reconnect -> successful restore without losing the second assignment.
-
 **T64g — Add no-op apply guards and final restore cleanup**
 Tighten `DisplayTopologyCoordinator.swift`, `WallpaperSetter.swift`, and `KindleWallApp.swift` to skip redundant restore/apply cycles when the desired assignment is already active, and remove obsolete wake-specific glue left behind by earlier slices. Finish `scripts/verify_t64.sh` / `scripts/verify_t64_main.swift` with end-to-end coverage for the full wake/reconfigure/reconnect flow.
