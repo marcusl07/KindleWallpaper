@@ -53,7 +53,7 @@ private func testReapplyStoredWallpaperForAllScreens() {
     ]
 
     var applied: [(String, URL)] = []
-    let didReapply = WallpaperSetter.reapplyStoredWallpapers(
+    let outcome = WallpaperSetter.reapplyStoredWallpapers(
         [
             StoredGeneratedWallpaper(
                 targetIdentifier: StoredGeneratedWallpaper.allScreensTargetIdentifier,
@@ -66,7 +66,7 @@ private func testReapplyStoredWallpaperForAllScreens() {
         }
     )
 
-    expectEqual(didReapply, true, "Expected single stored wallpaper to reapply across all screens")
+    expectEqual(outcome, .fullRestore, "Expected single stored wallpaper to reapply across all screens")
     expectEqual(applied.count, 2, "Expected wallpaper to be applied to every connected screen")
     expectEqual(applied[0].0, "screen-a", "Expected first screen to receive stored wallpaper")
     expectEqual(applied[0].1.standardizedFileURL, wallpaperURL.standardizedFileURL, "Expected stored wallpaper URL to be reused")
@@ -90,7 +90,7 @@ private func testReapplyStoredWallpaperForTargetedScreens() {
     ]
 
     var applied: [(String, URL)] = []
-    let didReapply = WallpaperSetter.reapplyStoredWallpapers(
+    let outcome = WallpaperSetter.reapplyStoredWallpapers(
         [
             StoredGeneratedWallpaper(targetIdentifier: "display-a", fileURL: firstURL),
             StoredGeneratedWallpaper(targetIdentifier: "display-c", fileURL: secondURL)
@@ -101,7 +101,7 @@ private func testReapplyStoredWallpaperForTargetedScreens() {
         }
     )
 
-    expectEqual(didReapply, true, "Expected targeted stored wallpapers to reapply successfully")
+    expectEqual(outcome, .fullRestore, "Expected targeted stored wallpapers to reapply successfully")
     expectEqual(applied.count, 2, "Expected only matching screens to receive targeted wallpapers")
     expectEqual(applied[0].0, "screen-a", "Expected first targeted screen assignment to be preserved")
     expectEqual(applied[0].1.standardizedFileURL, firstURL.standardizedFileURL, "Expected first targeted wallpaper URL to be reused")
@@ -121,7 +121,7 @@ private func testReapplyStoredWallpaperReturnsFalseWhenUnavailable() {
             fail("Expected no wallpaper reapply work when storage is empty")
         }
     )
-    expectEqual(noWallpaperResult, false, "Expected empty stored wallpaper list to no-op")
+    expectEqual(noWallpaperResult, .noStoredWallpapers, "Expected empty stored wallpaper list to no-op")
 
     let directory = makeTemporaryDirectory(prefix: "kindlewall-t61-noscreens")
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -140,7 +140,7 @@ private func testReapplyStoredWallpaperReturnsFalseWhenUnavailable() {
             fail("Expected no wallpaper reapply work when no screens are connected")
         }
     )
-    expectEqual(noScreenResult, false, "Expected missing connected screens to no-op")
+    expectEqual(noScreenResult, .noConnectedScreens, "Expected missing connected screens to no-op")
 }
 
 @MainActor
@@ -160,7 +160,7 @@ private func testAppStateReapplyUsesDedicatedClosure() {
         },
         reapplyStoredWallpaper: {
             reapplyCallCount += 1
-            return true
+            return .fullRestore
         },
         markHighlightShown: { _ in
             markHighlightShownCount += 1
@@ -168,7 +168,7 @@ private func testAppStateReapplyUsesDedicatedClosure() {
     )
 
     let result = appState.reapplyStoredWallpaperIfAvailable()
-    expectEqual(result, true, "Expected AppState wake reapply to return the restore result")
+    expectEqual(result, .fullRestore, "Expected AppState wake reapply to return the restore result")
     expectEqual(reapplyCallCount, 1, "Expected AppState wake reapply to delegate exactly once")
     expectEqual(markHighlightShownCount, 0, "Expected wake reapply not to advance the rotation state")
 }

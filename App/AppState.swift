@@ -72,6 +72,7 @@ final class AppState: ObservableObject {
         }
     }
 
+    typealias WallpaperRestoreOutcome = WallpaperSetter.RestoreOutcome
     typealias PickNextHighlight = () -> Highlight?
     typealias LoadBackgroundImageURLs = () -> [URL]
     typealias LoadBackgroundImageURL = () -> URL?
@@ -81,7 +82,7 @@ final class AppState: ObservableObject {
     typealias PrepareWallpaperRotation = () -> WallpaperRotationPlan?
     typealias GenerateWallpapers = (Highlight, URL?, [WallpaperTarget]) -> [GeneratedWallpaper]
     typealias StoreReusableGeneratedWallpapers = ([GeneratedWallpaper]) -> Void
-    typealias ReapplyStoredWallpaper = () -> Bool
+    typealias ReapplyStoredWallpaper = () -> WallpaperRestoreOutcome
     typealias MarkHighlightShown = (UUID) -> Void
     typealias InsertHighlight = (Highlight) -> Void
     typealias DeleteHighlight = (UUID) -> Void
@@ -167,7 +168,7 @@ final class AppState: ObservableObject {
         prepareWallpaperRotation: PrepareWallpaperRotation? = nil,
         generateWallpapers: GenerateWallpapers? = nil,
         storeReusableGeneratedWallpapers: @escaping StoreReusableGeneratedWallpapers = { _ in },
-        reapplyStoredWallpaper: @escaping ReapplyStoredWallpaper = { false },
+        reapplyStoredWallpaper: @escaping ReapplyStoredWallpaper = { .noStoredWallpapers },
         markHighlightShown: @escaping MarkHighlightShown,
         insertHighlight: @escaping InsertHighlight = { _ in },
         deleteHighlight: @escaping DeleteHighlight = { _ in },
@@ -345,7 +346,7 @@ final class AppState: ObservableObject {
     }
 
     @discardableResult
-    func reapplyStoredWallpaperIfAvailable() -> Bool {
+    func reapplyStoredWallpaperIfAvailable() -> WallpaperRestoreOutcome {
         reapplyStoredWallpaper()
     }
 
@@ -763,14 +764,14 @@ extension AppState {
             reapplyStoredWallpaper: {
                 let storedWallpapers = userDefaults.loadReusableGeneratedWallpapers()
                 guard !storedWallpapers.isEmpty else {
-                    return false
+                    return .noStoredWallpapers
                 }
 
                 let resolvedScreens = WallpaperSetter.resolvedConnectedScreens()
-                return (try? WallpaperSetter.tryReapplyStoredWallpapers(
+                return WallpaperSetter.restoreStoredWallpapers(
                     storedWallpapers,
                     on: resolvedScreens
-                )) ?? false
+                )
             },
             markHighlightShown: DatabaseManager.markHighlightShown(id:),
             insertHighlight: DatabaseManager.insertHighlightIfNew(_:),

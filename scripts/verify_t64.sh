@@ -2,7 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-SETTINGS_FILE="$ROOT_DIR/App/SettingsView.swift"
+APP_STATE_FILE="$ROOT_DIR/App/AppState.swift"
+WALLPAPER_SETTER_FILE="$ROOT_DIR/App/WallpaperSetter.swift"
 TMP_DIR="$(mktemp -d /tmp/kindlewall_t64.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -17,36 +18,38 @@ require_pattern() {
   fi
 }
 
-require_absent() {
-  local file="$1"
-  local pattern="$2"
-  local description="$3"
+require_pattern "$WALLPAPER_SETTER_FILE" 'enum[[:space:]]+RestoreOutcome' "restore outcome enum"
+require_pattern "$WALLPAPER_SETTER_FILE" 'case[[:space:]]+fullRestore' "full restore outcome"
+require_pattern "$WALLPAPER_SETTER_FILE" 'case[[:space:]]+partialRestore' "partial restore outcome"
+require_pattern "$WALLPAPER_SETTER_FILE" 'case[[:space:]]+noStoredWallpapers' "no stored wallpapers outcome"
+require_pattern "$WALLPAPER_SETTER_FILE" 'case[[:space:]]+noConnectedScreens' "no connected screens outcome"
+require_pattern "$WALLPAPER_SETTER_FILE" 'case[[:space:]]+applyFailure' "apply failure outcome"
+require_pattern "$WALLPAPER_SETTER_FILE" 'func[[:space:]]+restoreStoredWallpapers' "explicit restore entrypoint"
+require_pattern "$APP_STATE_FILE" 'typealias[[:space:]]+WallpaperRestoreOutcome[[:space:]]*=[[:space:]]*WallpaperSetter\.RestoreOutcome' "app state restore outcome alias"
+require_pattern "$APP_STATE_FILE" 'typealias[[:space:]]+ReapplyStoredWallpaper[[:space:]]*=[[:space:]]*\(\)[[:space:]]*->[[:space:]]*WallpaperRestoreOutcome' "app state restore closure outcome"
+require_pattern "$APP_STATE_FILE" 'func[[:space:]]+reapplyStoredWallpaperIfAvailable\(\)[[:space:]]*->[[:space:]]*WallpaperRestoreOutcome' "app state structured restore API"
+if rg -q 'func[[:space:]]+reapplyStoredWallpaperIfAvailable\(\)[[:space:]]*->[[:space:]]*Bool' "$APP_STATE_FILE"; then
+  echo "Verification failed: unexpected legacy Bool restore API in $APP_STATE_FILE" >&2
+  exit 1
+fi
 
-  if rg -q "$pattern" "$file"; then
-    echo "Verification failed: unexpected $description in $file" >&2
-    exit 1
-  fi
-}
-
-require_pattern "$SETTINGS_FILE" 'NavigationLink\(value:[[:space:]]*SettingsDestination\.books\)' "books navigation link"
-require_pattern "$SETTINGS_FILE" 'Manage Books' "books navigation label"
-require_pattern "$SETTINGS_FILE" 'BooksListView\(\)' "books destination view"
-require_pattern "$SETTINGS_FILE" '\.navigationTitle\("Books"\)' "books destination navigation title"
-require_absent "$SETTINGS_FILE" 'Button\("Show Books\.\.\."\)' "books window button"
-require_absent "$SETTINGS_FILE" 'presentBooksWindowDirectly\(' "direct books window presenter"
-require_absent "$SETTINGS_FILE" 'enum[[:space:]]+BooksWindowPresentation' "books window notification presenter"
-require_absent "$SETTINGS_FILE" 'DirectBooksWindowStore' "direct books window storage"
+cp "$ROOT_DIR/scripts/verify_t64_main.swift" "$TMP_DIR/main.swift"
 
 swiftc \
   -module-cache-path "$TMP_DIR/module-cache" \
-  -typecheck \
-  "$ROOT_DIR/App/ScheduleSettings.swift" \
+  -D TESTING \
+  "$TMP_DIR/main.swift" \
   "$ROOT_DIR/App/AppState.swift" \
+  "$ROOT_DIR/App/ScheduleSettings.swift" \
   "$ROOT_DIR/App/AppSupportPaths.swift" \
   "$ROOT_DIR/App/BackgroundImageStore.swift" \
   "$ROOT_DIR/App/BackgroundImageLoader.swift" \
   "$ROOT_DIR/App/SettingsView.swift" \
+  "$ROOT_DIR/App/WallpaperSetter.swift" \
   "$ROOT_DIR/Models/Book.swift" \
-  "$ROOT_DIR/Models/Highlight.swift"
+  "$ROOT_DIR/Models/Highlight.swift" \
+  -o "$TMP_DIR/verify_t64_main"
+
+"$TMP_DIR/verify_t64_main"
 
 echo "T64 verification passed"

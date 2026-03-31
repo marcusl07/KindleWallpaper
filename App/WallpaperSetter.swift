@@ -2,6 +2,23 @@ import AppKit
 import Foundation
 
 enum WallpaperSetter {
+    enum RestoreOutcome: Equatable {
+        case fullRestore
+        case partialRestore
+        case noStoredWallpapers
+        case noConnectedScreens
+        case applyFailure
+
+        var didRestore: Bool {
+            switch self {
+            case .fullRestore, .partialRestore:
+                return true
+            case .noStoredWallpapers, .noConnectedScreens, .applyFailure:
+                return false
+            }
+        }
+    }
+
     struct ScreenTarget: Equatable {
         let identifier: String
         let pixelWidth: Int
@@ -131,18 +148,76 @@ enum WallpaperSetter {
     }
 
     @discardableResult
-    static func tryReapplyStoredWallpapers(
+    static func restoreStoredWallpapers(
         _ wallpapers: [StoredGeneratedWallpaper],
         on resolvedScreens: [ResolvedScreen<NSScreen>],
         setDesktopImage: (URL, NSScreen) throws -> Void = { url, screen in
             try NSWorkspace.shared.setDesktopImageURL(url, for: screen, options: [:])
         }
-    ) throws -> Bool {
-        try reapplyStoredWallpapers(
+    ) -> RestoreOutcome {
+        restoreStoredWallpapers(
             wallpapers,
             resolvedScreens: resolvedScreens,
             setDesktopImage: setDesktopImage
         )
+    }
+
+    @discardableResult
+    static func restoreStoredWallpapers<Screen>(
+        _ wallpapers: [StoredGeneratedWallpaper],
+        resolvedScreens: [ResolvedScreen<Screen>],
+        setDesktopImage: (URL, Screen) throws -> Void
+    ) -> RestoreOutcome {
+        do {
+            return try reapplyStoredWallpapers(
+                wallpapers,
+                resolvedScreens: resolvedScreens,
+                setDesktopImage: setDesktopImage
+            )
+        } catch {
+            return .applyFailure
+        }
+    }
+
+    @discardableResult
+    static func reapplyStoredWallpapers<Screen>(
+        _ wallpapers: [StoredGeneratedWallpaper],
+        resolvedScreens: [ResolvedScreen<Screen>],
+        setDesktopImage: (URL, Screen) throws -> Void
+    ) rethrows -> RestoreOutcome {
+        guard !wallpapers.isEmpty else {
+            return .noStoredWallpapers
+        }
+
+        guard !resolvedScreens.isEmpty else {
+            return .noConnectedScreens
+        }
+
+        if
+            wallpapers.count == 1,
+            let wallpaper = wallpapers.first,
+            wallpaper.targetIdentifier == StoredGeneratedWallpaper.allScreensTargetIdentifier
+        {
+            try applyWallpaper(
+                imageURL: wallpaper.fileURL,
+                screens: resolvedScreens.map(\.screen),
+                setDesktopImage: setDesktopImage
+            )
+            return .fullRestore
+        }
+
+        let assignments = wallpapers.map { wallpaper in
+            WallpaperAssignment(
+                screenIdentifier: wallpaper.targetIdentifier,
+                imageURL: wallpaper.fileURL
+            )
+        }
+        let appliedCount = try applyWallpapers(
+            assignments: assignments,
+            resolvedScreens: resolvedScreens,
+            setDesktopImage: setDesktopImage
+        )
+        return appliedCount == assignments.count ? .fullRestore : .partialRestore
     }
 
     static func setWallpaper(
@@ -173,11 +248,12 @@ enum WallpaperSetter {
         try applyWallpaper(imageURL: imageURL, screens: screensProvider(), setDesktopImage: setDesktopImage)
     }
 
+    @discardableResult
     static func applyWallpapers<Screen>(
         assignments: [WallpaperAssignment],
         resolvedScreens: [ResolvedScreen<Screen>],
         setDesktopImage: (URL, Screen) throws -> Void
-    ) rethrows {
+    ) rethrows -> Int {
         let urlsByIdentifier = Dictionary(
             assignments.map { assignment in
                 (assignment.screenIdentifier, assignment.imageURL)
@@ -185,20 +261,24 @@ enum WallpaperSetter {
             uniquingKeysWith: { _, latest in latest }
         )
 
+        var appliedCount = 0
         for resolvedScreen in resolvedScreens {
             guard let imageURL = urlsByIdentifier[resolvedScreen.identifier] else {
                 continue
             }
             try setDesktopImage(imageURL, resolvedScreen.screen)
+            appliedCount += 1
         }
+        return appliedCount
     }
 
+    @discardableResult
     static func applyWallpapers<Screen>(
         assignments: [WallpaperAssignment],
         screens: [Screen],
         screenIdentifier: (Screen, Int) -> String,
         setDesktopImage: (URL, Screen) throws -> Void
-    ) rethrows {
+    ) rethrows -> Int {
         let resolvedScreens = screens.enumerated().map { index, screen in
             ResolvedScreen(
                 screen: screen,
@@ -207,7 +287,7 @@ enum WallpaperSetter {
                 pixelHeight: 1
             )
         }
-        try applyWallpapers(
+        return try applyWallpapers(
             assignments: assignments,
             resolvedScreens: resolvedScreens,
             setDesktopImage: setDesktopImage
@@ -222,43 +302,6 @@ enum WallpaperSetter {
         for screen in screens {
             try setDesktopImage(imageURL, screen)
         }
-    }
-
-    @discardableResult
-    static func reapplyStoredWallpapers<Screen>(
-        _ wallpapers: [StoredGeneratedWallpaper],
-        resolvedScreens: [ResolvedScreen<Screen>],
-        setDesktopImage: (URL, Screen) throws -> Void
-    ) rethrows -> Bool {
-        guard !wallpapers.isEmpty, !resolvedScreens.isEmpty else {
-            return false
-        }
-
-        if
-            wallpapers.count == 1,
-            let wallpaper = wallpapers.first,
-            wallpaper.targetIdentifier == StoredGeneratedWallpaper.allScreensTargetIdentifier
-        {
-            try applyWallpaper(
-                imageURL: wallpaper.fileURL,
-                screens: resolvedScreens.map(\.screen),
-                setDesktopImage: setDesktopImage
-            )
-            return true
-        }
-
-        let assignments = wallpapers.map { wallpaper in
-            WallpaperAssignment(
-                screenIdentifier: wallpaper.targetIdentifier,
-                imageURL: wallpaper.fileURL
-            )
-        }
-        try applyWallpapers(
-            assignments: assignments,
-            resolvedScreens: resolvedScreens,
-            setDesktopImage: setDesktopImage
-        )
-        return true
     }
 
     private static func identifier(for screen: NSScreen, fallbackIndex: Int) -> String {
