@@ -500,4 +500,5 @@ Create `DisplayTopologyCoordinator.swift` and move wake-triggered restore orches
 **T64d — Make wallpaper-assignment persistence operations explicit**
 In `ScheduleSettings.swift` and `AppState.swift`, replace the current replace-only persistence helper with explicit operations for replacing, merging, and clearing saved wallpaper assignments. Keep runtime behavior equivalent in this slice, and add targeted verification so later topology fixes can use these operations intentionally.
 
-## Open Agent Handoff Bugs
+**T64e — Extract display identity and remapping heuristics**
+Create `DisplayIdentityResolver.swift` and move display matching/remapping policy out of `WallpaperSetter.swift`, keeping `WallpaperSetter` focused on applying assignments. Wire `AppState.swift` to use the resolver for restore matching, and add adversarial tests for main-display changes, reordering, same-resolution displays, missing displays, and extra displays.

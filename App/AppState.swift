@@ -14,11 +14,52 @@ final class AppState: ObservableObject {
         let pixelWidth: Int
         let pixelHeight: Int
         let backingScaleFactor: CGFloat
+        let originX: Int?
+        let originY: Int?
+
+        init(
+            identifier: String,
+            pixelWidth: Int,
+            pixelHeight: Int,
+            backingScaleFactor: CGFloat,
+            originX: Int? = nil,
+            originY: Int? = nil
+        ) {
+            self.identifier = identifier
+            self.pixelWidth = pixelWidth
+            self.pixelHeight = pixelHeight
+            self.backingScaleFactor = backingScaleFactor
+            self.originX = originX
+            self.originY = originY
+        }
     }
 
     struct GeneratedWallpaper: Equatable {
         let targetIdentifier: String
         let fileURL: URL
+        let pixelWidth: Int?
+        let pixelHeight: Int?
+        let backingScaleFactor: Double?
+        let originX: Int?
+        let originY: Int?
+
+        init(
+            targetIdentifier: String,
+            fileURL: URL,
+            pixelWidth: Int? = nil,
+            pixelHeight: Int? = nil,
+            backingScaleFactor: Double? = nil,
+            originX: Int? = nil,
+            originY: Int? = nil
+        ) {
+            self.targetIdentifier = targetIdentifier
+            self.fileURL = fileURL
+            self.pixelWidth = pixelWidth
+            self.pixelHeight = pixelHeight
+            self.backingScaleFactor = backingScaleFactor
+            self.originX = originX
+            self.originY = originY
+        }
     }
 
     struct WallpaperRotationPlan {
@@ -707,7 +748,12 @@ extension AppState {
         wallpapers.map { wallpaper in
             StoredGeneratedWallpaper(
                 targetIdentifier: wallpaper.targetIdentifier,
-                fileURL: wallpaper.fileURL
+                fileURL: wallpaper.fileURL,
+                pixelWidth: wallpaper.pixelWidth,
+                pixelHeight: wallpaper.pixelHeight,
+                backingScaleFactor: wallpaper.backingScaleFactor,
+                originX: wallpaper.originX,
+                originY: wallpaper.originY
             )
         }
     }
@@ -743,7 +789,7 @@ extension AppState {
                 try WallpaperSetter.trySetWallpaper(imageURL: imageURL)
             },
             prepareWallpaperRotation: {
-                let resolvedScreens = WallpaperSetter.resolvedConnectedScreens()
+                let resolvedScreens = DisplayIdentityResolver.resolvedConnectedScreens()
                 guard !resolvedScreens.isEmpty else {
                     return nil
                 }
@@ -752,7 +798,9 @@ extension AppState {
                         identifier: screen.identifier,
                         pixelWidth: screen.pixelWidth,
                         pixelHeight: screen.pixelHeight,
-                        backingScaleFactor: screen.backingScaleFactor
+                        backingScaleFactor: screen.backingScaleFactor,
+                        originX: screen.originX,
+                        originY: screen.originY
                     )
                 }
                 return WallpaperRotationPlan(targets: targets) { generatedWallpapers in
@@ -766,6 +814,11 @@ extension AppState {
                 }
             },
             generateWallpapers: { highlight, backgroundURL, targets in
+                let targetsByIdentifier = Dictionary(
+                    uniqueKeysWithValues: targets.map { target in
+                        (target.identifier, target)
+                    }
+                )
                 let generatorTargets = targets.map { target in
                     WallpaperGenerator.RenderTarget(
                         identifier: target.identifier,
@@ -779,9 +832,15 @@ extension AppState {
                     backgroundURL: backgroundURL,
                     targets: generatorTargets
                 ).map { generated in
+                    let target = targetsByIdentifier[generated.targetIdentifier]
                     GeneratedWallpaper(
                         targetIdentifier: generated.targetIdentifier,
-                        fileURL: generated.fileURL
+                        fileURL: generated.fileURL,
+                        pixelWidth: target?.pixelWidth,
+                        pixelHeight: target?.pixelHeight,
+                        backingScaleFactor: target.map { Double($0.backingScaleFactor) },
+                        originX: target?.originX,
+                        originY: target?.originY
                     )
                 }
             },
@@ -806,10 +865,10 @@ extension AppState {
                     return .noStoredWallpapers
                 }
 
-                let resolvedScreens = WallpaperSetter.resolvedConnectedScreens()
-                return WallpaperSetter.restoreStoredWallpapers(
+                let resolvedScreens = DisplayIdentityResolver.resolvedConnectedScreens()
+                return DisplayIdentityResolver.restoreStoredWallpapers(
                     storedWallpapers,
-                    on: resolvedScreens
+                    resolvedScreens: resolvedScreens
                 )
             },
             markHighlightShown: DatabaseManager.markHighlightShown(id:),

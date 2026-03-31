@@ -17,6 +17,7 @@
 		6174323980834111C7C77097 /* WallpaperScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE978DC2E088D8352D1AB370 /* WallpaperScheduler.swift */; };
 		630FD92E3719C965D0208253 /* Highlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86F9EA5F3C2418D8AA0D9365 /* Highlight.swift */; };
 		6FDE593A8A8A6CA93220C98F /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30FF8ED41FBB6C774BCADD5 /* AppState.swift */; };
+		7E5D604A95B044E9BA3BC622 /* DisplayIdentityResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B95F3F7592604E8603231A7 /* DisplayIdentityResolver.swift */; };
 		7067D38042A1BC59897C1BAE /* BackgroundImageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 766BDB43991580ED0548AE8A /* BackgroundImageStore.swift */; };
 		86DEA4128C7AA27D22CA5442 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C88BA03AB2C2B7841ADC4755 /* MenuBarView.swift */; };
 		8CFDB5D51168C39C9A5EEBCD /* WallpaperSetter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C88B20A7755CD6200EE4E3F /* WallpaperSetter.swift */; };
@@ -39,6 +40,7 @@
 		653DF17A62F70DE93E169341 /* VolumeWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VolumeWatcher.swift; sourceTree = "<group>"; };
 		67306A31618FE6581F9F81F4 /* KindleWallApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KindleWallApp.swift; sourceTree = "<group>"; };
 		67E7F15FCB23FBD77BC647C6 /* Book.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Book.swift; sourceTree = "<group>"; };
+		6B95F3F7592604E8603231A7 /* DisplayIdentityResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayIdentityResolver.swift; sourceTree = "<group>"; };
 		6E25B22876E6C4FDA140A324 /* WallpaperGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperGenerator.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B5C /* BackgroundImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundImageLoader.swift; sourceTree = "<group>"; };
 		766BDB43991580ED0548AE8A /* BackgroundImageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundImageStore.swift; sourceTree = "<group>"; };
@@ -93,6 +95,7 @@
 				A1B2C3D4E5F60718293A4B5C /* BackgroundImageLoader.swift */,
 				766BDB43991580ED0548AE8A /* BackgroundImageStore.swift */,
 				126D2BED290D16D70E707B68 /* Database.swift */,
+				6B95F3F7592604E8603231A7 /* DisplayIdentityResolver.swift */,
 				21B8E3445F2F4E809A769813 /* DisplayTopologyCoordinator.swift */,
 				5DF13C66AA67590AFF96E390 /* ImportCoordinator.swift */,
 				931DFDD6D12D8887EA968760 /* Info.plist */,
@@ -197,6 +200,7 @@
 				006BFF281CE13CB5B2AA67E6 /* Book.swift in Sources */,
 				C06D7617B1725A8B722A3626 /* ClippingsParser.swift in Sources */,
 				154FAA67B9134B920BB2E402 /* Database.swift in Sources */,
+				7E5D604A95B044E9BA3BC622 /* DisplayIdentityResolver.swift in Sources */,
 				5B8D8077D1544147A2C44872 /* DisplayTopologyCoordinator.swift in Sources */,
 				E3490F35A7ACB433674887C9 /* DedupeKeyBuilder.swift in Sources */,
 				630FD92E3719C965D0208253 /* Highlight.swift in Sources */,

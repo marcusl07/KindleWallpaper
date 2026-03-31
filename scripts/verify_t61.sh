@@ -37,6 +37,7 @@ swiftc \
   "$ROOT_DIR/App/AppSupportPaths.swift" \
   "$ROOT_DIR/App/BackgroundImageStore.swift" \
   "$ROOT_DIR/App/BackgroundImageLoader.swift" \
+  "$ROOT_DIR/App/DisplayIdentityResolver.swift" \
   "$ROOT_DIR/App/SettingsView.swift" \
   "$ROOT_DIR/App/WallpaperSetter.swift" \
   "$ROOT_DIR/Models/Book.swift" \

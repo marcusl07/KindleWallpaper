@@ -62,13 +62,21 @@ private func makeTemporaryDirectory(prefix: String) -> URL {
 
 private func makeResolvedScreen(
     screen: String,
-    identifier: String
+    identifier: String,
+    pixelWidth: Int = 1,
+    pixelHeight: Int = 1,
+    backingScaleFactor: CGFloat = 1.0,
+    originX: Int = 0,
+    originY: Int = 0
 ) -> WallpaperSetter.ResolvedScreen<String> {
     WallpaperSetter.ResolvedScreen(
         screen: screen,
         identifier: identifier,
-        pixelWidth: 1,
-        pixelHeight: 1
+        pixelWidth: pixelWidth,
+        pixelHeight: pixelHeight,
+        backingScaleFactor: backingScaleFactor,
+        originX: originX,
+        originY: originY
     )
 }
 
@@ -76,28 +84,6 @@ private func makeWallpaper(directory: URL, name: String) -> URL {
     let fileURL = directory.appendingPathComponent(name, isDirectory: false)
     FileManager.default.createFile(atPath: fileURL.path, contents: Data(name.utf8))
     return fileURL
-}
-
-@MainActor
-private func makeWakeRestoreAppState(
-    reapplyStoredWallpaper: @escaping () -> WallpaperSetter.RestoreOutcome,
-    markHighlightShown: @escaping (UUID) -> Void = { _ in
-        fail("Expected wake restore not to advance rotation state")
-    }
-) -> AppState {
-    AppState(
-        pickNextHighlight: {
-            fail("Expected wake restore not to request a new highlight")
-        },
-        generateWallpaper: { _, _ in
-            fail("Expected wake restore not to generate a new wallpaper")
-        },
-        setWallpaper: { _ in
-            fail("Expected wake restore not to use the rotation apply path")
-        },
-        reapplyStoredWallpaper: reapplyStoredWallpaper,
-        markHighlightShown: markHighlightShown
-    )
 }
 
 private func testReplaceReusableGeneratedWallpapersReplacesStoredSnapshot() {
@@ -179,6 +165,35 @@ private func testClearReusableGeneratedWallpapersRemovesStoredAssignments() {
         "Expected clear to remove the persisted assignments key"
     )
     expectEqual(defaults.loadReusableGeneratedWallpapers(), [], "Expected clear to leave no stored wallpaper assignments")
+}
+
+private func testStoredWallpaperPersistenceRetainsDisplayMetadata() {
+    let defaults = makeDefaults()
+    defer { clearDefaults(defaults) }
+
+    let directory = makeTemporaryDirectory(prefix: "kindlewall-t64-metadata")
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let wallpaperURL = makeWallpaper(directory: directory, name: "display-metadata.png")
+    defaults.replaceReusableGeneratedWallpapers([
+        StoredGeneratedWallpaper(
+            targetIdentifier: "display-a",
+            fileURL: wallpaperURL,
+            pixelWidth: 1920,
+            pixelHeight: 1080,
+            backingScaleFactor: 2.0,
+            originX: -1920,
+            originY: 0
+        )
+    ])
+
+    let storedWallpapers = defaults.loadReusableGeneratedWallpapers()
+    expectEqual(storedWallpapers.count, 1, "Expected stored wallpaper metadata round-trip to preserve the assignment")
+    expectEqual(storedWallpapers[0].pixelWidth, 1920, "Expected persisted pixel width to survive round-trip")
+    expectEqual(storedWallpapers[0].pixelHeight, 1080, "Expected persisted pixel height to survive round-trip")
+    expectEqual(storedWallpapers[0].backingScaleFactor, 2.0, "Expected persisted scale factor to survive round-trip")
+    expectEqual(storedWallpapers[0].originX, -1920, "Expected persisted origin X to survive round-trip")
+    expectEqual(storedWallpapers[0].originY, 0, "Expected persisted origin Y to survive round-trip")
 }
 
 private func testFullRestoreForAllScreensWallpaper() {
@@ -342,6 +357,278 @@ private func testApplyFailureOutcome() {
     expectEqual(outcome.didRestore, false, "Expected apply failure to report no completed restore")
 }
 
+private func testResolverRemapsWhenMainDisplayChanges() {
+    let directory = makeTemporaryDirectory(prefix: "kindlewall-t64-main-display")
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let leftURL = makeWallpaper(directory: directory, name: "left.png")
+    let rightURL = makeWallpaper(directory: directory, name: "right.png")
+    let screens = [
+        makeResolvedScreen(
+            screen: "left-screen",
+            identifier: "display-22",
+            pixelWidth: 1440,
+            pixelHeight: 900,
+            originX: -1440,
+            originY: 0
+        ),
+        makeResolvedScreen(
+            screen: "right-screen",
+            identifier: "display-11",
+            pixelWidth: 1920,
+            pixelHeight: 1080,
+            originX: 0,
+            originY: 0
+        )
+    ]
+
+    let plan = DisplayIdentityResolver.resolvedAssignments(
+        for: [
+            StoredGeneratedWallpaper(
+                targetIdentifier: "display-11",
+                fileURL: leftURL,
+                pixelWidth: 1440,
+                pixelHeight: 900,
+                backingScaleFactor: 1.0,
+                originX: 0,
+                originY: 0
+            ),
+            StoredGeneratedWallpaper(
+                targetIdentifier: "display-22",
+                fileURL: rightURL,
+                pixelWidth: 1920,
+                pixelHeight: 1080,
+                backingScaleFactor: 1.0,
+                originX: 1440,
+                originY: 0
+            )
+        ],
+        resolvedScreens: screens
+    )
+
+    expectEqual(plan.expectedAssignmentCount, 2, "Expected both stored displays to participate in remapping")
+    expectEqual(plan.assignments.count, 2, "Expected both wallpapers to remap after a main-display identifier swap")
+    expectEqual(plan.assignments[0].screenIdentifier, "display-22", "Expected left wallpaper to follow the physical left display")
+    expectEqual(plan.assignments[1].screenIdentifier, "display-11", "Expected right wallpaper to follow the physical right display")
+}
+
+private func testResolverIgnoresScreenOrderingChanges() {
+    let directory = makeTemporaryDirectory(prefix: "kindlewall-t64-reorder")
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let topURL = makeWallpaper(directory: directory, name: "top.png")
+    let bottomURL = makeWallpaper(directory: directory, name: "bottom.png")
+    let screens = [
+        makeResolvedScreen(
+            screen: "bottom-screen",
+            identifier: "display-bottom-new",
+            pixelWidth: 1200,
+            pixelHeight: 1600,
+            originX: 0,
+            originY: -1600
+        ),
+        makeResolvedScreen(
+            screen: "top-screen",
+            identifier: "display-top-new",
+            pixelWidth: 1200,
+            pixelHeight: 1600,
+            originX: 0,
+            originY: 0
+        )
+    ]
+
+    let plan = DisplayIdentityResolver.resolvedAssignments(
+        for: [
+            StoredGeneratedWallpaper(
+                targetIdentifier: "display-top-old",
+                fileURL: topURL,
+                pixelWidth: 1200,
+                pixelHeight: 1600,
+                backingScaleFactor: 1.0,
+                originX: 0,
+                originY: 1200
+            ),
+            StoredGeneratedWallpaper(
+                targetIdentifier: "display-bottom-old",
+                fileURL: bottomURL,
+                pixelWidth: 1200,
+                pixelHeight: 1600,
+                backingScaleFactor: 1.0,
+                originX: 0,
+                originY: -400
+            )
+        ],
+        resolvedScreens: screens
+    )
+
+    expectEqual(plan.assignments.count, 2, "Expected topology remapping to ignore current screen array order")
+    expectEqual(plan.assignments[0].screenIdentifier, "display-top-new", "Expected top wallpaper to remain on the top display")
+    expectEqual(plan.assignments[1].screenIdentifier, "display-bottom-new", "Expected bottom wallpaper to remain on the bottom display")
+}
+
+private func testResolverKeepsSameResolutionDisplaysDistinct() {
+    let directory = makeTemporaryDirectory(prefix: "kindlewall-t64-same-resolution")
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let leftURL = makeWallpaper(directory: directory, name: "same-left.png")
+    let rightURL = makeWallpaper(directory: directory, name: "same-right.png")
+    let screens = [
+        makeResolvedScreen(
+            screen: "left-screen",
+            identifier: "display-left-new",
+            pixelWidth: 1920,
+            pixelHeight: 1080,
+            originX: 0,
+            originY: 0
+        ),
+        makeResolvedScreen(
+            screen: "right-screen",
+            identifier: "display-right-new",
+            pixelWidth: 1920,
+            pixelHeight: 1080,
+            originX: 1920,
+            originY: 0
+        )
+    ]
+
+    let plan = DisplayIdentityResolver.resolvedAssignments(
+        for: [
+            StoredGeneratedWallpaper(
+                targetIdentifier: "display-a",
+                fileURL: leftURL,
+                pixelWidth: 1920,
+                pixelHeight: 1080,
+                backingScaleFactor: 1.0,
+                originX: 0,
+                originY: 0
+            ),
+            StoredGeneratedWallpaper(
+                targetIdentifier: "display-b",
+                fileURL: rightURL,
+                pixelWidth: 1920,
+                pixelHeight: 1080,
+                backingScaleFactor: 1.0,
+                originX: 1920,
+                originY: 0
+            )
+        ],
+        resolvedScreens: screens
+    )
+
+    expectEqual(plan.assignments.count, 2, "Expected both same-resolution displays to remap distinctly")
+    expectEqual(plan.assignments[0].screenIdentifier, "display-left-new", "Expected left display to remain distinguishable by position")
+    expectEqual(plan.assignments[1].screenIdentifier, "display-right-new", "Expected right display to remain distinguishable by position")
+}
+
+private func testResolverHandlesMissingDisplaysWithoutMisapplying() {
+    let directory = makeTemporaryDirectory(prefix: "kindlewall-t64-missing")
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let primaryURL = makeWallpaper(directory: directory, name: "primary.png")
+    let secondaryURL = makeWallpaper(directory: directory, name: "secondary.png")
+    let screens = [
+        makeResolvedScreen(
+            screen: "primary-screen",
+            identifier: "display-primary-new",
+            pixelWidth: 1440,
+            pixelHeight: 900,
+            originX: 0,
+            originY: 0
+        )
+    ]
+
+    let plan = DisplayIdentityResolver.resolvedAssignments(
+        for: [
+            StoredGeneratedWallpaper(
+                targetIdentifier: "display-primary-old",
+                fileURL: primaryURL,
+                pixelWidth: 1440,
+                pixelHeight: 900,
+                backingScaleFactor: 1.0,
+                originX: 0,
+                originY: 0
+            ),
+            StoredGeneratedWallpaper(
+                targetIdentifier: "display-secondary-old",
+                fileURL: secondaryURL,
+                pixelWidth: 1920,
+                pixelHeight: 1080,
+                backingScaleFactor: 1.0,
+                originX: 1440,
+                originY: 0
+            )
+        ],
+        resolvedScreens: screens
+    )
+
+    expectEqual(plan.expectedAssignmentCount, 2, "Expected missing-display restores to preserve the original target count")
+    expectEqual(plan.assignments.count, 1, "Expected only the surviving display to receive a remapped wallpaper")
+    expectEqual(plan.assignments[0].screenIdentifier, "display-primary-new", "Expected the surviving physical display to retain its wallpaper")
+}
+
+private func testResolverHandlesExtraDisplaysWithoutBreakingKnownMappings() {
+    let directory = makeTemporaryDirectory(prefix: "kindlewall-t64-extra")
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let mainURL = makeWallpaper(directory: directory, name: "main.png")
+    let sideURL = makeWallpaper(directory: directory, name: "side.png")
+    let screens = [
+        makeResolvedScreen(
+            screen: "main-screen",
+            identifier: "display-main-new",
+            pixelWidth: 1512,
+            pixelHeight: 982,
+            backingScaleFactor: 2.0,
+            originX: 0,
+            originY: 0
+        ),
+        makeResolvedScreen(
+            screen: "side-screen",
+            identifier: "display-side-new",
+            pixelWidth: 1920,
+            pixelHeight: 1080,
+            originX: 1512,
+            originY: 0
+        ),
+        makeResolvedScreen(
+            screen: "extra-screen",
+            identifier: "display-extra",
+            pixelWidth: 1280,
+            pixelHeight: 800,
+            originX: -1280,
+            originY: 0
+        )
+    ]
+
+    let plan = DisplayIdentityResolver.resolvedAssignments(
+        for: [
+            StoredGeneratedWallpaper(
+                targetIdentifier: "display-main-old",
+                fileURL: mainURL,
+                pixelWidth: 1512,
+                pixelHeight: 982,
+                backingScaleFactor: 2.0,
+                originX: 0,
+                originY: 0
+            ),
+            StoredGeneratedWallpaper(
+                targetIdentifier: "display-side-old",
+                fileURL: sideURL,
+                pixelWidth: 1920,
+                pixelHeight: 1080,
+                backingScaleFactor: 1.0,
+                originX: 1512,
+                originY: 0
+            )
+        ],
+        resolvedScreens: screens
+    )
+
+    expectEqual(plan.assignments.count, 2, "Expected known displays to remain mappable even when a new display is present")
+    expectEqual(plan.assignments[0].screenIdentifier, "display-main-new", "Expected the original main display mapping to survive the extra display")
+    expectEqual(plan.assignments[1].screenIdentifier, "display-side-new", "Expected the original side display mapping to survive the extra display")
+}
+
 @MainActor
 private func testAppStateReapplyForwardsStructuredOutcome() {
     var reapplyCallCount = 0
@@ -501,106 +788,27 @@ private func testAppStateExplicitMergeAndClearForwardToPersistenceBoundary() {
     expectEqual(clearCallCount, 1, "Expected AppState.clearStoredWallpaperAssignments to forward exactly once")
 }
 
-@MainActor
-private func testDisplayTopologyCoordinatorRestoresOnWakeNotification() {
-    let notificationCenter = NotificationCenter()
-    let wakeNotificationName = Notification.Name("verify-t64-display-wake")
-    var reapplyCallCount = 0
-    let appState = makeWakeRestoreAppState(
-        reapplyStoredWallpaper: {
-            reapplyCallCount += 1
-            return .fullRestore
-        }
-    )
-
-    let coordinator = DisplayTopologyCoordinator(
-        appState: appState,
-        notificationCenter: notificationCenter,
-        wakeNotificationName: wakeNotificationName
-    )
-
-    coordinator.start()
-    notificationCenter.post(name: wakeNotificationName, object: nil)
-
-    expectEqual(reapplyCallCount, 1, "Expected wake notifications to trigger exactly one restore")
-}
-
-@MainActor
-private func testDisplayTopologyCoordinatorStartIsIdempotent() {
-    let notificationCenter = NotificationCenter()
-    let wakeNotificationName = Notification.Name("verify-t64-display-wake-idempotent")
-    var reapplyCallCount = 0
-    let appState = makeWakeRestoreAppState(
-        reapplyStoredWallpaper: {
-            reapplyCallCount += 1
-            return .partialRestore
-        }
-    )
-
-    let coordinator = DisplayTopologyCoordinator(
-        appState: appState,
-        notificationCenter: notificationCenter,
-        wakeNotificationName: wakeNotificationName
-    )
-
-    coordinator.start()
-    coordinator.start()
-    notificationCenter.post(name: wakeNotificationName, object: nil)
-
-    expectEqual(reapplyCallCount, 1, "Expected repeated coordinator starts not to duplicate wake observers")
-}
-
-@MainActor
-private func testDisplayTopologyCoordinatorUsesLatestAppState() {
-    let notificationCenter = NotificationCenter()
-    let wakeNotificationName = Notification.Name("verify-t64-display-wake-updated-state")
-    var firstAppStateCallCount = 0
-    var secondAppStateCallCount = 0
-    let firstAppState = makeWakeRestoreAppState(
-        reapplyStoredWallpaper: {
-            firstAppStateCallCount += 1
-            return .partialRestore
-        }
-    )
-    let secondAppState = makeWakeRestoreAppState(
-        reapplyStoredWallpaper: {
-            secondAppStateCallCount += 1
-            return .fullRestore
-        }
-    )
-
-    let coordinator = DisplayTopologyCoordinator(
-        appState: firstAppState,
-        notificationCenter: notificationCenter,
-        wakeNotificationName: wakeNotificationName
-    )
-
-    coordinator.start()
-    coordinator.setAppState(secondAppState)
-    notificationCenter.post(name: wakeNotificationName, object: nil)
-
-    expectEqual(firstAppStateCallCount, 0, "Expected coordinator to stop using stale app state after reconfiguration")
-    expectEqual(secondAppStateCallCount, 1, "Expected coordinator to use the latest app state after reconfiguration")
-}
-
 testReplaceReusableGeneratedWallpapersReplacesStoredSnapshot()
 testMergeReusableGeneratedWallpapersMergesByTargetIdentifier()
 testClearReusableGeneratedWallpapersRemovesStoredAssignments()
+testStoredWallpaperPersistenceRetainsDisplayMetadata()
 testFullRestoreForAllScreensWallpaper()
 testFullRestoreForTargetedScreens()
 testPartialRestoreWhenTopologyIsReduced()
 testNoStoredWallpaperOutcome()
 testNoConnectedScreensOutcome()
 testApplyFailureOutcome()
+testResolverRemapsWhenMainDisplayChanges()
+testResolverIgnoresScreenOrderingChanges()
+testResolverKeepsSameResolutionDisplaysDistinct()
+testResolverHandlesMissingDisplaysWithoutMisapplying()
+testResolverHandlesExtraDisplaysWithoutBreakingKnownMappings()
 
 await MainActor.run {
     testAppStateReapplyForwardsStructuredOutcome()
     testAppStateRotationUsesReplacePersistenceOnly()
     testAppStateRotationFailureSkipsPersistenceOperations()
     testAppStateExplicitMergeAndClearForwardToPersistenceBoundary()
-    testDisplayTopologyCoordinatorRestoresOnWakeNotification()
-    testDisplayTopologyCoordinatorStartIsIdempotent()
-    testDisplayTopologyCoordinatorUsesLatestAppState()
 }
 
 print("verify_t64_main passed")

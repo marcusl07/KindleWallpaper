@@ -136,6 +136,8 @@ SWIFT
 
 swiftc \
   -module-cache-path "$tmp_dir/module-cache" \
+  App/ScheduleSettings.swift \
+  App/DisplayIdentityResolver.swift \
   App/WallpaperSetter.swift \
   "$tmp_dir/main.swift" \
   -o "$tmp_dir/verify_t23"
