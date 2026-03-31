@@ -12,6 +12,7 @@
 		154FAA67B9134B920BB2E402 /* Database.swift in Sources */ = {isa = PBXBuildFile; fileRef = 126D2BED290D16D70E707B68 /* Database.swift */; };
 		28774E1A69A7CBA9EC0CEADB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9659821AC668F464106C9FC7 /* SettingsView.swift */; };
 		502DA8517C345512E26AA2A5 /* AppSupportPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC30AE2587D563491B3028B /* AppSupportPaths.swift */; };
+		5B8D8077D1544147A2C44872 /* DisplayTopologyCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21B8E3445F2F4E809A769813 /* DisplayTopologyCoordinator.swift */; };
 		B2C3D4E5F60718293A4B5C6D /* BackgroundImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* BackgroundImageLoader.swift */; };
 		6174323980834111C7C77097 /* WallpaperScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE978DC2E088D8352D1AB370 /* WallpaperScheduler.swift */; };
 		630FD92E3719C965D0208253 /* Highlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86F9EA5F3C2418D8AA0D9365 /* Highlight.swift */; };
@@ -32,6 +33,7 @@
 /* Begin PBXFileReference section */
 		126D2BED290D16D70E707B68 /* Database.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Database.swift; sourceTree = "<group>"; };
 		1D7702F347CAD3C65FDA7851 /* ClippingsParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClippingsParser.swift; sourceTree = "<group>"; };
+		21B8E3445F2F4E809A769813 /* DisplayTopologyCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTopologyCoordinator.swift; sourceTree = "<group>"; };
 		5C88B20A7755CD6200EE4E3F /* WallpaperSetter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperSetter.swift; sourceTree = "<group>"; };
 		5DF13C66AA67590AFF96E390 /* ImportCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportCoordinator.swift; sourceTree = "<group>"; };
 		653DF17A62F70DE93E169341 /* VolumeWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VolumeWatcher.swift; sourceTree = "<group>"; };
@@ -91,6 +93,7 @@
 				A1B2C3D4E5F60718293A4B5C /* BackgroundImageLoader.swift */,
 				766BDB43991580ED0548AE8A /* BackgroundImageStore.swift */,
 				126D2BED290D16D70E707B68 /* Database.swift */,
+				21B8E3445F2F4E809A769813 /* DisplayTopologyCoordinator.swift */,
 				5DF13C66AA67590AFF96E390 /* ImportCoordinator.swift */,
 				931DFDD6D12D8887EA968760 /* Info.plist */,
 				67306A31618FE6581F9F81F4 /* KindleWallApp.swift */,
@@ -194,6 +197,7 @@
 				006BFF281CE13CB5B2AA67E6 /* Book.swift in Sources */,
 				C06D7617B1725A8B722A3626 /* ClippingsParser.swift in Sources */,
 				154FAA67B9134B920BB2E402 /* Database.swift in Sources */,
+				5B8D8077D1544147A2C44872 /* DisplayTopologyCoordinator.swift in Sources */,
 				E3490F35A7ACB433674887C9 /* DedupeKeyBuilder.swift in Sources */,
 				630FD92E3719C965D0208253 /* Highlight.swift in Sources */,
 				D6C797343A84594057ADD624 /* ImportCoordinator.swift in Sources */,

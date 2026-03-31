@@ -3,6 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP_STATE_FILE="$ROOT_DIR/App/AppState.swift"
+APP_FILE="$ROOT_DIR/App/KindleWallApp.swift"
+COORDINATOR_FILE="$ROOT_DIR/App/DisplayTopologyCoordinator.swift"
 WALLPAPER_SETTER_FILE="$ROOT_DIR/App/WallpaperSetter.swift"
 TMP_DIR="$(mktemp -d /tmp/kindlewall_t64.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -28,8 +30,16 @@ require_pattern "$WALLPAPER_SETTER_FILE" 'func[[:space:]]+restoreStoredWallpaper
 require_pattern "$APP_STATE_FILE" 'typealias[[:space:]]+WallpaperRestoreOutcome[[:space:]]*=[[:space:]]*WallpaperSetter\.RestoreOutcome' "app state restore outcome alias"
 require_pattern "$APP_STATE_FILE" 'typealias[[:space:]]+ReapplyStoredWallpaper[[:space:]]*=[[:space:]]*\(\)[[:space:]]*->[[:space:]]*WallpaperRestoreOutcome' "app state restore closure outcome"
 require_pattern "$APP_STATE_FILE" 'func[[:space:]]+reapplyStoredWallpaperIfAvailable\(\)[[:space:]]*->[[:space:]]*WallpaperRestoreOutcome' "app state structured restore API"
+require_pattern "$COORDINATOR_FILE" 'final[[:space:]]+class[[:space:]]+DisplayTopologyCoordinator' "display topology coordinator boundary"
+require_pattern "$COORDINATOR_FILE" 'func[[:space:]]+start\(\)' "display topology coordinator start entrypoint"
+require_pattern "$COORDINATOR_FILE" 'func[[:space:]]+handleWakeNotification\(\)' "display topology coordinator wake handler"
+require_pattern "$APP_FILE" 'DisplayTopologyCoordinator' "app delegate topology coordinator wiring"
 if rg -q 'func[[:space:]]+reapplyStoredWallpaperIfAvailable\(\)[[:space:]]*->[[:space:]]*Bool' "$APP_STATE_FILE"; then
   echo "Verification failed: unexpected legacy Bool restore API in $APP_STATE_FILE" >&2
+  exit 1
+fi
+if rg -q 'NSWorkspace\.didWakeNotification' "$APP_FILE"; then
+  echo "Verification failed: wake notification orchestration should live in $COORDINATOR_FILE, not $APP_FILE" >&2
   exit 1
 fi
 
@@ -40,6 +50,7 @@ swiftc \
   -D TESTING \
   "$TMP_DIR/main.swift" \
   "$ROOT_DIR/App/AppState.swift" \
+  "$ROOT_DIR/App/DisplayTopologyCoordinator.swift" \
   "$ROOT_DIR/App/ScheduleSettings.swift" \
   "$ROOT_DIR/App/AppSupportPaths.swift" \
   "$ROOT_DIR/App/BackgroundImageStore.swift" \

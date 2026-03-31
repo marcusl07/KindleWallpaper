@@ -24,9 +24,6 @@ Create `QuoteEditView` for editing all fields (quote text, book title, author, l
 
 ## Phase 14 — Wallpaper Restore Reliability
 
-**T64b — Introduce a display topology coordinator boundary**
-Create `DisplayTopologyCoordinator.swift` and move wake-triggered restore orchestration out of `KindleWallApp.swift` into that coordinator. Keep this slice wake-only so the app remains behaviorally equivalent while centralizing lifecycle policy and adding focused verification coverage.
-
 **T64c — Handle display reconfiguration with debounced restore**
 Extend `DisplayTopologyCoordinator.swift` and `KindleWallApp.swift` to observe display-configuration changes in addition to wake events, then debounce event bursts into a single restore pass after topology settles. Cover wake-then-reconfigure and repeated reconfiguration sequences in `scripts/verify_t64.sh` / `scripts/verify_t64_main.swift`.
 

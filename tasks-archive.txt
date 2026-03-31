@@ -493,3 +493,6 @@ Wire `+` button in `QuotesListView` to open `QuoteEditView` in add mode. On save
 
 **T64a — Make wallpaper restore outcomes explicit**
 In `WallpaperSetter.swift` and `AppState.swift`, replace the current `Bool`-style restore result with a structured outcome that distinguishes full restore, partial restore, no stored wallpapers, no connected screens, and apply failure. Add `scripts/verify_t64.sh` and `scripts/verify_t64_main.swift` coverage for each outcome while preserving current app behavior.
+
+**T64b — Introduce a display topology coordinator boundary**
+Create `DisplayTopologyCoordinator.swift` and move wake-triggered restore orchestration out of `KindleWallApp.swift` into that coordinator. Keep this slice wake-only so the app remains behaviorally equivalent while centralizing lifecycle policy and adding focused verification coverage.

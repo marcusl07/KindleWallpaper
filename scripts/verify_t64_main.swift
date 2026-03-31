@@ -46,6 +46,28 @@ private func makeWallpaper(directory: URL, name: String) -> URL {
     return fileURL
 }
 
+@MainActor
+private func makeWakeRestoreAppState(
+    reapplyStoredWallpaper: @escaping () -> WallpaperSetter.RestoreOutcome,
+    markHighlightShown: @escaping (UUID) -> Void = { _ in
+        fail("Expected wake restore not to advance rotation state")
+    }
+) -> AppState {
+    AppState(
+        pickNextHighlight: {
+            fail("Expected wake restore not to request a new highlight")
+        },
+        generateWallpaper: { _, _ in
+            fail("Expected wake restore not to generate a new wallpaper")
+        },
+        setWallpaper: { _ in
+            fail("Expected wake restore not to use the rotation apply path")
+        },
+        reapplyStoredWallpaper: reapplyStoredWallpaper,
+        markHighlightShown: markHighlightShown
+    )
+}
+
 private func testFullRestoreForAllScreensWallpaper() {
     let directory = makeTemporaryDirectory(prefix: "kindlewall-t64-all")
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -212,16 +234,7 @@ private func testAppStateReapplyForwardsStructuredOutcome() {
     var reapplyCallCount = 0
     var markHighlightShownCount = 0
 
-    let appState = AppState(
-        pickNextHighlight: {
-            fail("Expected wake restore not to request a new highlight")
-        },
-        generateWallpaper: { _, _ in
-            fail("Expected wake restore not to generate a new wallpaper")
-        },
-        setWallpaper: { _ in
-            fail("Expected wake restore not to use the rotation apply path")
-        },
+    let appState = makeWakeRestoreAppState(
         reapplyStoredWallpaper: {
             reapplyCallCount += 1
             return .partialRestore
@@ -237,6 +250,88 @@ private func testAppStateReapplyForwardsStructuredOutcome() {
     expectEqual(markHighlightShownCount, 0, "Expected wake restore not to advance rotation state")
 }
 
+@MainActor
+private func testDisplayTopologyCoordinatorRestoresOnWakeNotification() {
+    let notificationCenter = NotificationCenter()
+    let wakeNotificationName = Notification.Name("verify-t64-display-wake")
+    var reapplyCallCount = 0
+    let appState = makeWakeRestoreAppState(
+        reapplyStoredWallpaper: {
+            reapplyCallCount += 1
+            return .fullRestore
+        }
+    )
+
+    let coordinator = DisplayTopologyCoordinator(
+        appState: appState,
+        notificationCenter: notificationCenter,
+        wakeNotificationName: wakeNotificationName
+    )
+
+    coordinator.start()
+    notificationCenter.post(name: wakeNotificationName, object: nil)
+
+    expectEqual(reapplyCallCount, 1, "Expected wake notifications to trigger exactly one restore")
+}
+
+@MainActor
+private func testDisplayTopologyCoordinatorStartIsIdempotent() {
+    let notificationCenter = NotificationCenter()
+    let wakeNotificationName = Notification.Name("verify-t64-display-wake-idempotent")
+    var reapplyCallCount = 0
+    let appState = makeWakeRestoreAppState(
+        reapplyStoredWallpaper: {
+            reapplyCallCount += 1
+            return .partialRestore
+        }
+    )
+
+    let coordinator = DisplayTopologyCoordinator(
+        appState: appState,
+        notificationCenter: notificationCenter,
+        wakeNotificationName: wakeNotificationName
+    )
+
+    coordinator.start()
+    coordinator.start()
+    notificationCenter.post(name: wakeNotificationName, object: nil)
+
+    expectEqual(reapplyCallCount, 1, "Expected repeated coordinator starts not to duplicate wake observers")
+}
+
+@MainActor
+private func testDisplayTopologyCoordinatorUsesLatestAppState() {
+    let notificationCenter = NotificationCenter()
+    let wakeNotificationName = Notification.Name("verify-t64-display-wake-updated-state")
+    var firstAppStateCallCount = 0
+    var secondAppStateCallCount = 0
+    let firstAppState = makeWakeRestoreAppState(
+        reapplyStoredWallpaper: {
+            firstAppStateCallCount += 1
+            return .partialRestore
+        }
+    )
+    let secondAppState = makeWakeRestoreAppState(
+        reapplyStoredWallpaper: {
+            secondAppStateCallCount += 1
+            return .fullRestore
+        }
+    )
+
+    let coordinator = DisplayTopologyCoordinator(
+        appState: firstAppState,
+        notificationCenter: notificationCenter,
+        wakeNotificationName: wakeNotificationName
+    )
+
+    coordinator.start()
+    coordinator.setAppState(secondAppState)
+    notificationCenter.post(name: wakeNotificationName, object: nil)
+
+    expectEqual(firstAppStateCallCount, 0, "Expected coordinator to stop using stale app state after reconfiguration")
+    expectEqual(secondAppStateCallCount, 1, "Expected coordinator to use the latest app state after reconfiguration")
+}
+
 testFullRestoreForAllScreensWallpaper()
 testFullRestoreForTargetedScreens()
 testPartialRestoreWhenTopologyIsReduced()
@@ -246,6 +341,9 @@ testApplyFailureOutcome()
 
 await MainActor.run {
     testAppStateReapplyForwardsStructuredOutcome()
+    testDisplayTopologyCoordinatorRestoresOnWakeNotification()
+    testDisplayTopologyCoordinatorStartIsIdempotent()
+    testDisplayTopologyCoordinatorUsesLatestAppState()
 }
 
 print("verify_t64_main passed")
