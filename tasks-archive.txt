@@ -502,3 +502,8 @@ In `ScheduleSettings.swift` and `AppState.swift`, replace the current replace-on
 
 **T64e — Extract display identity and remapping heuristics**
 Create `DisplayIdentityResolver.swift` and move display matching/remapping policy out of `WallpaperSetter.swift`, keeping `WallpaperSetter` focused on applying assignments. Wire `AppState.swift` to use the resolver for restore matching, and add adversarial tests for main-display changes, reordering, same-resolution displays, missing displays, and extra displays.
+
+**T64c — Handle display reconfiguration with debounced restore**
+Extend `DisplayTopologyCoordinator.swift` and `KindleWallApp.swift` to observe display-configuration changes in addition to wake events, then debounce event bursts into a single restore pass after topology settles. Cover wake-then-reconfigure and repeated reconfiguration sequences in `scripts/verify_t64.sh` / `scripts/verify_t64_main.swift`.
+
+## Open Agent Handoff Bugs

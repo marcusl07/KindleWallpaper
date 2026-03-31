@@ -331,6 +331,49 @@ private enum TestError: Error {
     case applyFailed
 }
 
+@MainActor
+private final class ManualRestoreScheduler {
+    struct Entry {
+        let generation: UInt64
+        let delay: TimeInterval
+        let operation: @MainActor (UInt64) -> Void
+    }
+
+    private(set) var entries: [Entry] = []
+
+    func schedule(
+        generation: UInt64,
+        delay: TimeInterval,
+        operation: @escaping @MainActor (UInt64) -> Void
+    ) {
+        entries.append(Entry(generation: generation, delay: delay, operation: operation))
+    }
+
+    func fire(at index: Int) {
+        let entry = entries[index]
+        entry.operation(entry.generation)
+    }
+}
+
+@MainActor
+private func makeRestoreTestingAppState(
+    reapplyStoredWallpaper: @escaping AppState.ReapplyStoredWallpaper
+) -> AppState {
+    AppState(
+        pickNextHighlight: { nil },
+        generateWallpaper: { _, _ in
+            fail("Expected display topology restore tests not to generate new wallpapers")
+        },
+        setWallpaper: { _ in
+            fail("Expected display topology restore tests not to use the rotation apply path")
+        },
+        reapplyStoredWallpaper: reapplyStoredWallpaper,
+        markHighlightShown: { _ in
+            fail("Expected display topology restore tests not to mark highlights")
+        }
+    )
+}
+
 private func testApplyFailureOutcome() {
     let directory = makeTemporaryDirectory(prefix: "kindlewall-t64-failure")
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -630,6 +673,105 @@ private func testResolverHandlesExtraDisplaysWithoutBreakingKnownMappings() {
 }
 
 @MainActor
+private func testDisplayTopologyCoordinatorDebouncesWakeThenReconfiguration() {
+    let wakeNotificationName = Notification.Name("verify-t64-wake")
+    let displayNotificationName = Notification.Name("verify-t64-display")
+    let wakeCenter = NotificationCenter()
+    let displayCenter = NotificationCenter()
+    let scheduler = ManualRestoreScheduler()
+    var reapplyCallCount = 0
+    let appState = makeRestoreTestingAppState {
+        reapplyCallCount += 1
+        return .partialRestore
+    }
+
+    let coordinator = DisplayTopologyCoordinator(
+        appState: appState,
+        notificationCenter: wakeCenter,
+        wakeNotificationName: wakeNotificationName,
+        displayReconfigurationNotificationCenter: displayCenter,
+        displayReconfigurationNotificationName: displayNotificationName,
+        debounceInterval: 0.25,
+        scheduleRestore: scheduler.schedule(generation:delay:operation:)
+    )
+
+    coordinator.start()
+    wakeCenter.post(name: wakeNotificationName, object: nil)
+    displayCenter.post(name: displayNotificationName, object: nil)
+
+    expectEqual(scheduler.entries.count, 2, "Expected wake plus reconfiguration to schedule two debounced restore attempts")
+    expectEqual(scheduler.entries[0].delay, 0.25, "Expected wake restore scheduling to use the configured debounce interval")
+    expectEqual(scheduler.entries[1].delay, 0.25, "Expected display reconfiguration scheduling to use the configured debounce interval")
+
+    scheduler.fire(at: 0)
+    expectEqual(reapplyCallCount, 0, "Expected the wake-triggered restore to be dropped after a later reconfiguration arrives")
+
+    scheduler.fire(at: 1)
+    expectEqual(reapplyCallCount, 1, "Expected wake-then-reconfigure bursts to coalesce into one restore pass")
+}
+
+@MainActor
+private func testDisplayTopologyCoordinatorDebouncesRepeatedReconfigurationBursts() {
+    let scheduler = ManualRestoreScheduler()
+    var reapplyCallCount = 0
+    let appState = makeRestoreTestingAppState {
+        reapplyCallCount += 1
+        return .fullRestore
+    }
+
+    let coordinator = DisplayTopologyCoordinator(
+        appState: appState,
+        notificationCenter: NotificationCenter(),
+        wakeNotificationName: Notification.Name("unused-wake"),
+        displayReconfigurationNotificationCenter: NotificationCenter(),
+        displayReconfigurationNotificationName: Notification.Name("unused-display"),
+        debounceInterval: 0.5,
+        scheduleRestore: scheduler.schedule(generation:delay:operation:)
+    )
+
+    coordinator.handleDisplayReconfigurationNotification()
+    coordinator.handleDisplayReconfigurationNotification()
+    coordinator.handleDisplayReconfigurationNotification()
+
+    expectEqual(scheduler.entries.count, 3, "Expected each reconfiguration event to replace the pending debounced restore")
+
+    scheduler.fire(at: 0)
+    scheduler.fire(at: 1)
+    expectEqual(reapplyCallCount, 0, "Expected superseded reconfiguration events not to restore early")
+
+    scheduler.fire(at: 2)
+    expectEqual(reapplyCallCount, 1, "Expected a burst of repeated reconfiguration events to restore once after topology settles")
+}
+
+@MainActor
+private func testDisplayTopologyCoordinatorStopInvalidatesPendingRestore() {
+    let scheduler = ManualRestoreScheduler()
+    var reapplyCallCount = 0
+    let appState = makeRestoreTestingAppState {
+        reapplyCallCount += 1
+        return .fullRestore
+    }
+
+    let coordinator = DisplayTopologyCoordinator(
+        appState: appState,
+        notificationCenter: NotificationCenter(),
+        wakeNotificationName: Notification.Name("unused-wake"),
+        displayReconfigurationNotificationCenter: NotificationCenter(),
+        displayReconfigurationNotificationName: Notification.Name("unused-display"),
+        debounceInterval: 0.5,
+        scheduleRestore: scheduler.schedule(generation:delay:operation:)
+    )
+
+    coordinator.handleWakeNotification()
+    expectEqual(scheduler.entries.count, 1, "Expected wake handling to schedule a debounced restore")
+
+    coordinator.stop()
+    scheduler.fire(at: 0)
+
+    expectEqual(reapplyCallCount, 0, "Expected stop() to invalidate already scheduled restore passes")
+}
+
+@MainActor
 private func testAppStateReapplyForwardsStructuredOutcome() {
     var reapplyCallCount = 0
     var markHighlightShownCount = 0
@@ -805,6 +947,9 @@ testResolverHandlesMissingDisplaysWithoutMisapplying()
 testResolverHandlesExtraDisplaysWithoutBreakingKnownMappings()
 
 await MainActor.run {
+    testDisplayTopologyCoordinatorDebouncesWakeThenReconfiguration()
+    testDisplayTopologyCoordinatorDebouncesRepeatedReconfigurationBursts()
+    testDisplayTopologyCoordinatorStopInvalidatesPendingRestore()
     testAppStateReapplyForwardsStructuredOutcome()
     testAppStateRotationUsesReplacePersistenceOnly()
     testAppStateRotationFailureSkipsPersistenceOperations()

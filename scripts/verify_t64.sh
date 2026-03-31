@@ -6,6 +6,8 @@ APP_STATE_FILE="$ROOT_DIR/App/AppState.swift"
 SCHEDULE_SETTINGS_FILE="$ROOT_DIR/App/ScheduleSettings.swift"
 DISPLAY_IDENTITY_RESOLVER_FILE="$ROOT_DIR/App/DisplayIdentityResolver.swift"
 WALLPAPER_SETTER_FILE="$ROOT_DIR/App/WallpaperSetter.swift"
+DISPLAY_TOPOLOGY_COORDINATOR_FILE="$ROOT_DIR/App/DisplayTopologyCoordinator.swift"
+APP_FILE="$ROOT_DIR/App/KindleWallApp.swift"
 TMP_DIR="$(mktemp -d /tmp/kindlewall_t64.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -44,6 +46,12 @@ require_pattern "$APP_STATE_FILE" 'func[[:space:]]+reapplyStoredWallpaperIfAvail
 require_pattern "$APP_STATE_FILE" 'context\.replaceStoredWallpaperAssignments\(appliedGeneratedWallpapers\)' "post-apply replace persistence routing"
 require_pattern "$APP_STATE_FILE" 'DisplayIdentityResolver\.resolvedConnectedScreens' "app state target preparation uses display resolver"
 require_pattern "$APP_STATE_FILE" 'DisplayIdentityResolver\.restoreStoredWallpapers' "app state restore path uses display resolver"
+require_pattern "$DISPLAY_TOPOLOGY_COORDINATOR_FILE" 'didChangeScreenParametersNotification' "display reconfiguration observer"
+require_pattern "$DISPLAY_TOPOLOGY_COORDINATOR_FILE" 'defaultRestoreDebounceInterval' "default restore debounce interval"
+require_pattern "$DISPLAY_TOPOLOGY_COORDINATOR_FILE" 'handleDisplayReconfigurationNotification' "display reconfiguration handler"
+require_pattern "$DISPLAY_TOPOLOGY_COORDINATOR_FILE" 'restoreGeneration' "debounced restore generation tracking"
+require_pattern "$APP_FILE" 'DisplayTopologyCoordinator\(' "app delegate display topology coordinator wiring"
+require_pattern "$APP_FILE" 'defaultRestoreDebounceInterval' "app uses debounced display restore interval"
 if rg -q 'func[[:space:]]+reapplyStoredWallpaperIfAvailable\(\)[[:space:]]*->[[:space:]]*Bool' "$APP_STATE_FILE"; then
   echo "Verification failed: unexpected legacy Bool restore API in $APP_STATE_FILE" >&2
   exit 1
@@ -65,6 +73,7 @@ swiftc \
   "$ROOT_DIR/App/BackgroundImageStore.swift" \
   "$ROOT_DIR/App/BackgroundImageLoader.swift" \
   "$DISPLAY_IDENTITY_RESOLVER_FILE" \
+  "$DISPLAY_TOPOLOGY_COORDINATOR_FILE" \
   "$ROOT_DIR/App/SettingsView.swift" \
   "$ROOT_DIR/App/WallpaperSetter.swift" \
   "$ROOT_DIR/Models/Book.swift" \
