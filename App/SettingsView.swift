@@ -1443,7 +1443,8 @@ private func importClippingsFile(at fileURL: URL, for appState: AppState) {
         from: VolumeWatcher.ImportPayload(
             newHighlightCount: result.newHighlightCount,
             error: result.error,
-            parseWarningCount: result.parseWarningCount
+            parseWarningCount: result.parseWarningCount,
+            skippedEntryCount: result.skippedEntryCount
         ),
         now: Date()
     )

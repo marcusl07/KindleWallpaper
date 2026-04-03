@@ -108,7 +108,7 @@ struct KindleWallApp: App {
         #else
         let listener = VolumeWatcher.MountListener(
             importFile: { _ in
-                VolumeWatcher.ImportPayload(newHighlightCount: 0, error: nil, parseWarningCount: 0)
+                VolumeWatcher.ImportPayload(newHighlightCount: 0, error: nil, parseWarningCount: 0, skippedEntryCount: 0)
             },
             publishImportStatus: publishImportStatusOnMain
         )

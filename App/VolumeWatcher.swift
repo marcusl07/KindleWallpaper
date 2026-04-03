@@ -133,6 +133,7 @@ extension VolumeWatcher {
         let newHighlightCount: Int
         let error: String?
         let parseWarningCount: Int
+        let skippedEntryCount: Int
     }
 
     struct ImportStatus: Equatable {
@@ -237,7 +238,7 @@ extension VolumeWatcher {
 
         if let sizeLimitError = importSizeLimitErrorMessage(for: clippingsURL, fileManager: .default) {
             let status = makeImportStatus(
-                from: ImportPayload(newHighlightCount: 0, error: sizeLimitError, parseWarningCount: 0),
+                from: ImportPayload(newHighlightCount: 0, error: sizeLimitError, parseWarningCount: 0, skippedEntryCount: 0),
                 now: now()
             )
             publishImportStatus(status)
@@ -255,12 +256,28 @@ extension VolumeWatcher {
         }
 
         guard result.newHighlightCount > 0 else {
+            if result.skippedEntryCount > 0 {
+                let warningSuffix = parseWarningSuffix(for: result.parseWarningCount)
+                return ImportStatus(
+                    message: "Last synced: \(importStatusDateFormatter.string(from: now)) - Import completed with warnings: 0 new highlights added, \(result.skippedEntryCount) \(skippedEntryNoun(for: result.skippedEntryCount)) skipped\(warningSuffix)",
+                    isError: false
+                )
+            }
+
             let warningSuffix = parseWarningSuffix(for: result.parseWarningCount)
             return ImportStatus(message: "Library up to date\(warningSuffix)", isError: false)
         }
 
         let timestamp = importStatusDateFormatter.string(from: now)
         let highlightNoun = result.newHighlightCount == 1 ? "highlight" : "highlights"
+        if result.skippedEntryCount > 0 {
+            let warningSuffix = parseWarningSuffix(for: result.parseWarningCount)
+            return ImportStatus(
+                message: "Last synced: \(timestamp) - Import completed with warnings: \(result.newHighlightCount) new \(highlightNoun) added, \(result.skippedEntryCount) \(skippedEntryNoun(for: result.skippedEntryCount)) skipped\(warningSuffix)",
+                isError: false
+            )
+        }
+
         let warningSuffix = parseWarningSuffix(for: result.parseWarningCount)
         return ImportStatus(
             message: "Last synced: \(timestamp) - \(result.newHighlightCount) new \(highlightNoun) added\(warningSuffix)",
@@ -297,6 +314,10 @@ extension VolumeWatcher {
         return " (\(parseWarningCount) \(noun))"
     }
 
+    private static func skippedEntryNoun(for skippedEntryCount: Int) -> String {
+        skippedEntryCount == 1 ? "entry" : "entries"
+    }
+
     private static func importSizeLimitErrorMessage(for clippingsURL: URL, fileManager: FileManager) -> String? {
         guard
             let attributes = try? fileManager.attributesOfItem(atPath: clippingsURL.path),
@@ -329,7 +350,8 @@ extension VolumeWatcher.MountListener {
                 return VolumeWatcher.ImportPayload(
                     newHighlightCount: result.newHighlightCount,
                     error: result.error,
-                    parseWarningCount: result.parseWarningCount
+                    parseWarningCount: result.parseWarningCount,
+                    skippedEntryCount: result.skippedEntryCount
                 )
             },
             publishImportStatus: publishImportStatus

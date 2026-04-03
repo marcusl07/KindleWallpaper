@@ -12,6 +12,14 @@ enum ClippingsParser {
         return formatter
     }()
 
+    struct ParseResult {
+        let highlights: [Highlight]
+        let books: [Book]
+        let parseErrorCount: Int
+        let skippedEntryCount: Int
+        let error: String?
+    }
+
     struct ExtractedChunk: Equatable {
         let titleLine: String
         let metadataLine: String
@@ -26,6 +34,12 @@ enum ClippingsParser {
     private struct ParsedBookRecord {
         let id: UUID
         var highlightCount: Int
+    }
+
+    private enum ChunkClassification: Equatable {
+        case highlight(ExtractedChunk)
+        case ignored
+        case malformed
     }
 
     static func splitRawEntries(_ raw: String) -> [String] {
@@ -98,14 +112,56 @@ enum ClippingsParser {
         DedupeKeyBuilder.makeKey(bookId: bookId, location: location, quoteText: quoteText)
     }
 
-    static func parseClippings(fileURL: URL) -> (highlights: [Highlight], books: [Book], parseErrorCount: Int) {
-        guard let rawContents = try? String(contentsOf: fileURL, encoding: .utf8) else {
-            return (highlights: [], books: [], parseErrorCount: 0)
+    static func parseClippings(fileURL: URL) -> ParseResult {
+        let fileData: Data
+
+        do {
+            fileData = try Data(contentsOf: fileURL)
+        } catch {
+            return ParseResult(
+                highlights: [],
+                books: [],
+                parseErrorCount: 0,
+                skippedEntryCount: 0,
+                error: readFailureMessage(for: error)
+            )
+        }
+
+        guard let rawContents = String(data: fileData, encoding: .utf8) else {
+            return ParseResult(
+                highlights: [],
+                books: [],
+                parseErrorCount: 0,
+                skippedEntryCount: 0,
+                error: "clippings file uses an unsupported text encoding. Use a UTF-8 text file and try again."
+            )
         }
 
         var parseErrorCount = 0
         let chunks = splitRawEntries(rawContents)
-        let extractedChunks = extractEntryFields(from: chunks)
+        let classifications = chunks.map(classifyChunk)
+        let extractedChunks = classifications.compactMap { classification -> ExtractedChunk? in
+            guard case let .highlight(chunk) = classification else {
+                return nil
+            }
+            return chunk
+        }
+        let skippedEntryCount = classifications.reduce(into: 0) { count, classification in
+            guard case .malformed = classification else {
+                return
+            }
+            count += 1
+        }
+
+        if extractedChunks.isEmpty && skippedEntryCount > 0 {
+            return ParseResult(
+                highlights: [],
+                books: [],
+                parseErrorCount: 0,
+                skippedEntryCount: skippedEntryCount,
+                error: "clippings file does not contain any valid Kindle highlight entries."
+            )
+        }
 
         var booksByKey: [ParsedBookKey: ParsedBookRecord] = [:]
         var bookOrder: [ParsedBookKey] = []
@@ -168,54 +224,68 @@ enum ClippingsParser {
             )
         }
 
-        return (highlights: highlights, books: books, parseErrorCount: parseErrorCount)
+        return ParseResult(
+            highlights: highlights,
+            books: books,
+            parseErrorCount: parseErrorCount,
+            skippedEntryCount: skippedEntryCount,
+            error: nil
+        )
     }
 
     private static func extractEntryFields(from chunk: String) -> ExtractedChunk? {
+        guard case let .highlight(extractedChunk) = classifyChunk(chunk) else {
+            return nil
+        }
+
+        return extractedChunk
+    }
+
+    private static func classifyChunk(_ chunk: String) -> ChunkClassification {
         let lines = chunk
             .split(separator: "\n", omittingEmptySubsequences: false)
             .map(String.init)
 
         guard let titleIndex = lines.firstIndex(where: { !isBlankLine($0) }) else {
-            return nil
+            return .malformed
         }
         let titleLine = lines[titleIndex].trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard titleIndex < lines.count - 1 else {
-            return nil
+            return .malformed
         }
         guard let metadataIndex = lines[(titleIndex + 1)...].firstIndex(where: { $0.hasPrefix("- Your ") }) else {
-            return nil
+            return .malformed
         }
         let metadataLine = lines[metadataIndex].trimmingCharacters(in: .whitespacesAndNewlines)
         guard metadataLine.contains("Your Highlight") else {
-            return nil
+            return .ignored
         }
 
         guard metadataIndex < lines.count - 1 else {
-            return nil
+            return .malformed
         }
         guard let blankLineIndex = lines[(metadataIndex + 1)...].firstIndex(where: isBlankLine) else {
-            return nil
+            return .malformed
         }
 
         let quoteStartIndex = blankLineIndex + 1
         guard quoteStartIndex < lines.count else {
-            return nil
+            return .malformed
         }
 
         let quoteBody = lines[quoteStartIndex...]
             .joined(separator: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !quoteBody.isEmpty else {
-            return nil
+            return .malformed
         }
 
-        return ExtractedChunk(
+        return .highlight(ExtractedChunk(
             titleLine: titleLine,
             metadataLine: metadataLine,
             quoteBody: quoteBody
-        )
+        ))
     }
 
     private static func appendChunk(from lines: [Substring], into chunks: inout [String]) {
@@ -292,5 +362,13 @@ enum ClippingsParser {
             return nil
         }
         return date
+    }
+
+    private static func readFailureMessage(for error: Error) -> String {
+        let description = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !description.isEmpty else {
+            return "could not read clippings file."
+        }
+        return "could not read clippings file (\(description))."
     }
 }

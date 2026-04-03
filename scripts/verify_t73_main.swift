@@ -68,7 +68,13 @@ func testImportSkipsHighlightsWithoutBookMappings() {
 
     let coordinator = ImportCoordinator(
         parseClippings: { _ in
-            (highlights: [manualHighlight], books: [], parseErrorCount: 0)
+            ClippingsParser.ParseResult(
+                highlights: [manualHighlight],
+                books: [],
+                parseErrorCount: 0,
+                skippedEntryCount: 0,
+                error: nil
+            )
         },
         upsertBook: { book in
             book.id

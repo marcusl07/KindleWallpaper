@@ -191,6 +191,7 @@ swiftc \
   "$ROOT_DIR/Models/Book.swift" \
   "$ROOT_DIR/Models/Highlight.swift" \
   "$ROOT_DIR/Models/DedupeKeyBuilder.swift" \
+  "$ROOT_DIR/Parsing/ClippingsParser.swift" \
   -o "$tmp_dir/verify_t73_main"
 
 "$tmp_dir/verify_t73_main"
