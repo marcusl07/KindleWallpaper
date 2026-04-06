@@ -112,8 +112,8 @@ struct SettingsView: View {
                     .tag(RotationScheduleMode.daily)
                 Text("On app launch")
                     .tag(RotationScheduleMode.onLaunch)
-                Text("Every 30 minutes")
-                    .tag(RotationScheduleMode.every30Minutes)
+                Text("Every interval")
+                    .tag(RotationScheduleMode.everyInterval)
             }
             #if canImport(AppKit)
             .pickerStyle(.radioGroup)
@@ -128,6 +128,31 @@ struct SettingsView: View {
                 #if canImport(AppKit)
                 .datePickerStyle(.field)
                 #endif
+            }
+
+            if appState.activeScheduleMode == .everyInterval {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Every interval:")
+                    HStack(spacing: 16) {
+                        Picker("Hours", selection: scheduleIntervalHoursBinding) {
+                            ForEach(0..<24, id: \.self) { hour in
+                                Text(scheduleIntervalHourLabel(for: hour))
+                                    .tag(hour)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 120)
+
+                        Picker("Minutes", selection: scheduleIntervalMinutesBinding) {
+                            ForEach(scheduleIntervalMinuteOptions, id: \.self) { minute in
+                                Text(scheduleIntervalMinuteLabel(for: minute))
+                                    .tag(minute)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 140)
+                    }
+                }
             }
 
             settingsMessageRow("Last changed: \(formattedLastChangedAt)")
@@ -190,6 +215,35 @@ struct SettingsView: View {
         )
     }
 
+    private var scheduleIntervalHoursBinding: Binding<Int> {
+        Binding(
+            get: {
+                UserDefaults.standard.scheduleIntervalMinutes / 60
+            },
+            set: { newHour in
+                let currentMinute = UserDefaults.standard.scheduleIntervalMinutes % 60
+                let resolvedMinute = newHour == 0 && currentMinute == 0 ? 1 : currentMinute
+                UserDefaults.standard.scheduleIntervalMinutes = (newHour * 60) + resolvedMinute
+            }
+        )
+    }
+
+    private var scheduleIntervalMinutesBinding: Binding<Int> {
+        Binding(
+            get: {
+                let storedMinutes = UserDefaults.standard.scheduleIntervalMinutes % 60
+                if (UserDefaults.standard.scheduleIntervalMinutes / 60) == 0 && storedMinutes == 0 {
+                    return 1
+                }
+                return storedMinutes
+            },
+            set: { newMinute in
+                let currentHour = UserDefaults.standard.scheduleIntervalMinutes / 60
+                UserDefaults.standard.scheduleIntervalMinutes = (currentHour * 60) + newMinute
+            }
+        )
+    }
+
     private var capitalizeHighlightTextBinding: Binding<Bool> {
         Binding(
             get: {
@@ -240,8 +294,29 @@ struct SettingsView: View {
         appState.books.filter(\.isEnabled).count
     }
 
+    private var scheduleIntervalMinuteOptions: [Int] {
+        if (UserDefaults.standard.scheduleIntervalMinutes / 60) == 0 {
+            return Array(1...59)
+        }
+        return Array(0...59)
+    }
+
     private var quoteLibrarySummary: String {
         "\(appState.totalHighlightCount) \(appState.totalHighlightCount == 1 ? "highlight" : "highlights") in library"
+    }
+
+    private func scheduleIntervalHourLabel(for hour: Int) -> String {
+        if hour == 1 {
+            return "1 hour"
+        }
+        return "\(hour) hours"
+    }
+
+    private func scheduleIntervalMinuteLabel(for minute: Int) -> String {
+        if minute == 1 {
+            return "1 minute"
+        }
+        return "\(minute) minutes"
     }
 
     private func settingsNavigationRow(title: String, subtitle: String) -> some View {

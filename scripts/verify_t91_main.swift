@@ -103,47 +103,12 @@ func testDailyModeLaunchAtExactScheduledTimeAlsoWaitsForNextOccurrence() {
     scheduler.stop()
 }
 
-func testEveryThirtyMinutesModeSkipsStartupAndWaitsThirtyMinutesFromLaunch() {
+func testEveryIntervalModeSkipsStartupAndWaitsForStoredIntervalFromLaunch() {
     let defaults = makeDefaults()
     defer { clearDefaults(defaults) }
 
-    defaults.rotationScheduleMode = .every30Minutes
-    let clock = MutableClock(dateFromUTC(2026, 4, 6, 10, 0, 0))
-    defaults.lastChangedAt = clock.current.addingTimeInterval(-(45 * 60))
-
-    let timerFactory = TimerFactory()
-    var rotateCalls = 0
-
-    let scheduler = WallpaperScheduler(
-        userDefaults: defaults,
-        rotateWallpaper: {
-            rotateCalls += 1
-            defaults.lastChangedAt = clock.current
-            return true
-        },
-        now: { clock.current },
-        calendar: makeUTCCalendar(),
-        repeatingTimerFactory: timerFactory.make(interval:handler:)
-    )
-
-    expect(rotateCalls == 0, "Expected every-30 mode to skip startup catch-up rotation")
-
-    clock.current = dateFromUTC(2026, 4, 6, 10, 29, 0)
-    timerFactory.fireAll()
-    expect(rotateCalls == 0, "Expected every-30 mode to wait a full 30 minutes after launch")
-
-    clock.current = dateFromUTC(2026, 4, 6, 10, 30, 0)
-    timerFactory.fireAll()
-    expect(rotateCalls == 1, "Expected every-30 mode to rotate after the post-launch 30-minute delay")
-
-    scheduler.stop()
-}
-
-func testEveryThirtyMinutesDeferredLaunchRespectsRecentManualRotation() {
-    let defaults = makeDefaults()
-    defer { clearDefaults(defaults) }
-
-    defaults.rotationScheduleMode = .every30Minutes
+    defaults.rotationScheduleMode = .everyInterval
+    defaults.scheduleIntervalMinutes = 45
     let clock = MutableClock(dateFromUTC(2026, 4, 6, 10, 0, 0))
     defaults.lastChangedAt = clock.current.addingTimeInterval(-(60 * 60))
 
@@ -162,18 +127,55 @@ func testEveryThirtyMinutesDeferredLaunchRespectsRecentManualRotation() {
         repeatingTimerFactory: timerFactory.make(interval:handler:)
     )
 
-    expect(rotateCalls == 0, "Expected every-30 mode to defer startup rotation")
+    expect(rotateCalls == 0, "Expected interval mode to skip startup catch-up rotation")
+
+    clock.current = dateFromUTC(2026, 4, 6, 10, 44, 0)
+    timerFactory.fireAll()
+    expect(rotateCalls == 0, "Expected interval mode to wait the full stored interval after launch")
+
+    clock.current = dateFromUTC(2026, 4, 6, 10, 45, 0)
+    timerFactory.fireAll()
+    expect(rotateCalls == 1, "Expected interval mode to rotate after the stored post-launch delay")
+
+    scheduler.stop()
+}
+
+func testEveryIntervalDeferredLaunchRespectsRecentManualRotation() {
+    let defaults = makeDefaults()
+    defer { clearDefaults(defaults) }
+
+    defaults.rotationScheduleMode = .everyInterval
+    defaults.scheduleIntervalMinutes = 45
+    let clock = MutableClock(dateFromUTC(2026, 4, 6, 10, 0, 0))
+    defaults.lastChangedAt = clock.current.addingTimeInterval(-(60 * 60))
+
+    let timerFactory = TimerFactory()
+    var rotateCalls = 0
+
+    let scheduler = WallpaperScheduler(
+        userDefaults: defaults,
+        rotateWallpaper: {
+            rotateCalls += 1
+            defaults.lastChangedAt = clock.current
+            return true
+        },
+        now: { clock.current },
+        calendar: makeUTCCalendar(),
+        repeatingTimerFactory: timerFactory.make(interval:handler:)
+    )
+
+    expect(rotateCalls == 0, "Expected interval mode to defer startup rotation")
 
     clock.current = dateFromUTC(2026, 4, 6, 10, 20, 0)
     defaults.lastChangedAt = clock.current
 
-    clock.current = dateFromUTC(2026, 4, 6, 10, 30, 0)
+    clock.current = dateFromUTC(2026, 4, 6, 10, 45, 0)
     timerFactory.fireAll()
     expect(rotateCalls == 0, "Expected deferred launch check to honor a newer manual rotation")
 
-    clock.current = dateFromUTC(2026, 4, 6, 10, 50, 0)
+    clock.current = dateFromUTC(2026, 4, 6, 11, 5, 0)
     timerFactory.fireAll()
-    expect(rotateCalls == 1, "Expected every-30 mode to resume from the newer rotation time")
+    expect(rotateCalls == 1, "Expected interval mode to resume from the newer rotation time")
 
     scheduler.stop()
 }
@@ -182,8 +184,8 @@ func runVerifyT91() {
     testOnLaunchModeStillRotatesImmediately()
     testDailyModeSkipsMissedStartupRunUntilTomorrow()
     testDailyModeLaunchAtExactScheduledTimeAlsoWaitsForNextOccurrence()
-    testEveryThirtyMinutesModeSkipsStartupAndWaitsThirtyMinutesFromLaunch()
-    testEveryThirtyMinutesDeferredLaunchRespectsRecentManualRotation()
+    testEveryIntervalModeSkipsStartupAndWaitsForStoredIntervalFromLaunch()
+    testEveryIntervalDeferredLaunchRespectsRecentManualRotation()
     print("verify_t91_main passed")
 }
 

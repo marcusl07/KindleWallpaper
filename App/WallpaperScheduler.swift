@@ -40,7 +40,7 @@ final class WallpaperScheduler {
     private var isRotating = false
     private var pendingDailyScheduledTime: Date?
     private var deferredDailyCheckUntil: Date?
-    private var deferredEveryThirtyMinuteCheckUntil: Date?
+    private var deferredIntervalCheckUntil: Date?
 
     init(
         userDefaults: UserDefaults = .standard,
@@ -100,22 +100,22 @@ final class WallpaperScheduler {
         case .manual:
             pendingDailyScheduledTime = nil
             deferredDailyCheckUntil = nil
-            deferredEveryThirtyMinuteCheckUntil = nil
+            deferredIntervalCheckUntil = nil
             return
         case .onLaunch:
             pendingDailyScheduledTime = nil
             deferredDailyCheckUntil = nil
-            deferredEveryThirtyMinuteCheckUntil = nil
+            deferredIntervalCheckUntil = nil
             guard trigger == .appLaunch else {
                 return
             }
             _ = performRotationIfNeeded()
-        case .every30Minutes:
+        case .everyInterval:
             pendingDailyScheduledTime = nil
             deferredDailyCheckUntil = nil
-            evaluateEveryThirtyMinuteSchedule(trigger: trigger)
+            evaluateIntervalSchedule(trigger: trigger)
         case .daily:
-            deferredEveryThirtyMinuteCheckUntil = nil
+            deferredIntervalCheckUntil = nil
             if trigger == .appLaunch {
                 let currentTime = now()
                 let todayScheduledTime = Self.scheduledTimeForToday(
@@ -139,22 +139,27 @@ final class WallpaperScheduler {
         }
     }
 
-    private func evaluateEveryThirtyMinuteSchedule(trigger: Trigger) {
+    private func evaluateIntervalSchedule(trigger: Trigger) {
         let currentTime = now()
+        let interval = Self.intervalDuration(minutes: userDefaults.scheduleIntervalMinutes)
 
         if trigger == .appLaunch {
-            deferredEveryThirtyMinuteCheckUntil = currentTime.addingTimeInterval(30 * 60)
+            deferredIntervalCheckUntil = currentTime.addingTimeInterval(interval)
             return
         }
 
-        if let deferredEveryThirtyMinuteCheckUntil {
-            guard currentTime >= deferredEveryThirtyMinuteCheckUntil else {
+        if let deferredIntervalCheckUntil {
+            guard currentTime >= deferredIntervalCheckUntil else {
                 return
             }
-            self.deferredEveryThirtyMinuteCheckUntil = nil
+            self.deferredIntervalCheckUntil = nil
         }
 
-        guard Self.shouldRotateEveryThirtyMinutes(now: currentTime, lastChangedAt: userDefaults.lastChangedAt) else {
+        guard Self.shouldRotateEveryInterval(
+            now: currentTime,
+            lastChangedAt: userDefaults.lastChangedAt,
+            intervalMinutes: userDefaults.scheduleIntervalMinutes
+        ) else {
             return
         }
 
@@ -219,12 +224,12 @@ final class WallpaperScheduler {
         return rotateWallpaper()
     }
 
-    static func shouldRotateEveryThirtyMinutes(now: Date, lastChangedAt: Date?) -> Bool {
+    static func shouldRotateEveryInterval(now: Date, lastChangedAt: Date?, intervalMinutes: Int) -> Bool {
         guard let lastChangedAt else {
             return true
         }
 
-        return now.timeIntervalSince(lastChangedAt) >= (30 * 60)
+        return now.timeIntervalSince(lastChangedAt) >= intervalDuration(minutes: intervalMinutes)
     }
 
     static func shouldRotateDaily(
@@ -308,5 +313,9 @@ final class WallpaperScheduler {
             scheduleMinute: minute,
             calendar: calendar
         )
+    }
+
+    private static func intervalDuration(minutes: Int) -> TimeInterval {
+        TimeInterval(min(max(minutes, 1), (23 * 60) + 59) * 60)
     }
 }

@@ -565,3 +565,7 @@ Create `QuoteDetailView` showing full quote text, book, author, location, date a
 Fix the Settings window so scrolling content never renders beneath the macOS traffic lights or the back/forward toolbar buttons. Prefer restoring standard macOS titlebar/content separation over adding custom inset workarounds. Update the existing settings window verification to match the chosen window chrome configuration and confirm open/reopen/deactivation behavior still works.
 
 
+
+**T92 — Replace fixed 30-minute rotation with custom interval picker**
+Replace the `Every 30 minutes` schedule option with a generic `Every interval` mode. In Settings, show an hours/minutes scroller when that mode is selected, allowing `1 minute` through `23h 59m` and defaulting to `0h 30m`. Persist the interval in `UserDefaults`, migrate existing `every30Minutes` mode values to the new generic interval mode, and update `WallpaperScheduler` to use the stored interval instead of a hard-coded 30-minute threshold. Add or update verification for persistence, scheduler threshold behavior, and the settings UI label and control.
+

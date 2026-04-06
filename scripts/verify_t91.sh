@@ -18,7 +18,8 @@ require_pattern() {
 }
 
 require_pattern "$SCHEDULER_FILE" 'deferredDailyCheckUntil' "deferred daily startup state"
-require_pattern "$SCHEDULER_FILE" 'deferredEveryThirtyMinuteCheckUntil' "deferred interval startup state"
+require_pattern "$SCHEDULER_FILE" 'deferredIntervalCheckUntil' "deferred interval startup state"
+require_pattern "$SCHEDULER_FILE" 'shouldRotateEveryInterval' "interval threshold helper"
 require_pattern "$SCHEDULER_FILE" 'nextScheduledTime' "next scheduled-time helper"
 
 cp "$ROOT_DIR/scripts/verify_t91_main.swift" "$TMP_DIR/main.swift"

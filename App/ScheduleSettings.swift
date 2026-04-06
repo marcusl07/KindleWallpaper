@@ -4,7 +4,7 @@ enum RotationScheduleMode: String, CaseIterable {
     case manual
     case daily
     case onLaunch
-    case every30Minutes
+    case everyInterval
 
     static func fromStoredValue(_ value: Any?) -> RotationScheduleMode? {
         if let stringValue = value as? String {
@@ -26,8 +26,10 @@ enum RotationScheduleMode: String, CaseIterable {
             return .daily
         case "onlaunch", "on_launch":
             return .onLaunch
+        case "everyinterval", "every_interval", "interval":
+            return .everyInterval
         case "every30minutes", "every30min", "every_30_minutes":
-            return .every30Minutes
+            return .everyInterval
         default:
             return nil
         }
@@ -42,7 +44,7 @@ enum RotationScheduleMode: String, CaseIterable {
         case 2:
             return .onLaunch
         case 3:
-            return .every30Minutes
+            return .everyInterval
         default:
             return nil
         }
@@ -84,6 +86,7 @@ extension UserDefaults {
         static let rotationMode = "rotationScheduleMode"
         static let dailyHour = "scheduleDailyHour"
         static let dailyMinute = "scheduleDailyMinute"
+        static let intervalMinutes = "scheduleIntervalMinutes"
         static let lastChangedAt = "lastChangedAt"
         static let capitalizeHighlightText = "capitalizeHighlightText"
         static let didPruneStaleWallpaperHistory = "didPruneStaleWallpaperHistory"
@@ -148,6 +151,18 @@ extension UserDefaults {
         }
         set {
             set(newValue.rawValue, forKey: ScheduleKeys.rotationMode)
+        }
+    }
+
+    var scheduleIntervalMinutes: Int {
+        get {
+            guard let storedValue = integerIfPresent(forKey: ScheduleKeys.intervalMinutes) else {
+                return 30
+            }
+            return Self.normalizedScheduleIntervalMinutes(storedValue)
+        }
+        set {
+            set(Self.normalizedScheduleIntervalMinutes(newValue), forKey: ScheduleKeys.intervalMinutes)
         }
     }
 
@@ -473,5 +488,9 @@ extension UserDefaults {
 
     private static func normalizedDailyMinute(_ value: Int) -> Int {
         min(max(value, 0), 59)
+    }
+
+    private static func normalizedScheduleIntervalMinutes(_ value: Int) -> Int {
+        min(max(value, 1), (23 * 60) + 59)
     }
 }

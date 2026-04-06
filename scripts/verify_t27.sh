@@ -8,11 +8,20 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 cat > "$TMP_DIR/main.swift" <<'SWIFT'
 import Foundation
 
+struct QuoteEditSaveRequest {
+    let bookId: UUID
+    let quoteText: String
+    let bookTitle: String
+    let author: String
+    let location: String
+}
+
+@MainActor
 func testInitLoadsDefaultsAndLibrarySnapshot() throws {
     let fixture = try Fixture.make()
     defer { fixture.cleanup() }
 
-    fixture.defaults.rotationScheduleMode = .every30Minutes
+    fixture.defaults.rotationScheduleMode = .everyInterval
     let persistedLastChanged = Date(timeIntervalSince1970: 1_736_000_500)
     fixture.defaults.lastChangedAt = persistedLastChanged
 
@@ -52,7 +61,7 @@ func testInitLoadsDefaultsAndLibrarySnapshot() throws {
     assertBooksEqual(appState.books, expectedBooks, "Expected books to load from fetcher")
     assertEqual(
         appState.activeScheduleMode,
-        .every30Minutes,
+        .everyInterval,
         "Expected activeScheduleMode to load from UserDefaults"
     )
     assertDateEqual(
@@ -62,6 +71,7 @@ func testInitLoadsDefaultsAndLibrarySnapshot() throws {
     )
 }
 
+@MainActor
 func testSetImportStatusSeparatesSuccessAndErrorStates() throws {
     let fixture = try Fixture.make()
     defer { fixture.cleanup() }
@@ -88,6 +98,7 @@ func testSetImportStatusSeparatesSuccessAndErrorStates() throws {
     )
 }
 
+@MainActor
 func testRefreshLibraryStateReloadsBooksAndCount() throws {
     let fixture = try Fixture.make()
     defer { fixture.cleanup() }
@@ -138,6 +149,7 @@ func testRefreshLibraryStateReloadsBooksAndCount() throws {
     assertBooksEqual(appState.books, currentBooks, "Expected refreshLibraryState to reload books")
 }
 
+@MainActor
 func testScheduleStateMethodsUpdateAndSyncUserDefaults() throws {
     let fixture = try Fixture.make()
     defer { fixture.cleanup() }
@@ -171,6 +183,7 @@ func testScheduleStateMethodsUpdateAndSyncUserDefaults() throws {
     )
 }
 
+@MainActor
 func testRefreshAllStateRefreshesLibraryAndScheduleTogether() throws {
     let fixture = try Fixture.make()
     defer { fixture.cleanup() }
@@ -215,7 +228,7 @@ func testRefreshAllStateRefreshesLibraryAndScheduleTogether() throws {
         )
     ]
     currentCount = 8
-    fixture.defaults.rotationScheduleMode = .every30Minutes
+    fixture.defaults.rotationScheduleMode = .everyInterval
     let refreshedLastChangedAt = Date(timeIntervalSince1970: 1_736_222_222)
     fixture.defaults.lastChangedAt = refreshedLastChangedAt
 
@@ -225,7 +238,7 @@ func testRefreshAllStateRefreshesLibraryAndScheduleTogether() throws {
     assertBooksEqual(appState.books, currentBooks, "Expected refreshAllState to refresh books")
     assertEqual(
         appState.activeScheduleMode,
-        .every30Minutes,
+        .everyInterval,
         "Expected refreshAllState to refresh schedule mode"
     )
     assertDateEqual(
@@ -235,6 +248,7 @@ func testRefreshAllStateRefreshesLibraryAndScheduleTogether() throws {
     )
 }
 
+@MainActor
 func makeAppState(defaults: UserDefaults) -> AppState {
     AppState(
         userDefaults: defaults,
@@ -314,22 +328,31 @@ struct Fixture {
     }
 }
 
-do {
-    try testInitLoadsDefaultsAndLibrarySnapshot()
-    try testSetImportStatusSeparatesSuccessAndErrorStates()
-    try testRefreshLibraryStateReloadsBooksAndCount()
-    try testScheduleStateMethodsUpdateAndSyncUserDefaults()
-    try testRefreshAllStateRefreshesLibraryAndScheduleTogether()
-    print("T27 verification passed")
-} catch {
-    fputs("Verification failure: \(error)\n", stderr)
-    exit(1)
+@main
+struct VerifyT27 {
+    @MainActor
+    static func main() {
+        do {
+            try testInitLoadsDefaultsAndLibrarySnapshot()
+            try testSetImportStatusSeparatesSuccessAndErrorStates()
+            try testRefreshLibraryStateReloadsBooksAndCount()
+            try testScheduleStateMethodsUpdateAndSyncUserDefaults()
+            try testRefreshAllStateRefreshesLibraryAndScheduleTogether()
+            print("T27 verification passed")
+        } catch {
+            fputs("Verification failure: \(error)\n", stderr)
+            exit(1)
+        }
+    }
 }
 SWIFT
 
 swiftc \
+  -parse-as-library \
   -module-cache-path "$TMP_DIR/module-cache" \
   "$ROOT_DIR/App/ScheduleSettings.swift" \
+  "$ROOT_DIR/App/WallpaperSetter.swift" \
+  "$ROOT_DIR/App/DisplayIdentityResolver.swift" \
   "$ROOT_DIR/App/AppState.swift" \
   "$ROOT_DIR/Models/Highlight.swift" \
   "$ROOT_DIR/Models/Book.swift" \

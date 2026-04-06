@@ -88,7 +88,7 @@ struct VerifyT25 {
         let defaults = makeDefaults()
         defer { clearDefaults(defaults) }
 
-        defaults.rotationScheduleMode = .every30Minutes
+        defaults.rotationScheduleMode = .everyInterval
         let clock = MutableClock(dateFromUTC(2026, 1, 10, 10, 0, 0))
         defaults.lastChangedAt = clock.current.addingTimeInterval(-1_801)
 
@@ -241,7 +241,7 @@ struct VerifyT25 {
         let defaults = makeDefaults()
         defer { clearDefaults(defaults) }
 
-        defaults.rotationScheduleMode = .every30Minutes
+        defaults.rotationScheduleMode = .everyInterval
         defaults.lastChangedAt = nil
         let timerFactory = TimerFactory()
         var rotateCallCount = 0
