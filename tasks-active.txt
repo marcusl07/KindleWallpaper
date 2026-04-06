@@ -24,5 +24,3 @@ Create `QuoteEditView` for editing all fields (quote text, book title, author, l
 
 ## Phase 14 — Wallpaper Restore Reliability
 
-**T88 — Sync T64 shell verifier with topology shared-wallpaper flow**
-In `scripts/verify_t64.sh`, update the verifier so it checks for the new topology-specific reapply path and no longer expects the old display-resolver restore wiring for display-change handling.

@@ -41,6 +41,10 @@ require_pattern "$SCHEDULE_SETTINGS_FILE" 'pixelWidth' "stored wallpaper size me
 require_pattern "$APP_STATE_FILE" 'typealias[[:space:]]+WallpaperRestoreOutcome[[:space:]]*=[[:space:]]*WallpaperSetter\.RestoreOutcome' "app state restore outcome alias"
 require_pattern "$APP_STATE_FILE" 'typealias[[:space:]]+ReapplyStoredWallpaper[[:space:]]*=[[:space:]]*\(\)[[:space:]]*->[[:space:]]*WallpaperRestoreOutcome' "app state restore closure outcome"
 require_pattern "$APP_STATE_FILE" 'typealias[[:space:]]+ReapplyCurrentWallpaperForTopology[[:space:]]*=[[:space:]]*\(\)[[:space:]]*->[[:space:]]*TopologyWallpaperReapplyOutcome' "app state topology reapply closure outcome"
+require_pattern "$APP_STATE_FILE" 'enum[[:space:]]+TopologyWallpaperReapplyOutcome' "app state topology reapply outcome enum"
+require_pattern "$APP_STATE_FILE" 'case[[:space:]]+reapplied' "topology reapply success outcome"
+require_pattern "$APP_STATE_FILE" 'case[[:space:]]+alreadyApplied' "topology reapply no-op outcome"
+require_pattern "$APP_STATE_FILE" 'case[[:space:]]+noCurrentWallpaper' "topology reapply missing-source outcome"
 require_pattern "$APP_STATE_FILE" 'struct[[:space:]]+StoredWallpaperAssignmentPersistence' "app state persistence operations boundary"
 require_pattern "$APP_STATE_FILE" 'let[[:space:]]+load:[[:space:]]*\(\)[[:space:]]*->[[:space:]]*\[StoredGeneratedWallpaper\]' "app state stored wallpaper loader boundary"
 require_pattern "$APP_STATE_FILE" 'func[[:space:]]+replaceStoredWallpaperAssignments' "app state replace persistence API"
@@ -49,10 +53,14 @@ require_pattern "$APP_STATE_FILE" 'func[[:space:]]+clearStoredWallpaperAssignmen
 require_pattern "$APP_STATE_FILE" 'func[[:space:]]+persistAppliedWallpaperAssignments' "app state topology-aware persistence helper"
 require_pattern "$APP_STATE_FILE" 'func[[:space:]]+reapplyStoredWallpaperIfAvailable\(\)[[:space:]]*->[[:space:]]*WallpaperRestoreOutcome' "app state structured restore API"
 require_pattern "$APP_STATE_FILE" 'func[[:space:]]+reapplyCurrentWallpaperForTopologyChange\(\)[[:space:]]*->[[:space:]]*TopologyWallpaperReapplyOutcome' "app state structured topology reapply API"
+require_pattern "$APP_STATE_FILE" 'func[[:space:]]+reapplyCurrentWallpaperForTopology<Screen>' "generic topology reapply helper"
+require_pattern "$APP_STATE_FILE" 'topologyWallpaperSourceScreens' "topology source screen helper"
 require_pattern "$APP_STATE_FILE" 'context\.persistAppliedWallpaperAssignments\(appliedGeneratedWallpapers\)' "post-apply topology-aware persistence routing"
 require_pattern "$APP_STATE_FILE" 'DisplayIdentityResolver\.resolvedConnectedScreens' "app state target preparation uses display resolver"
 require_pattern "$APP_STATE_FILE" 'DisplayIdentityResolver\.restoreStoredWallpapers' "app state restore path uses display resolver"
 require_pattern "$APP_STATE_FILE" 'WallpaperSetter\.applySharedWallpaper' "app state topology reapply uses shared wallpaper application"
+require_pattern "$APP_STATE_FILE" 'preferredSourceScreen:[[:space:]]*NSScreen\.main' "live topology reapply prefers the main screen wallpaper"
+require_pattern "$APP_STATE_FILE" 'NSWorkspace\.shared\.desktopImageURL\(for:' "live topology reapply reads the current desktop wallpaper"
 require_pattern "$DISPLAY_TOPOLOGY_COORDINATOR_FILE" 'didChangeScreenParametersNotification' "display reconfiguration observer"
 require_pattern "$DISPLAY_TOPOLOGY_COORDINATOR_FILE" 'defaultRestoreDebounceInterval' "default restore debounce interval"
 require_pattern "$DISPLAY_TOPOLOGY_COORDINATOR_FILE" 'handleDisplayReconfigurationNotification' "display reconfiguration handler"
@@ -66,6 +74,10 @@ if rg -q 'func[[:space:]]+reapplyStoredWallpaperIfAvailable\(\)[[:space:]]*->[[:
 fi
 if rg -q 'reapplyStoredWallpaperIfAvailable' "$DISPLAY_TOPOLOGY_COORDINATOR_FILE"; then
   echo "Verification failed: unexpected legacy stored restore wiring in $DISPLAY_TOPOLOGY_COORDINATOR_FILE" >&2
+  exit 1
+fi
+if rg -q 'restoreStoredWallpapers' "$DISPLAY_TOPOLOGY_COORDINATOR_FILE"; then
+  echo "Verification failed: unexpected legacy display-change restore wiring in $DISPLAY_TOPOLOGY_COORDINATOR_FILE" >&2
   exit 1
 fi
 if rg -q 'func[[:space:]]+storeReusableGeneratedWallpapers' "$SCHEDULE_SETTINGS_FILE"; then

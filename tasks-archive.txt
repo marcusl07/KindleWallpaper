@@ -547,3 +547,7 @@ In `DisplayTopologyCoordinator.swift`, change the debounced display-change callb
 In `scripts/verify_t64_main.swift`, replace the reconnect tests so they assert `1A` behavior: topology changes reapply the currently active wallpaper file across all connected screens, stale external-monitor wallpapers are not restored by topology events, and no-op/failure cases are explicit.
 
 
+
+**T88 — Sync T64 shell verifier with topology shared-wallpaper flow**
+In `scripts/verify_t64.sh`, update the verifier so it checks for the new topology-specific reapply path and no longer expects the old display-resolver restore wiring for display-change handling.
+
