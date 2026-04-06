@@ -140,13 +140,14 @@ struct SettingsView: View {
             }
 
             if appState.activeScheduleMode == .everyInterval {
-                HStack(spacing: 12) {
+                HStack(spacing: 8) {
                     Text("Every interval:")
                     TextField(
                         "",
                         value: scheduleIntervalHoursBinding,
                         formatter: Self.intervalComponentFormatter
                     )
+                    .labelsHidden()
                     .textFieldStyle(.roundedBorder)
                     .multilineTextAlignment(.trailing)
                     .frame(width: 56)
@@ -159,6 +160,7 @@ struct SettingsView: View {
                         value: scheduleIntervalMinutesBinding,
                         formatter: Self.intervalComponentFormatter
                     )
+                    .labelsHidden()
                     .textFieldStyle(.roundedBorder)
                     .multilineTextAlignment(.trailing)
                     .frame(width: 56)
