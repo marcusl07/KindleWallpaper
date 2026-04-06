@@ -518,6 +518,22 @@ Tighten `DisplayTopologyCoordinator.swift`, `WallpaperSetter.swift`, and `Kindle
 **T89 — Delete obsolete external monitor findings doc**
 Remove `text-files/external-monitor-findings.txt` because it is no longer needed.
 
+
 **T90 — Import failure visibility**
 Fix the import path so file-read failures, encoding errors, and malformed clippings content surface as explicit import failures in the Settings Quotes status row instead of silent success or "library up to date." Partially malformed files succeed with a warning showing both new highlight count and skipped entry count.
+
+---
+
+## Phase 14 — Wallpaper Restore Reliability
+
+
+
+**T84 — Add shared-wallpaper topology apply helper**
+In `WallpaperSetter.swift`, add a helper that takes one canonical wallpaper URL and applies it to all connected screens, skipping screens that already show that same file.
+
+
+
+**T85 — Add topology-specific current-wallpaper reapply path**
+In `AppState.swift`, add a topology-only reapply path that reads the current wallpaper from the main screen (fallback: first connected screen) and reapplies that same file across all connected screens. Do not change the scheduled/manual rotation path or its stored-assignment persistence behavior.
+
 

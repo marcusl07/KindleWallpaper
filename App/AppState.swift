@@ -102,6 +102,14 @@ final class AppState: ObservableObject {
         case applyError
     }
 
+    enum TopologyWallpaperReapplyOutcome: Equatable {
+        case reapplied
+        case alreadyApplied
+        case noConnectedScreens
+        case noCurrentWallpaper
+        case applyFailure
+    }
+
     enum WallpaperRotationOutcome: Equatable {
         case success
         case alreadyInProgress
@@ -140,6 +148,7 @@ final class AppState: ObservableObject {
     typealias PrepareWallpaperRotation = () -> WallpaperRotationPlan?
     typealias GenerateWallpapers = (Highlight, URL?, [WallpaperTarget]) -> [GeneratedWallpaper]
     typealias ReapplyStoredWallpaper = () -> WallpaperRestoreOutcome
+    typealias ReapplyCurrentWallpaperForTopology = () -> TopologyWallpaperReapplyOutcome
     typealias MarkHighlightShown = (UUID) -> Void
     typealias InsertHighlight = (Highlight) -> Void
     typealias DeleteHighlight = (UUID) -> Void
@@ -179,6 +188,7 @@ final class AppState: ObservableObject {
     private let generateWallpapers: GenerateWallpapers?
     private let storedWallpaperAssignmentPersistence: StoredWallpaperAssignmentPersistence
     private let reapplyStoredWallpaper: ReapplyStoredWallpaper
+    private let reapplyCurrentWallpaperForTopology: ReapplyCurrentWallpaperForTopology
     private let markHighlightShown: MarkHighlightShown
     private let insertHighlightAction: InsertHighlight
     private let deleteHighlightAction: DeleteHighlight
@@ -226,6 +236,7 @@ final class AppState: ObservableObject {
         generateWallpapers: GenerateWallpapers? = nil,
         storedWallpaperAssignmentPersistence: StoredWallpaperAssignmentPersistence = .noOp,
         reapplyStoredWallpaper: @escaping ReapplyStoredWallpaper = { .noStoredWallpapers },
+        reapplyCurrentWallpaperForTopology: @escaping ReapplyCurrentWallpaperForTopology = { .noCurrentWallpaper },
         markHighlightShown: @escaping MarkHighlightShown,
         insertHighlight: @escaping InsertHighlight = { _ in },
         deleteHighlight: @escaping DeleteHighlight = { _ in },
@@ -324,6 +335,7 @@ final class AppState: ObservableObject {
         self.generateWallpapers = generateWallpapers
         self.storedWallpaperAssignmentPersistence = storedWallpaperAssignmentPersistence
         self.reapplyStoredWallpaper = reapplyStoredWallpaper
+        self.reapplyCurrentWallpaperForTopology = reapplyCurrentWallpaperForTopology
         self.markHighlightShown = markHighlightShown
         self.insertHighlightAction = insertHighlight
         self.deleteHighlightAction = deleteHighlight
@@ -405,6 +417,11 @@ final class AppState: ObservableObject {
     @discardableResult
     func reapplyStoredWallpaperIfAvailable() -> WallpaperRestoreOutcome {
         reapplyStoredWallpaper()
+    }
+
+    @discardableResult
+    func reapplyCurrentWallpaperForTopologyChange() -> TopologyWallpaperReapplyOutcome {
+        reapplyCurrentWallpaperForTopology()
     }
 
     func replaceStoredWallpaperAssignments(_ wallpapers: [GeneratedWallpaper]) {
@@ -604,6 +621,70 @@ final class AppState: ObservableObject {
             }
         }
         return nil
+    }
+
+    nonisolated static func reapplyCurrentWallpaperForTopology<Screen>(
+        resolvedScreens: [WallpaperSetter.ResolvedScreen<Screen>],
+        preferredSourceScreen: Screen?,
+        sameScreen: (Screen, Screen) -> Bool,
+        currentDesktopImageURL: @escaping WallpaperSetter.CurrentDesktopImageURL<Screen>,
+        setDesktopImage: (URL, Screen) throws -> Void
+    ) -> TopologyWallpaperReapplyOutcome {
+        guard !resolvedScreens.isEmpty else {
+            return .noConnectedScreens
+        }
+
+        let sourceScreens = topologyWallpaperSourceScreens(
+            resolvedScreens: resolvedScreens,
+            preferredSourceScreen: preferredSourceScreen,
+            sameScreen: sameScreen
+        )
+
+        guard
+            let imageURL = sourceScreens.lazy.compactMap({ currentDesktopImageURL($0.screen) }).first
+        else {
+            return .noCurrentWallpaper
+        }
+
+        do {
+            let appliedCount = try WallpaperSetter.applySharedWallpaper(
+                imageURL: imageURL,
+                resolvedScreens: resolvedScreens,
+                currentDesktopImageURL: currentDesktopImageURL,
+                setDesktopImage: setDesktopImage
+            )
+            return appliedCount == 0 ? .alreadyApplied : .reapplied
+        } catch {
+            return .applyFailure
+        }
+    }
+
+    nonisolated private static func topologyWallpaperSourceScreens<Screen>(
+        resolvedScreens: [WallpaperSetter.ResolvedScreen<Screen>],
+        preferredSourceScreen: Screen?,
+        sameScreen: (Screen, Screen) -> Bool
+    ) -> [WallpaperSetter.ResolvedScreen<Screen>] {
+        var sourceScreens: [WallpaperSetter.ResolvedScreen<Screen>] = []
+        sourceScreens.reserveCapacity(2)
+
+        if
+            let preferredSourceScreen,
+            let preferredResolvedScreen = resolvedScreens.first(where: { sameScreen($0.screen, preferredSourceScreen) })
+        {
+            sourceScreens.append(preferredResolvedScreen)
+        }
+
+        if let firstResolvedScreen = resolvedScreens.first {
+            let alreadyIncludedFirstScreen = sourceScreens.contains { candidate in
+                sameScreen(candidate.screen, firstResolvedScreen.screen)
+            }
+
+            if !alreadyIncludedFirstScreen {
+                sourceScreens.append(firstResolvedScreen)
+            }
+        }
+
+        return sourceScreens
     }
 
     private func persistAppliedWallpaperAssignments(_ wallpapers: [GeneratedWallpaper]) {
@@ -920,9 +1001,29 @@ extension AppState {
                     return .noStoredWallpapers
                 }
 
-                return WallpaperSetter.restoreStoredWallpapers(
+                return DisplayIdentityResolver.restoreStoredWallpapers(
                     storedWallpapers,
-                    on: DisplayIdentityResolver.resolvedConnectedScreens()
+                    resolvedScreens: DisplayIdentityResolver.resolvedConnectedScreens(),
+                    currentDesktopImageURL: { screen in
+                        NSWorkspace.shared.desktopImageURL(for: screen)
+                    },
+                    setDesktopImage: { url, screen in
+                        try NSWorkspace.shared.setDesktopImageURL(url, for: screen, options: [:])
+                    }
+                )
+            },
+            reapplyCurrentWallpaperForTopology: {
+                let resolvedScreens = DisplayIdentityResolver.resolvedConnectedScreens()
+                return AppState.reapplyCurrentWallpaperForTopology(
+                    resolvedScreens: resolvedScreens,
+                    preferredSourceScreen: NSScreen.main,
+                    sameScreen: { lhs, rhs in lhs === rhs },
+                    currentDesktopImageURL: { screen in
+                        NSWorkspace.shared.desktopImageURL(for: screen)
+                    },
+                    setDesktopImage: { url, screen in
+                        try NSWorkspace.shared.setDesktopImageURL(url, for: screen, options: [:])
+                    }
                 )
             },
             markHighlightShown: DatabaseManager.markHighlightShown(id:),
