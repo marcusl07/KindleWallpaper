@@ -5,6 +5,15 @@ import UniformTypeIdentifiers
 #endif
 
 struct SettingsView: View {
+    private static let intervalComponentFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .none
+        formatter.minimum = 0
+        formatter.maximumFractionDigits = 0
+        formatter.usesGroupingSeparator = false
+        return formatter
+    }()
+
     @EnvironmentObject private var appState: AppState
     @ObservedObject private var navigationModel: SettingsNavigationModel
     @State private var backgroundImageError: String? = nil
@@ -134,23 +143,32 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Every interval:")
                     HStack(spacing: 16) {
-                        Picker("Hours", selection: scheduleIntervalHoursBinding) {
-                            ForEach(0..<24, id: \.self) { hour in
-                                Text(scheduleIntervalHourLabel(for: hour))
-                                    .tag(hour)
-                            }
-                        }
-                        .labelsHidden()
-                        .frame(width: 120)
+                        TextField(
+                            "0",
+                            value: scheduleIntervalHoursBinding,
+                            formatter: Self.intervalComponentFormatter
+                        )
+                        .textFieldStyle(.roundedBorder)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 56)
 
-                        Picker("Minutes", selection: scheduleIntervalMinutesBinding) {
-                            ForEach(scheduleIntervalMinuteOptions, id: \.self) { minute in
-                                Text(scheduleIntervalMinuteLabel(for: minute))
-                                    .tag(minute)
-                            }
-                        }
-                        .labelsHidden()
-                        .frame(width: 140)
+                        Text("hr")
+                            .foregroundStyle(.secondary)
+
+                        TextField(
+                            "30",
+                            value: scheduleIntervalMinutesBinding,
+                            formatter: Self.intervalComponentFormatter
+                        )
+                        .textFieldStyle(.roundedBorder)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 56)
+
+                        Text("min")
+                            .foregroundStyle(.secondary)
+
+                        Text(scheduleIntervalSummary)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -218,12 +236,13 @@ struct SettingsView: View {
     private var scheduleIntervalHoursBinding: Binding<Int> {
         Binding(
             get: {
-                UserDefaults.standard.scheduleIntervalMinutes / 60
+                min(max(UserDefaults.standard.scheduleIntervalMinutes / 60, 0), 23)
             },
             set: { newHour in
-                let currentMinute = UserDefaults.standard.scheduleIntervalMinutes % 60
-                let resolvedMinute = newHour == 0 && currentMinute == 0 ? 1 : currentMinute
-                UserDefaults.standard.scheduleIntervalMinutes = (newHour * 60) + resolvedMinute
+                let clampedHour = min(max(newHour, 0), 23)
+                let currentMinute = min(max(UserDefaults.standard.scheduleIntervalMinutes % 60, 0), 59)
+                let resolvedMinute = clampedHour == 0 && currentMinute == 0 ? 1 : currentMinute
+                UserDefaults.standard.scheduleIntervalMinutes = (clampedHour * 60) + resolvedMinute
             }
         )
     }
@@ -238,8 +257,10 @@ struct SettingsView: View {
                 return storedMinutes
             },
             set: { newMinute in
-                let currentHour = UserDefaults.standard.scheduleIntervalMinutes / 60
-                UserDefaults.standard.scheduleIntervalMinutes = (currentHour * 60) + newMinute
+                let currentHour = min(max(UserDefaults.standard.scheduleIntervalMinutes / 60, 0), 23)
+                let clampedMinute = min(max(newMinute, 0), 59)
+                let resolvedMinute = currentHour == 0 && clampedMinute == 0 ? 1 : clampedMinute
+                UserDefaults.standard.scheduleIntervalMinutes = (currentHour * 60) + resolvedMinute
             }
         )
     }
@@ -294,29 +315,26 @@ struct SettingsView: View {
         appState.books.filter(\.isEnabled).count
     }
 
-    private var scheduleIntervalMinuteOptions: [Int] {
-        if (UserDefaults.standard.scheduleIntervalMinutes / 60) == 0 {
-            return Array(1...59)
-        }
-        return Array(0...59)
-    }
-
     private var quoteLibrarySummary: String {
         "\(appState.totalHighlightCount) \(appState.totalHighlightCount == 1 ? "highlight" : "highlights") in library"
     }
 
-    private func scheduleIntervalHourLabel(for hour: Int) -> String {
-        if hour == 1 {
-            return "1 hour"
-        }
-        return "\(hour) hours"
-    }
+    private var scheduleIntervalSummary: String {
+        let totalMinutes = UserDefaults.standard.scheduleIntervalMinutes
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
 
-    private func scheduleIntervalMinuteLabel(for minute: Int) -> String {
-        if minute == 1 {
-            return "1 minute"
+        if hours == 0 {
+            return minutes == 1 ? "Every 1 minute" : "Every \(minutes) minutes"
         }
-        return "\(minute) minutes"
+
+        if minutes == 0 {
+            return hours == 1 ? "Every 1 hour" : "Every \(hours) hours"
+        }
+
+        let hourPart = hours == 1 ? "1 hour" : "\(hours) hours"
+        let minutePart = minutes == 1 ? "1 minute" : "\(minutes) minutes"
+        return "Every \(hourPart) \(minutePart)"
     }
 
     private func settingsNavigationRow(title: String, subtitle: String) -> some View {

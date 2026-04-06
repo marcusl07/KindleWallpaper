@@ -18,8 +18,10 @@ require_pattern() {
 }
 
 require_pattern "$SETTINGS_VIEW_FILE" 'Text\("Every interval"\)' "generic interval mode label"
-require_pattern "$SETTINGS_VIEW_FILE" 'Picker\("Hours", selection: scheduleIntervalHoursBinding\)' "interval hours scroller"
-require_pattern "$SETTINGS_VIEW_FILE" 'Picker\("Minutes", selection: scheduleIntervalMinutesBinding\)' "interval minutes scroller"
+require_pattern "$SETTINGS_VIEW_FILE" 'TextField\(' "interval text field"
+require_pattern "$SETTINGS_VIEW_FILE" 'value: scheduleIntervalHoursBinding' "interval hours text entry"
+require_pattern "$SETTINGS_VIEW_FILE" 'value: scheduleIntervalMinutesBinding' "interval minutes text entry"
+require_pattern "$SETTINGS_VIEW_FILE" 'scheduleIntervalSummary' "interval summary label"
 
 cat > "$TMP_DIR/main.swift" <<'SWIFT'
 import Foundation
