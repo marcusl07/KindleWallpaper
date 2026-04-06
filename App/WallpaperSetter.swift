@@ -222,6 +222,40 @@ enum WallpaperSetter {
     }
 
     @discardableResult
+    static func applySharedWallpaper(
+        imageURL: URL,
+        on resolvedScreens: [ResolvedScreen<NSScreen>],
+        currentDesktopImageURL: CurrentDesktopImageURL<NSScreen>? = { screen in
+            NSWorkspace.shared.desktopImageURL(for: screen)
+        },
+        setDesktopImage: (URL, NSScreen) throws -> Void = { url, screen in
+            try NSWorkspace.shared.setDesktopImageURL(url, for: screen, options: [:])
+        }
+    ) rethrows -> Int {
+        try applySharedWallpaper(
+            imageURL: imageURL,
+            resolvedScreens: resolvedScreens,
+            currentDesktopImageURL: currentDesktopImageURL,
+            setDesktopImage: setDesktopImage
+        )
+    }
+
+    @discardableResult
+    static func applySharedWallpaper<Screen>(
+        imageURL: URL,
+        resolvedScreens: [ResolvedScreen<Screen>],
+        currentDesktopImageURL: CurrentDesktopImageURL<Screen>? = nil,
+        setDesktopImage: (URL, Screen) throws -> Void
+    ) rethrows -> Int {
+        try applyWallpaper(
+            imageURL: imageURL,
+            screens: resolvedScreens.map(\.screen),
+            currentDesktopImageURL: currentDesktopImageURL,
+            setDesktopImage: setDesktopImage
+        )
+    }
+
+    @discardableResult
     static func applyWallpapers<Screen>(
         assignments: [WallpaperAssignment],
         resolvedScreens: [ResolvedScreen<Screen>],
