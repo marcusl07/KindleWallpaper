@@ -52,6 +52,8 @@ require_pattern "window\\.canHide[[:space:]]*=[[:space:]]*false" "window canHide
 require_pattern "window\\.hidesOnDeactivate[[:space:]]*=[[:space:]]*false" "window hidesOnDeactivate disabled"
 require_pattern "window\\.delegate[[:space:]]*=[[:space:]]*self" "coordinator owns window delegate"
 require_pattern "window\\.toolbarStyle[[:space:]]*=[[:space:]]*\\.unified" "unified toolbar style"
+forbid_pattern "fullSizeContentView" "full-size content view titlebar layout"
+forbid_pattern "titlebarAppearsTransparent[[:space:]]*=[[:space:]]*true" "transparent titlebar layout"
 
 # Settings navigation should be owned by SwiftUI so destination toolbars can coexist.
 require_settings_pattern "ToolbarItemGroup\\(placement:[[:space:]]*\\.navigation\\)" "SwiftUI navigation toolbar group"
@@ -77,6 +79,9 @@ swiftc \
   "$ROOT_DIR/App/AppSupportPaths.swift" \
   "$ROOT_DIR/App/BackgroundImageStore.swift" \
   "$ROOT_DIR/App/BackgroundImageLoader.swift" \
+  "$ROOT_DIR/App/WallpaperSetter.swift" \
+  "$ROOT_DIR/App/DisplayIdentityResolver.swift" \
+  "$ROOT_DIR/App/DisplayTopologyCoordinator.swift" \
   "$ROOT_DIR/App/SettingsView.swift" \
   "$ROOT_DIR/App/MenuBarView.swift" \
   "$ROOT_DIR/App/WallpaperScheduler.swift" \
@@ -97,6 +102,9 @@ swiftc \
   "$ROOT_DIR/App/AppSupportPaths.swift" \
   "$ROOT_DIR/App/BackgroundImageStore.swift" \
   "$ROOT_DIR/App/BackgroundImageLoader.swift" \
+  "$ROOT_DIR/App/WallpaperSetter.swift" \
+  "$ROOT_DIR/App/DisplayIdentityResolver.swift" \
+  "$ROOT_DIR/App/DisplayTopologyCoordinator.swift" \
   "$ROOT_DIR/App/SettingsView.swift" \
   "$ROOT_DIR/App/MenuBarView.swift" \
   "$ROOT_DIR/App/WallpaperScheduler.swift" \

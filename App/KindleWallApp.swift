@@ -332,13 +332,12 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
 
     private func configureSettingsWindow(_ window: NSWindow) {
         window.title = "Settings"
-        window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.setContentSize(NSSize(width: 760, height: 560))
         window.center()
         window.canHide = false
         window.hidesOnDeactivate = false
         window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = true
         window.toolbarStyle = .unified
         window.delegate = self
     }
@@ -394,8 +393,8 @@ private extension SettingsWindowCoordinator {
         settingsWindowController?.window?.titleVisibility
     }
 
-    var testSettingsWindowUsesFullSizeContentView: Bool {
-        settingsWindowController?.window?.styleMask.contains(.fullSizeContentView) ?? false
+    var testSettingsWindowTitlebarAppearsTransparent: Bool {
+        settingsWindowController?.window?.titlebarAppearsTransparent ?? false
     }
 }
 
@@ -448,8 +447,8 @@ struct SettingsWindowCoordinatorTestProbe {
         coordinator.testSettingsWindowTitleVisibility
     }
 
-    var settingsWindowUsesFullSizeContentView: Bool {
-        coordinator.testSettingsWindowUsesFullSizeContentView
+    var settingsWindowTitlebarAppearsTransparent: Bool {
+        coordinator.testSettingsWindowTitlebarAppearsTransparent
     }
 }
 

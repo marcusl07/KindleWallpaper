@@ -560,3 +560,8 @@ Create `QuoteEditView` for editing all fields (quote text, book title, author, l
 
 **T78 — Build Quote detail view**
 Create `QuoteDetailView` showing full quote text, book, author, location, date added, last shown. Actions: Edit, Set as Current Wallpaper, Enable/Disable from rotation, Delete with confirmation.
+
+**T93 — Keep settings content below titlebar controls while scrolling**
+Fix the Settings window so scrolling content never renders beneath the macOS traffic lights or the back/forward toolbar buttons. Prefer restoring standard macOS titlebar/content separation over adding custom inset workarounds. Update the existing settings window verification to match the chosen window chrome configuration and confirm open/reopen/deactivation behavior still works.
+
+

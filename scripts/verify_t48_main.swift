@@ -69,8 +69,8 @@ private func testFreshOpenCreatesVisibleWindow() {
     assertEqual(probe.settingsToolbarStyle, .unified, "Expected settings window to use unified toolbar style")
     assertEqual(probe.settingsWindowTitleVisibility, .hidden, "Expected settings window title to be hidden in toolbar mode")
     assertTrue(
-        probe.settingsWindowUsesFullSizeContentView,
-        "Expected settings window to use full-size content view for unified titlebar layout"
+        !probe.settingsWindowTitlebarAppearsTransparent,
+        "Expected settings window to keep the standard opaque titlebar/content separation"
     )
 }
 
