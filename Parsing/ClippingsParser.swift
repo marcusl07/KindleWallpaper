@@ -153,7 +153,7 @@ enum ClippingsParser {
             count += 1
         }
 
-        if extractedChunks.isEmpty && skippedEntryCount > 0 {
+        if extractedChunks.isEmpty {
             return ParseResult(
                 highlights: [],
                 books: [],
