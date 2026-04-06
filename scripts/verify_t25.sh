@@ -14,7 +14,7 @@ struct VerifyT25 {
         testRotationScheduleModeDefaultsToDaily()
         testOnLaunchRotatesExactlyOnceAtStartup()
         testManualModeNeverRotates()
-        testEveryThirtyMinutesRequiresElapsedThreshold()
+        testEveryThirtyMinutesSkipsStartupCatchUpAndRequiresPostLaunchThreshold()
         testDailyModeRotatesOnceAfterScheduledTimePerDay()
         testDailyModeSkipsWhenLastChangedAtIsAtOrAfterScheduledTime()
         testSchedulerStartStopAreIdempotentAndUseSixtySecondTimer()
@@ -84,13 +84,13 @@ struct VerifyT25 {
         scheduler.stop()
     }
 
-    private static func testEveryThirtyMinutesRequiresElapsedThreshold() {
+    private static func testEveryThirtyMinutesSkipsStartupCatchUpAndRequiresPostLaunchThreshold() {
         let defaults = makeDefaults()
         defer { clearDefaults(defaults) }
 
         defaults.rotationScheduleMode = .every30Minutes
         let clock = MutableClock(dateFromUTC(2026, 1, 10, 10, 0, 0))
-        defaults.lastChangedAt = clock.current.addingTimeInterval(-1_799)
+        defaults.lastChangedAt = clock.current.addingTimeInterval(-1_801)
 
         let timerFactory = TimerFactory()
         var rotateCallCount = 0
@@ -107,11 +107,19 @@ struct VerifyT25 {
             repeatingTimerFactory: timerFactory.make(interval:handler:)
         )
 
-        expect(rotateCallCount == 0, "Expected every-30 mode to skip when less than 30 minutes elapsed")
+        expect(rotateCallCount == 0, "Expected every-30 mode to skip missed startup catch-up rotation")
 
         clock.current = clock.current.addingTimeInterval(1)
         timerFactory.fireAll()
-        expect(rotateCallCount == 1, "Expected rotation exactly at 30-minute threshold")
+        expect(rotateCallCount == 0, "Expected every-30 mode to keep waiting after startup")
+
+        clock.current = dateFromUTC(2026, 1, 10, 10, 29, 0)
+        timerFactory.fireAll()
+        expect(rotateCallCount == 0, "Expected every-30 mode not to rotate before 30 minutes from launch")
+
+        clock.current = dateFromUTC(2026, 1, 10, 10, 30, 0)
+        timerFactory.fireAll()
+        expect(rotateCallCount == 1, "Expected rotation 30 minutes after launch")
 
         clock.current = clock.current.addingTimeInterval(120)
         timerFactory.fireAll()
@@ -251,7 +259,7 @@ struct VerifyT25 {
             autoStart: false
         )
 
-        scheduler?.start()
+        scheduler?.checkNow()
         expect(rotateCallCount == 1, "Expected nested schedule check to be ignored while rotation is in progress")
 
         scheduler?.stop()

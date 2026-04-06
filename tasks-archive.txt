@@ -551,3 +551,8 @@ In `scripts/verify_t64_main.swift`, replace the reconnect tests so they assert `
 **T88 — Sync T64 shell verifier with topology shared-wallpaper flow**
 In `scripts/verify_t64.sh`, update the verifier so it checks for the new topology-specific reapply path and no longer expects the old display-resolver restore wiring for display-change handling.
 
+
+**T91 — Skip missed scheduled rotations on app launch**
+Keep `On app launch` as an explicit rotation option. When the app starts in `Daily at set time` or `Every 30 minutes`, do not generate a wallpaper immediately on startup even if the scheduled time or interval was already missed while the app was not running. Example: if daily rotation is set to 9:00 AM and the app launches at 9:30 AM, skip that missed run and wait until 9:00 AM tomorrow. Preserve current `On app launch` behavior so startup rotation only happens when that mode is explicitly selected.
+
+

@@ -39,6 +39,8 @@ final class WallpaperScheduler {
     private var hasRunLaunchCheck = false
     private var isRotating = false
     private var pendingDailyScheduledTime: Date?
+    private var deferredDailyCheckUntil: Date?
+    private var deferredEveryThirtyMinuteCheckUntil: Date?
 
     init(
         userDefaults: UserDefaults = .standard,
@@ -97,23 +99,66 @@ final class WallpaperScheduler {
         switch mode {
         case .manual:
             pendingDailyScheduledTime = nil
+            deferredDailyCheckUntil = nil
+            deferredEveryThirtyMinuteCheckUntil = nil
             return
         case .onLaunch:
             pendingDailyScheduledTime = nil
+            deferredDailyCheckUntil = nil
+            deferredEveryThirtyMinuteCheckUntil = nil
             guard trigger == .appLaunch else {
                 return
             }
             _ = performRotationIfNeeded()
         case .every30Minutes:
             pendingDailyScheduledTime = nil
-            let currentTime = now()
-            guard Self.shouldRotateEveryThirtyMinutes(now: currentTime, lastChangedAt: userDefaults.lastChangedAt) else {
-                return
-            }
-            _ = performRotationIfNeeded()
+            deferredDailyCheckUntil = nil
+            evaluateEveryThirtyMinuteSchedule(trigger: trigger)
         case .daily:
+            deferredEveryThirtyMinuteCheckUntil = nil
+            if trigger == .appLaunch {
+                let currentTime = now()
+                let todayScheduledTime = Self.scheduledTimeForToday(
+                    at: currentTime,
+                    scheduleHour: userDefaults.scheduleDailyHour,
+                    scheduleMinute: userDefaults.scheduleDailyMinute,
+                    calendar: calendar
+                )
+
+                if currentTime >= todayScheduledTime {
+                    deferredDailyCheckUntil = Self.nextScheduledTime(
+                        after: currentTime,
+                        scheduleHour: userDefaults.scheduleDailyHour,
+                        scheduleMinute: userDefaults.scheduleDailyMinute,
+                        calendar: calendar
+                    )
+                    return
+                }
+            }
             evaluateDailySchedule()
         }
+    }
+
+    private func evaluateEveryThirtyMinuteSchedule(trigger: Trigger) {
+        let currentTime = now()
+
+        if trigger == .appLaunch {
+            deferredEveryThirtyMinuteCheckUntil = currentTime.addingTimeInterval(30 * 60)
+            return
+        }
+
+        if let deferredEveryThirtyMinuteCheckUntil {
+            guard currentTime >= deferredEveryThirtyMinuteCheckUntil else {
+                return
+            }
+            self.deferredEveryThirtyMinuteCheckUntil = nil
+        }
+
+        guard Self.shouldRotateEveryThirtyMinutes(now: currentTime, lastChangedAt: userDefaults.lastChangedAt) else {
+            return
+        }
+
+        _ = performRotationIfNeeded()
     }
 
     private func evaluateDailySchedule() {
@@ -125,10 +170,15 @@ final class WallpaperScheduler {
             calendar: calendar
         )
 
+        if let deferredDailyCheckUntil {
+            guard currentTime >= deferredDailyCheckUntil else {
+                return
+            }
+            self.deferredDailyCheckUntil = nil
+        }
+
         if let pendingDailyScheduledTime {
-            if !calendar.isDate(pendingDailyScheduledTime, inSameDayAs: currentTime) {
-                self.pendingDailyScheduledTime = nil
-            } else if currentTime >= pendingDailyScheduledTime {
+            if currentTime >= pendingDailyScheduledTime {
                 if performRotationIfNeeded() {
                     self.pendingDailyScheduledTime = nil
                 }
@@ -230,5 +280,33 @@ final class WallpaperScheduler {
         }
 
         return startOfDay
+    }
+
+    static func nextScheduledTime(
+        after referenceDate: Date,
+        scheduleHour: Int,
+        scheduleMinute: Int,
+        calendar: Calendar
+    ) -> Date {
+        let hour = min(max(scheduleHour, 0), 23)
+        let minute = min(max(scheduleMinute, 0), 59)
+        let components = DateComponents(hour: hour, minute: minute, second: 0)
+
+        if let nextScheduledDate = calendar.nextDate(
+            after: referenceDate,
+            matching: components,
+            matchingPolicy: .nextTime,
+            repeatedTimePolicy: .first,
+            direction: .forward
+        ) {
+            return nextScheduledDate
+        }
+
+        return scheduledTimeForToday(
+            at: referenceDate.addingTimeInterval(24 * 60 * 60),
+            scheduleHour: hour,
+            scheduleMinute: minute,
+            calendar: calendar
+        )
     }
 }

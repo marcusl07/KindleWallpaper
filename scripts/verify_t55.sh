@@ -21,7 +21,7 @@ require_pattern() {
 
 require_pattern "$SCHEDULER_FILE" 'pendingDailyScheduledTime' "pending daily retry state"
 require_pattern "$SCHEDULER_FILE" 'private[[:space:]]+func[[:space:]]+evaluateDailySchedule\(\)' "daily evaluation helper"
-require_pattern "$APP_STATE_FILE" 'func[[:space:]]+requestWallpaperRotationSynchronously\(\)[[:space:]]*->[[:space:]]*Bool' "synchronous rotation request bridge"
+require_pattern "$APP_STATE_FILE" 'func[[:space:]]+requestWallpaperRotationSynchronously\([[:space:]]*forcedHighlight:[[:space:]]*Highlight\?[[:space:]]*=[[:space:]]*nil[[:space:]]*\)[[:space:]]*->[[:space:]]*Bool' "synchronous rotation request bridge"
 require_pattern "$APP_FILE" 'requestWallpaperRotationSynchronously\(\)' "scheduler wiring using synchronous rotation request"
 
 cp "$ROOT_DIR/scripts/verify_t55_main.swift" "$TMP_DIR/main.swift"
