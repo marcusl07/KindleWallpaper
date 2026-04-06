@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SETTINGS_FILE="$ROOT_DIR/App/SettingsView.swift"
+APP_STATE_FILE="$ROOT_DIR/App/AppState.swift"
 TMP_DIR="$(mktemp -d /tmp/kindlewall_t79.XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -27,6 +28,8 @@ require_pattern "$SETTINGS_FILE" 'LabeledContent\("Linked Book"' "linked book su
 require_pattern "$SETTINGS_FILE" 'Button\("Cancel"' "cancel action"
 require_pattern "$SETTINGS_FILE" 'Button\("Save"' "save action"
 require_pattern "$SETTINGS_FILE" 'QuoteEditViewTestProbe' "quote edit test probe"
+require_pattern "$SETTINGS_FILE" 'Button\("Edit"\)' "quote detail edit action"
+require_pattern "$APP_STATE_FILE" 'func updateQuote\(_ highlight: Highlight, with request: QuoteEditSaveRequest\)' "app-state quote update API"
 
 cp "$ROOT_DIR/scripts/verify_t79_main.swift" "$TMP_DIR/main.swift"
 
@@ -39,6 +42,8 @@ swiftc \
   "$ROOT_DIR/App/AppSupportPaths.swift" \
   "$ROOT_DIR/App/BackgroundImageStore.swift" \
   "$ROOT_DIR/App/BackgroundImageLoader.swift" \
+  "$ROOT_DIR/App/WallpaperSetter.swift" \
+  "$ROOT_DIR/App/DisplayIdentityResolver.swift" \
   "$ROOT_DIR/App/SettingsView.swift" \
   "$ROOT_DIR/Models/Book.swift" \
   "$ROOT_DIR/Models/Highlight.swift" \

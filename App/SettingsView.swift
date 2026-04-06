@@ -774,7 +774,7 @@ private struct QuotesListView: View {
                 } else {
                     List(displayedHighlights) { highlight in
                         NavigationLink {
-                            QuoteDetailView(highlight: highlight)
+                            QuoteDetailView(highlight: highlight, onHighlightUpdated: updateStoredHighlight)
                         } label: {
                             quoteRow(highlight)
                         }
@@ -963,6 +963,7 @@ private struct QuotesListView: View {
         }
 
         highlights[index] = updatedHighlight
+        reconcileFilters()
     }
 
     private func reconcileFilters() {
@@ -1008,6 +1009,7 @@ private struct QuoteDetailView: View {
     @State private var highlight: Highlight
     private let onHighlightUpdated: (Highlight) -> Void
     @State private var isShowingDeleteConfirmation = false
+    @State private var isPresentingEditQuote = false
     @State private var wallpaperRequestMessage: String?
     @State private var toggleMessage: String?
 
@@ -1036,6 +1038,11 @@ private struct QuoteDetailView: View {
                 }
 
                 HStack(spacing: 12) {
+                    Button("Edit") {
+                        isPresentingEditQuote = true
+                    }
+                    .buttonStyle(.bordered)
+
                     Button("Set as Current Wallpaper") {
                         let didRequestRotation = appState.requestWallpaperRotation(forcedHighlight: highlight)
                         wallpaperRequestMessage = didRequestRotation
@@ -1083,6 +1090,26 @@ private struct QuoteDetailView: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .navigationTitle("Quote")
+        .sheet(isPresented: $isPresentingEditQuote) {
+            NavigationStack {
+                QuoteEditView(
+                    highlight: highlight,
+                    books: appState.books,
+                    onCancel: {
+                        isPresentingEditQuote = false
+                    },
+                    onSave: { request in
+                        let updatedHighlight = appState.updateQuote(highlight, with: request)
+                        highlight = updatedHighlight
+                        onHighlightUpdated(updatedHighlight)
+                        wallpaperRequestMessage = nil
+                        toggleMessage = nil
+                        isPresentingEditQuote = false
+                    }
+                )
+            }
+            .frame(minWidth: 520, minHeight: 460)
+        }
         .alert("Delete Quote?", isPresented: $isShowingDeleteConfirmation) {
             Button("Delete", role: .destructive) {
                 appState.deleteHighlight(id: highlight.id)

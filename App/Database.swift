@@ -359,6 +359,36 @@ enum DatabaseManager {
         }
     }
 
+    static func updateHighlight(_ highlight: Highlight) {
+        do {
+            try shared.write { database in
+                try database.execute(
+                    sql: """
+                    UPDATE highlights
+                    SET bookId = ?,
+                        quoteText = ?,
+                        bookTitle = ?,
+                        author = ?,
+                        location = ?,
+                        dedupeKey = ?
+                    WHERE id = ?
+                    """,
+                    arguments: [
+                        highlight.bookId?.uuidString,
+                        highlight.quoteText,
+                        highlight.bookTitle,
+                        highlight.author,
+                        highlight.location,
+                        computeDedupeKey(for: highlight),
+                        highlight.id.uuidString
+                    ]
+                )
+            }
+        } catch {
+            fatalError("Failed to update highlight: \(error)")
+        }
+    }
+
     static func pickNextHighlight() -> Highlight? {
         do {
             return try shared.write { database in

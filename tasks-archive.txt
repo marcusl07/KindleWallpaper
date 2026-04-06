@@ -555,4 +555,8 @@ In `scripts/verify_t64.sh`, update the verifier so it checks for the new topolog
 **T91 — Skip missed scheduled rotations on app launch**
 Keep `On app launch` as an explicit rotation option. When the app starts in `Daily at set time` or `Every 30 minutes`, do not generate a wallpaper immediately on startup even if the scheduled time or interval was already missed while the app was not running. Example: if daily rotation is set to 9:00 AM and the app launches at 9:30 AM, skip that missed run and wait until 9:00 AM tomorrow. Preserve current `On app launch` behavior so startup rotation only happens when that mode is explicitly selected.
 
+**T79 — Build Quote edit/add view**
+Create `QuoteEditView` for editing all fields (quote text, book title, author, location). All fields optional except quote text. If book title + author match existing book, link to it. Save/Cancel.
 
+**T78 — Build Quote detail view**
+Create `QuoteDetailView` showing full quote text, book, author, location, date added, last shown. Actions: Edit, Set as Current Wallpaper, Enable/Disable from rotation, Delete with confirmation.

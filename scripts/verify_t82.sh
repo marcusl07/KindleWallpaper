@@ -24,7 +24,7 @@ require_pattern "$APP_STATE_FILE" 'makeRotationPipelineContext\(forcedHighlight:
 require_pattern "$SETTINGS_FILE" 'struct[[:space:]]+QuoteDetailView:[[:space:]]+View' "quote detail view definition"
 require_pattern "$SETTINGS_FILE" 'Button\("Set as Current Wallpaper"\)' "set wallpaper action button"
 require_pattern "$SETTINGS_FILE" 'requestWallpaperRotation\(forcedHighlight:[[:space:]]*highlight\)' "detail view forced rotation request"
-require_pattern "$SETTINGS_FILE" 'QuoteDetailView\(highlight:[[:space:]]*highlight\)' "quote row navigation to detail view"
+require_pattern "$SETTINGS_FILE" 'QuoteDetailView\(highlight:[[:space:]]*highlight,' "quote row navigation to detail view"
 
 cp "$ROOT_DIR/scripts/verify_t82_main.swift" "$TMP_DIR/main.swift"
 
@@ -37,6 +37,8 @@ swiftc \
   "$ROOT_DIR/App/AppSupportPaths.swift" \
   "$ROOT_DIR/App/BackgroundImageStore.swift" \
   "$ROOT_DIR/App/BackgroundImageLoader.swift" \
+  "$ROOT_DIR/App/WallpaperSetter.swift" \
+  "$ROOT_DIR/App/DisplayIdentityResolver.swift" \
   "$ROOT_DIR/App/SettingsView.swift" \
   "$ROOT_DIR/Models/Book.swift" \
   "$ROOT_DIR/Models/Highlight.swift" \

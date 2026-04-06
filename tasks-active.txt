@@ -17,12 +17,6 @@ Fix the Settings window so scrolling content never renders beneath the macOS tra
 
 ## Phase 13 — Quote Management
 
-**T78 — Build Quote detail view**
-Create `QuoteDetailView` showing full quote text, book, author, location, date added, last shown. Actions: Edit, Set as Current Wallpaper, Enable/Disable from rotation, Delete with confirmation.
-
-**T79 — Build Quote edit/add view**
-Create `QuoteEditView` for editing all fields (quote text, book title, author, location). All fields optional except quote text. If book title + author match existing book, link to it. Save/Cancel.
-
 ---
 
 ## Phase 14 — Wallpaper Restore Reliability

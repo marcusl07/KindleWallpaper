@@ -151,6 +151,7 @@ final class AppState: ObservableObject {
     typealias ReapplyCurrentWallpaperForTopology = () -> TopologyWallpaperReapplyOutcome
     typealias MarkHighlightShown = (UUID) -> Void
     typealias InsertHighlight = (Highlight) -> Void
+    typealias UpdateHighlight = (Highlight) -> Void
     typealias DeleteHighlight = (UUID) -> Void
     typealias SetBookEnabled = (UUID, Bool) -> Void
     typealias SetAllBooksEnabled = (Bool) -> Void
@@ -191,6 +192,7 @@ final class AppState: ObservableObject {
     private let reapplyCurrentWallpaperForTopology: ReapplyCurrentWallpaperForTopology
     private let markHighlightShown: MarkHighlightShown
     private let insertHighlightAction: InsertHighlight
+    private let updateHighlightAction: UpdateHighlight
     private let deleteHighlightAction: DeleteHighlight
     private let setBookEnabledAction: SetBookEnabled
     private let setAllBooksEnabledAction: SetAllBooksEnabled
@@ -241,6 +243,7 @@ final class AppState: ObservableObject {
         reapplyCurrentWallpaperForTopology: @escaping ReapplyCurrentWallpaperForTopology = { .noCurrentWallpaper },
         markHighlightShown: @escaping MarkHighlightShown,
         insertHighlight: @escaping InsertHighlight = { _ in },
+        updateHighlight: @escaping UpdateHighlight = { _ in },
         deleteHighlight: @escaping DeleteHighlight = { _ in },
         setBookEnabled: @escaping SetBookEnabled = { _, _ in },
         setAllBooksEnabled: @escaping SetAllBooksEnabled = { _ in },
@@ -340,6 +343,7 @@ final class AppState: ObservableObject {
         self.reapplyCurrentWallpaperForTopology = reapplyCurrentWallpaperForTopology
         self.markHighlightShown = markHighlightShown
         self.insertHighlightAction = insertHighlight
+        self.updateHighlightAction = updateHighlight
         self.deleteHighlightAction = deleteHighlight
         self.setBookEnabledAction = setBookEnabled
         self.setAllBooksEnabledAction = setAllBooksEnabled
@@ -779,6 +783,24 @@ final class AppState: ObservableObject {
         refreshLibraryState()
     }
 
+    @discardableResult
+    func updateQuote(_ highlight: Highlight, with request: QuoteEditSaveRequest) -> Highlight {
+        let updatedHighlight = Highlight(
+            id: highlight.id,
+            bookId: request.bookId,
+            quoteText: request.quoteText,
+            bookTitle: request.bookTitle,
+            author: request.author,
+            location: request.location,
+            dateAdded: highlight.dateAdded,
+            lastShownAt: highlight.lastShownAt,
+            isEnabled: highlight.isEnabled
+        )
+        updateHighlightAction(updatedHighlight)
+        refreshLibraryState()
+        return updatedHighlight
+    }
+
     func deleteHighlight(id: UUID) {
         deleteHighlightAction(id)
         refreshLibraryState()
@@ -1030,6 +1052,7 @@ extension AppState {
             },
             markHighlightShown: DatabaseManager.markHighlightShown(id:),
             insertHighlight: DatabaseManager.insertHighlightIfNew(_:),
+            updateHighlight: DatabaseManager.updateHighlight(_:),
             deleteHighlight: DatabaseManager.deleteHighlight(id:),
             setBookEnabled: DatabaseManager.setBookEnabled(id:enabled:),
             setAllBooksEnabled: DatabaseManager.setAllBooksEnabled(enabled:),

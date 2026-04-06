@@ -47,6 +47,25 @@ private func makeHighlight(location: String?) -> Highlight {
     )
 }
 
+private func makeDefaults() -> UserDefaults {
+    let suiteName = "KindleWall-T79-\(UUID().uuidString)"
+    guard let defaults = UserDefaults(suiteName: suiteName) else {
+        fail("Unable to create isolated UserDefaults suite")
+    }
+
+    defaults.removePersistentDomain(forName: suiteName)
+    defaults.set(suiteName, forKey: "__verifySuiteName")
+    return defaults
+}
+
+private func clearDefaults(_ defaults: UserDefaults) {
+    guard let suiteName = defaults.string(forKey: "__verifySuiteName"), !suiteName.isEmpty else {
+        return
+    }
+
+    defaults.removePersistentDomain(forName: suiteName)
+}
+
 private func testViewTitleAndDraftInitialization() {
     assertEqual(
         QuoteEditViewTestProbe.title(for: nil),
@@ -140,9 +159,89 @@ private func testSaveRequestCanonicalizesMatchedBooksAndOptionalFields() {
     assertNil(unmatchedRequest.location, "Expected blank locations to save as nil")
 }
 
+@MainActor
+private func testUpdateQuotePreservesMetadataAndRefreshesLibraryState() {
+    let defaults = makeDefaults()
+    defer { clearDefaults(defaults) }
+
+    let originalHighlight = Highlight(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000501")!,
+        bookId: UUID(uuidString: "00000000-0000-0000-0000-000000000502"),
+        quoteText: "Original quote",
+        bookTitle: "Original Book",
+        author: "Original Author",
+        location: "Loc 12",
+        dateAdded: Date(timeIntervalSince1970: 501),
+        lastShownAt: Date(timeIntervalSince1970: 777),
+        isEnabled: false
+    )
+    let matchedBook = makeBook(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000503")!,
+        title: "Clean Code",
+        author: "Robert C. Martin"
+    )
+
+    var storedHighlight: Highlight?
+    let totalHighlightCount = 3
+    let refreshedBook = makeBook(
+        id: matchedBook.id,
+        title: matchedBook.title,
+        author: matchedBook.author
+    )
+
+    let appState = AppState(
+        userDefaults: defaults,
+        totalHighlightCount: totalHighlightCount,
+        books: [],
+        pickNextHighlight: { nil },
+        loadBackgroundImageURL: { nil },
+        generateWallpaper: { _, _ in URL(fileURLWithPath: "/tmp/unused.png") },
+        setWallpaper: { _ in },
+        markHighlightShown: { _ in },
+        updateHighlight: { highlight in
+            storedHighlight = highlight
+        },
+        fetchAllBooks: { [refreshedBook] },
+        fetchTotalHighlightCount: { totalHighlightCount }
+    )
+
+    let request = QuoteEditViewTestProbe.saveRequest(
+        quoteText: "  Updated quote text  ",
+        bookTitle: " clean code ",
+        author: " ROBERT C. MARTIN ",
+        location: "  Loc 99  ",
+        books: [matchedBook]
+    )
+
+    let updatedHighlight = appState.updateQuote(originalHighlight, with: request)
+
+    guard let storedHighlight else {
+        fail("Expected updateQuote to persist the updated highlight")
+    }
+
+    assertEqual(updatedHighlight.id, originalHighlight.id, "Expected editing to preserve highlight identity")
+    assertEqual(updatedHighlight.dateAdded, originalHighlight.dateAdded, "Expected editing to preserve date added")
+    assertEqual(updatedHighlight.lastShownAt, originalHighlight.lastShownAt, "Expected editing to preserve last shown date")
+    assertEqual(updatedHighlight.isEnabled, originalHighlight.isEnabled, "Expected editing to preserve enabled state")
+    assertEqual(updatedHighlight.bookId, matchedBook.id, "Expected editing to adopt the matched book id")
+    assertEqual(updatedHighlight.quoteText, "Updated quote text", "Expected editing to trim quote text")
+    assertEqual(updatedHighlight.bookTitle, "Clean Code", "Expected editing to canonicalize the matched title")
+    assertEqual(updatedHighlight.author, "Robert C. Martin", "Expected editing to canonicalize the matched author")
+    assertEqual(updatedHighlight.location, "Loc 99", "Expected editing to trim location")
+    assertEqual(storedHighlight.id, updatedHighlight.id, "Expected persisted highlight id to match the returned value")
+    assertEqual(storedHighlight.bookId, updatedHighlight.bookId, "Expected persisted highlight book link to match the returned value")
+    assertEqual(storedHighlight.quoteText, updatedHighlight.quoteText, "Expected persisted quote text to match the returned value")
+    assertEqual(appState.totalHighlightCount, totalHighlightCount, "Expected editing to leave total highlight count unchanged after refresh")
+    assertEqual(appState.books.count, 1, "Expected editing to refresh books")
+    assertEqual(appState.books.first?.id, refreshedBook.id, "Expected refreshed book identity to be published")
+}
+
 testViewTitleAndDraftInitialization()
 testSaveRequiresNonBlankQuoteText()
 testMatchingUsesTrimmedCaseInsensitiveBookIdentity()
 testSaveRequestCanonicalizesMatchedBooksAndOptionalFields()
+MainActor.assumeIsolated {
+    testUpdateQuotePreservesMetadataAndRefreshesLibraryState()
+}
 
 print("verify_t79_main passed")
