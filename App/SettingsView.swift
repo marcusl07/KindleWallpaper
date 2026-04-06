@@ -174,7 +174,6 @@ struct SettingsView: View {
             }
 
             settingsMessageRow("Last changed: \(formattedLastChangedAt)")
-            settingsMessageRow("Timed rotation requires the app to be running.", tone: .secondary)
             settingsMessageRow(
                 "To avoid conflicts, disable macOS wallpaper rotation in System Settings > Wallpaper.",
                 tone: .secondary
