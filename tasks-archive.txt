@@ -542,3 +542,8 @@ In `AppState.swift`, add a topology-only reapply path that reads the current wal
 In `DisplayTopologyCoordinator.swift`, change the debounced display-change callback to call the new topology-specific shared-wallpaper reapply path in `AppState` instead of the stored targeted restore flow.
 
 
+
+**T87 — Replace reconnect tests with shared-wallpaper topology expectations**
+In `scripts/verify_t64_main.swift`, replace the reconnect tests so they assert `1A` behavior: topology changes reapply the currently active wallpaper file across all connected screens, stale external-monitor wallpapers are not restored by topology events, and no-op/failure cases are explicit.
+
+

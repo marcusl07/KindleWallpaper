@@ -1011,14 +1011,15 @@ private func testAppStateExplicitMergeAndClearForwardToPersistenceBoundary() {
 }
 
 @MainActor
-private func testAppStateTopologyReapplyUsesCurrentWallpaperAfterTransientReducedTopology() {
+private func testAppStateTopologyReapplySharesCurrentWallpaperAcrossConnectedScreens() {
     let defaults = makeDefaults()
     defer { clearDefaults(defaults) }
 
-    let directory = makeTemporaryDirectory(prefix: "kindlewall-t64-transient-topology")
+    let directory = makeTemporaryDirectory(prefix: "kindlewall-t64-shared-topology")
     defer { try? FileManager.default.removeItem(at: directory) }
 
-    let primaryTarget = AppState.WallpaperTarget(
+    let primaryScreen = makeResolvedScreen(
+        screen: "screen-a",
         identifier: "display-a",
         pixelWidth: 1920,
         pixelHeight: 1080,
@@ -1026,7 +1027,8 @@ private func testAppStateTopologyReapplyUsesCurrentWallpaperAfterTransientReduce
         originX: 0,
         originY: 0
     )
-    let secondaryTarget = AppState.WallpaperTarget(
+    let secondaryScreen = makeResolvedScreen(
+        screen: "screen-b",
         identifier: "display-b",
         pixelWidth: 1920,
         pixelHeight: 1080,
@@ -1034,81 +1036,34 @@ private func testAppStateTopologyReapplyUsesCurrentWallpaperAfterTransientReduce
         originX: 1920,
         originY: 0
     )
-    let primaryScreen = makeResolvedScreen(
-        screen: "screen-a",
-        identifier: primaryTarget.identifier,
-        pixelWidth: primaryTarget.pixelWidth,
-        pixelHeight: primaryTarget.pixelHeight,
-        backingScaleFactor: primaryTarget.backingScaleFactor,
-        originX: primaryTarget.originX ?? 0,
-        originY: primaryTarget.originY ?? 0
-    )
-    let secondaryScreen = makeResolvedScreen(
-        screen: "screen-b",
-        identifier: secondaryTarget.identifier,
-        pixelWidth: secondaryTarget.pixelWidth,
-        pixelHeight: secondaryTarget.pixelHeight,
-        backingScaleFactor: secondaryTarget.backingScaleFactor,
-        originX: secondaryTarget.originX ?? 0,
-        originY: secondaryTarget.originY ?? 0
-    )
+    let currentWallpaperURL = makeWallpaper(directory: directory, name: "current-shared.png")
+    let stalePersistedPrimaryURL = makeWallpaper(directory: directory, name: "stale-primary.png")
+    let stalePersistedExternalURL = makeWallpaper(directory: directory, name: "stale-external.png")
 
-    var currentTargets = [primaryTarget, secondaryTarget]
-    var currentResolvedScreens = [primaryScreen, secondaryScreen]
-    var rotationNumber = 0
-    var activeImagesByScreen: [String: URL] = [:]
+    defaults.replaceReusableGeneratedWallpapers([
+        StoredGeneratedWallpaper(targetIdentifier: "display-a", fileURL: stalePersistedPrimaryURL),
+        StoredGeneratedWallpaper(targetIdentifier: "display-b", fileURL: stalePersistedExternalURL)
+    ])
+
+    var activeImagesByScreen: [String: URL] = [
+        "screen-a": currentWallpaperURL,
+        "screen-b": stalePersistedExternalURL
+    ]
     var reappliedImagesByScreen: [String: URL] = [:]
 
     let appState = AppState(
-        pickNextHighlight: { makeHighlight(quoteText: "Preserve transient topology state") },
+        pickNextHighlight: { nil },
         generateWallpaper: { _, _ in
-            fail("Expected transient topology test to use multi-display rotation generation")
+            fail("Expected shared-wallpaper topology test not to generate wallpapers")
         },
         setWallpaper: { _ in
-            fail("Expected transient topology test not to use the all-screens apply path")
-        },
-        prepareWallpaperRotation: {
-            let resolvedScreens = currentResolvedScreens
-            let targets = currentTargets
-            return AppState.WallpaperRotationPlan(targets: targets) { generatedWallpapers in
-                let assignments = generatedWallpapers.map { generatedWallpaper in
-                    WallpaperSetter.WallpaperAssignment(
-                        screenIdentifier: generatedWallpaper.targetIdentifier,
-                        imageURL: generatedWallpaper.fileURL
-                    )
-                }
-                _ = WallpaperSetter.applyWallpapers(
-                    assignments: assignments,
-                    resolvedScreens: resolvedScreens,
-                    setDesktopImage: { url, screen in
-                        activeImagesByScreen[screen] = url.standardizedFileURL
-                    }
-                )
-            }
-        },
-        generateWallpapers: { _, _, targets in
-            rotationNumber += 1
-            return targets.map { target in
-                let wallpaperURL = makeWallpaper(
-                    directory: directory,
-                    name: "rotation-\(rotationNumber)-\(target.identifier).png"
-                )
-                return AppState.GeneratedWallpaper(
-                    targetIdentifier: target.identifier,
-                    fileURL: wallpaperURL,
-                    pixelWidth: target.pixelWidth,
-                    pixelHeight: target.pixelHeight,
-                    backingScaleFactor: Double(target.backingScaleFactor),
-                    originX: target.originX,
-                    originY: target.originY
-                )
-            }
+            fail("Expected shared-wallpaper topology test not to use the all-screens apply path")
         },
         storedWallpaperAssignmentPersistence: makeStoredWallpaperAssignmentPersistence(defaults: defaults),
         reapplyCurrentWallpaperForTopology: {
             reappliedImagesByScreen.removeAll()
             return AppState.reapplyCurrentWallpaperForTopology(
-                resolvedScreens: currentResolvedScreens,
+                resolvedScreens: [primaryScreen, secondaryScreen],
                 preferredSourceScreen: "screen-a",
                 sameScreen: ==,
                 currentDesktopImageURL: { screen in
@@ -1124,65 +1079,42 @@ private func testAppStateTopologyReapplyUsesCurrentWallpaperAfterTransientReduce
         markHighlightShown: { _ in }
     )
 
-    let initialRotationOutcome = appState.rotateWallpaperWithOutcome()
-    expectEqual(initialRotationOutcome, .success, "Expected the initial two-display rotation to succeed")
-
-    let initialStoredWallpapers = defaults.loadReusableGeneratedWallpapers()
-    expectEqual(initialStoredWallpapers.count, 2, "Expected the initial full-topology snapshot to persist both displays")
-    let initialStoredURLsByTarget = Dictionary(
-        uniqueKeysWithValues: initialStoredWallpapers.map { wallpaper in
-            (wallpaper.targetIdentifier, wallpaper.fileURL.standardizedFileURL)
-        }
-    )
-
-    currentTargets = [primaryTarget]
-    currentResolvedScreens = [primaryScreen]
-
-    let reducedRotationOutcome = appState.rotateWallpaperWithOutcome()
-    expectEqual(reducedRotationOutcome, .success, "Expected the transient reduced-topology rotation to succeed")
-
-    let reducedStoredWallpapers = defaults.loadReusableGeneratedWallpapers()
-    expectEqual(reducedStoredWallpapers.count, 2, "Expected the fuller stored snapshot to survive a transient reduced-topology rotation")
-    let reducedStoredURLsByTarget = Dictionary(
-        uniqueKeysWithValues: reducedStoredWallpapers.map { wallpaper in
-            (wallpaper.targetIdentifier, wallpaper.fileURL.standardizedFileURL)
-        }
-    )
-    expect(
-        reducedStoredURLsByTarget["display-a"] != initialStoredURLsByTarget["display-a"],
-        "Expected the connected display assignment to update during the transient reduced-topology rotation"
-    )
-    expectEqual(
-        reducedStoredURLsByTarget["display-b"],
-        initialStoredURLsByTarget["display-b"],
-        "Expected the disconnected display assignment to remain persisted during the transient reduced-topology rotation"
-    )
-
-    currentResolvedScreens = [primaryScreen, secondaryScreen]
-    activeImagesByScreen["screen-a"] = reducedStoredURLsByTarget["display-a"]
-    activeImagesByScreen["screen-b"] = reducedStoredURLsByTarget["display-b"]
-
     let reapplyOutcome = appState.reapplyCurrentWallpaperForTopologyChange()
-    expectEqual(reapplyOutcome, .reapplied, "Expected reconnect topology reapply to share the active wallpaper")
-    expectEqual(reappliedImagesByScreen.count, 1, "Expected reconnect topology reapply to update only the mismatched screen")
+    expectEqual(reapplyOutcome, .reapplied, "Expected topology reapply to share the active wallpaper across the connected screens")
+    expectEqual(reappliedImagesByScreen.count, 1, "Expected topology reapply to update only the mismatched screen")
     expectEqual(
         reappliedImagesByScreen["screen-a"],
         nil,
-        "Expected reconnect topology reapply not to rewrite the already-correct source screen"
+        "Expected topology reapply not to rewrite the already-correct source screen"
     )
     expectEqual(
         reappliedImagesByScreen["screen-b"],
-        reducedStoredURLsByTarget["display-a"],
-        "Expected the reconnected secondary display to receive the currently active wallpaper"
+        currentWallpaperURL.standardizedFileURL,
+        "Expected topology reapply to push the currently active wallpaper onto the secondary display"
     )
     expect(
-        reappliedImagesByScreen["screen-b"] != reducedStoredURLsByTarget["display-b"],
-        "Expected reconnect topology reapply not to restore the stale persisted external-monitor wallpaper"
+        reappliedImagesByScreen["screen-b"] != stalePersistedExternalURL.standardizedFileURL,
+        "Expected topology reapply not to restore the stale persisted external-monitor wallpaper"
+    )
+    expectEqual(
+        activeImagesByScreen["screen-a"],
+        currentWallpaperURL.standardizedFileURL,
+        "Expected the source screen to keep the currently active shared wallpaper"
+    )
+    expectEqual(
+        activeImagesByScreen["screen-b"],
+        currentWallpaperURL.standardizedFileURL,
+        "Expected topology reapply to leave all connected screens on the currently active wallpaper"
+    )
+    expectEqual(
+        defaults.loadReusableGeneratedWallpapers().map(\.fileURL.standardizedFileURL),
+        [stalePersistedPrimaryURL.standardizedFileURL, stalePersistedExternalURL.standardizedFileURL],
+        "Expected topology reapply to ignore the stale persisted snapshot rather than restoring it"
     )
 }
 
 @MainActor
-private func testTopologyReapplyReportsAlreadyAppliedWhenConnectedScreensMatch() {
+private func testSharedWallpaperTopologyReapplyReportsAlreadyAppliedExplicitly() {
     let sharedWallpaperURL = URL(fileURLWithPath: "/tmp/t64-shared.png").standardizedFileURL
     let resolvedScreens = [
         makeResolvedScreen(screen: "screen-a", identifier: "display-a"),
@@ -1199,11 +1131,11 @@ private func testTopologyReapplyReportsAlreadyAppliedWhenConnectedScreensMatch()
         }
     )
 
-    expectEqual(outcome, .alreadyApplied, "Expected topology reapply to report an explicit no-op outcome")
+    expectEqual(outcome, .alreadyApplied, "Expected shared-wallpaper topology reapply to report an explicit no-op outcome")
 }
 
 @MainActor
-private func testTopologyReapplyReportsApplyFailureExplicitly() {
+private func testSharedWallpaperTopologyReapplyReportsApplyFailureExplicitly() {
     let sharedWallpaperURL = URL(fileURLWithPath: "/tmp/t64-apply-failure.png").standardizedFileURL
     let resolvedScreens = [
         makeResolvedScreen(screen: "screen-a", identifier: "display-a"),
@@ -1222,18 +1154,19 @@ private func testTopologyReapplyReportsApplyFailureExplicitly() {
         }
     )
 
-    expectEqual(outcome, .applyFailure, "Expected topology reapply to report an explicit apply failure outcome")
+    expectEqual(outcome, .applyFailure, "Expected shared-wallpaper topology reapply to report an explicit apply failure outcome")
 }
 
 @MainActor
-private func testDisplayTopologyCoordinatorWakeReconfigureReconnectFlowSharesCurrentWallpaper() {
+private func testDisplayTopologyCoordinatorDisplayChangesShareCurrentWallpaperAcrossConnectedScreens() {
     let defaults = makeDefaults()
     defer { clearDefaults(defaults) }
 
-    let directory = makeTemporaryDirectory(prefix: "kindlewall-t64-wake-reconnect")
+    let directory = makeTemporaryDirectory(prefix: "kindlewall-t64-display-change")
     defer { try? FileManager.default.removeItem(at: directory) }
 
-    let primaryTarget = AppState.WallpaperTarget(
+    let primaryScreen = makeResolvedScreen(
+        screen: "screen-a",
         identifier: "display-a",
         pixelWidth: 1920,
         pixelHeight: 1080,
@@ -1241,7 +1174,8 @@ private func testDisplayTopologyCoordinatorWakeReconfigureReconnectFlowSharesCur
         originX: 0,
         originY: 0
     )
-    let secondaryTarget = AppState.WallpaperTarget(
+    let secondaryScreen = makeResolvedScreen(
+        screen: "screen-b",
         identifier: "display-b",
         pixelWidth: 1920,
         pixelHeight: 1080,
@@ -1249,91 +1183,39 @@ private func testDisplayTopologyCoordinatorWakeReconfigureReconnectFlowSharesCur
         originX: 1920,
         originY: 0
     )
-    let primaryScreen = makeResolvedScreen(
-        screen: "screen-a",
-        identifier: primaryTarget.identifier,
-        pixelWidth: primaryTarget.pixelWidth,
-        pixelHeight: primaryTarget.pixelHeight,
-        backingScaleFactor: primaryTarget.backingScaleFactor,
-        originX: primaryTarget.originX ?? 0,
-        originY: primaryTarget.originY ?? 0
-    )
-    let secondaryScreen = makeResolvedScreen(
-        screen: "screen-b",
-        identifier: secondaryTarget.identifier,
-        pixelWidth: secondaryTarget.pixelWidth,
-        pixelHeight: secondaryTarget.pixelHeight,
-        backingScaleFactor: secondaryTarget.backingScaleFactor,
-        originX: secondaryTarget.originX ?? 0,
-        originY: secondaryTarget.originY ?? 0
-    )
+    let currentWallpaperURL = makeWallpaper(directory: directory, name: "display-change-current-shared.png")
+    let stalePersistedPrimaryURL = makeWallpaper(directory: directory, name: "display-change-stale-primary.png")
+    let stalePersistedExternalURL = makeWallpaper(directory: directory, name: "display-change-stale-external.png")
 
-    var currentTargets = [primaryTarget, secondaryTarget]
-    var currentResolvedScreens = [primaryScreen, secondaryScreen]
-    var activeImagesByScreen: [String: URL] = [:]
+    defaults.replaceReusableGeneratedWallpapers([
+        StoredGeneratedWallpaper(targetIdentifier: "display-a", fileURL: stalePersistedPrimaryURL),
+        StoredGeneratedWallpaper(targetIdentifier: "display-b", fileURL: stalePersistedExternalURL)
+    ])
+
+    var activeImagesByScreen: [String: URL] = [
+        "screen-a": currentWallpaperURL,
+        "screen-b": stalePersistedExternalURL
+    ]
     var appliedImagesByScreen: [String: URL] = [:]
     var reapplyOutcomes: [AppState.TopologyWallpaperReapplyOutcome] = []
-    var rotationNumber = 0
     let scheduler = ManualRestoreScheduler()
-    let wakeNotificationName = Notification.Name("verify-t64-wake-reconnect-wake")
-    let displayNotificationName = Notification.Name("verify-t64-wake-reconnect-display")
+    let wakeNotificationName = Notification.Name("verify-t64-display-change-wake")
+    let displayNotificationName = Notification.Name("verify-t64-display-change-display")
     let wakeCenter = NotificationCenter()
     let displayCenter = NotificationCenter()
 
     let appState = AppState(
-        pickNextHighlight: { makeHighlight(quoteText: "Wake reconnect flow") },
+        pickNextHighlight: { nil },
         generateWallpaper: { _, _ in
-            fail("Expected wake/reconfigure/reconnect test to use multi-display generation")
+            fail("Expected display-change topology test not to generate wallpapers")
         },
         setWallpaper: { _ in
-            fail("Expected wake/reconfigure/reconnect test not to use the all-screens apply path")
-        },
-        prepareWallpaperRotation: {
-            let resolvedScreens = currentResolvedScreens
-            let targets = currentTargets
-            return AppState.WallpaperRotationPlan(targets: targets) { generatedWallpapers in
-                let assignments = generatedWallpapers.map { generatedWallpaper in
-                    WallpaperSetter.WallpaperAssignment(
-                        screenIdentifier: generatedWallpaper.targetIdentifier,
-                        imageURL: generatedWallpaper.fileURL
-                    )
-                }
-                _ = WallpaperSetter.applyWallpapers(
-                    assignments: assignments,
-                    resolvedScreens: resolvedScreens,
-                    currentDesktopImageURL: { screen in
-                        activeImagesByScreen[screen]
-                    },
-                    setDesktopImage: { url, screen in
-                        let standardizedURL = url.standardizedFileURL
-                        activeImagesByScreen[screen] = standardizedURL
-                        appliedImagesByScreen[screen] = standardizedURL
-                    }
-                )
-            }
-        },
-        generateWallpapers: { _, _, targets in
-            rotationNumber += 1
-            return targets.map { target in
-                let wallpaperURL = makeWallpaper(
-                    directory: directory,
-                    name: "wake-reconnect-\(rotationNumber)-\(target.identifier).png"
-                )
-                return AppState.GeneratedWallpaper(
-                    targetIdentifier: target.identifier,
-                    fileURL: wallpaperURL,
-                    pixelWidth: target.pixelWidth,
-                    pixelHeight: target.pixelHeight,
-                    backingScaleFactor: Double(target.backingScaleFactor),
-                    originX: target.originX,
-                    originY: target.originY
-                )
-            }
+            fail("Expected display-change topology test not to use the all-screens apply path")
         },
         storedWallpaperAssignmentPersistence: makeStoredWallpaperAssignmentPersistence(defaults: defaults),
         reapplyCurrentWallpaperForTopology: {
             let outcome = AppState.reapplyCurrentWallpaperForTopology(
-                resolvedScreens: currentResolvedScreens,
+                resolvedScreens: [primaryScreen, secondaryScreen],
                 preferredSourceScreen: "screen-a",
                 sameScreen: ==,
                 currentDesktopImageURL: { screen in
@@ -1361,74 +1243,46 @@ private func testDisplayTopologyCoordinatorWakeReconfigureReconnectFlowSharesCur
         scheduleRestore: scheduler.schedule(generation:delay:operation:)
     )
 
-    let initialRotationOutcome = appState.rotateWallpaperWithOutcome()
-    expectEqual(initialRotationOutcome, .success, "Expected the initial full-topology rotation to succeed")
-
-    let initialStoredWallpapers = defaults.loadReusableGeneratedWallpapers()
-    expectEqual(initialStoredWallpapers.count, 2, "Expected the initial rotation to persist both displays")
-    let initialStoredURLsByTarget = Dictionary(
-        uniqueKeysWithValues: initialStoredWallpapers.map { wallpaper in
-            (wallpaper.targetIdentifier, wallpaper.fileURL.standardizedFileURL)
-        }
-    )
-
-    currentTargets = [primaryTarget]
-    currentResolvedScreens = [primaryScreen]
-    appliedImagesByScreen.removeAll()
-
-    let reducedRotationOutcome = appState.rotateWallpaperWithOutcome()
-    expectEqual(reducedRotationOutcome, .success, "Expected the reduced-topology rotation to succeed")
-
-    let reducedStoredWallpapers = defaults.loadReusableGeneratedWallpapers()
-    let reducedStoredURLsByTarget = Dictionary(
-        uniqueKeysWithValues: reducedStoredWallpapers.map { wallpaper in
-            (wallpaper.targetIdentifier, wallpaper.fileURL.standardizedFileURL)
-        }
-    )
-    expectEqual(reducedStoredWallpapers.count, 2, "Expected reduced-topology rotation to preserve the disconnected display assignment")
-    expect(
-        reducedStoredURLsByTarget["display-a"] != initialStoredURLsByTarget["display-a"],
-        "Expected the connected display to receive a new wallpaper during reduced-topology rotation"
-    )
-    expectEqual(
-        reducedStoredURLsByTarget["display-b"],
-        initialStoredURLsByTarget["display-b"],
-        "Expected the disconnected display wallpaper to remain persisted for reconnect restore"
-    )
-
-    currentTargets = [primaryTarget, secondaryTarget]
-    currentResolvedScreens = [primaryScreen, secondaryScreen]
-    activeImagesByScreen["screen-a"] = reducedStoredURLsByTarget["display-a"]
-    activeImagesByScreen["screen-b"] = reducedStoredURLsByTarget["display-b"]
     appliedImagesByScreen.removeAll()
     reapplyOutcomes.removeAll()
 
     coordinator.start()
-    wakeCenter.post(name: wakeNotificationName, object: nil)
     displayCenter.post(name: displayNotificationName, object: nil)
 
-    expectEqual(scheduler.entries.count, 2, "Expected wake plus display reconfiguration to schedule two debounced restore attempts")
+    expectEqual(scheduler.entries.count, 1, "Expected a display reconfiguration event to schedule one debounced topology reapply")
+    expectEqual(scheduler.entries[0].delay, 0.25, "Expected display reconfiguration scheduling to use the configured debounce interval")
 
     scheduler.fire(at: 0)
-    expectEqual(reapplyOutcomes, [], "Expected the superseded wake reapply not to run after the later reconfiguration")
-    expectEqual(appliedImagesByScreen, [:], "Expected the superseded wake reapply not to apply any wallpapers")
-
-    scheduler.fire(at: 1)
-    expectEqual(reapplyOutcomes, [.reapplied], "Expected the settled reconnect topology reapply to report an explicit reapply outcome")
-    expectEqual(appliedImagesByScreen.count, 1, "Expected reconnect topology reapply to update only the mismatched screen")
+    expectEqual(reapplyOutcomes, [.reapplied], "Expected the settled display-change topology reapply to report an explicit reapply outcome")
+    expectEqual(appliedImagesByScreen.count, 1, "Expected display-change topology reapply to update only the mismatched screen")
     expectEqual(
         appliedImagesByScreen["screen-a"],
         nil,
-        "Expected reconnect topology reapply to skip rewriting the source screen"
+        "Expected display-change topology reapply to skip rewriting the source screen"
     )
     expectEqual(
         appliedImagesByScreen["screen-b"],
-        reducedStoredURLsByTarget["display-a"],
-        "Expected reconnect topology reapply to push the active wallpaper onto the reconnected screen"
+        currentWallpaperURL.standardizedFileURL,
+        "Expected display-change topology reapply to push the active wallpaper onto the secondary screen"
     )
     expect(
-        appliedImagesByScreen["screen-b"] != reducedStoredURLsByTarget["display-b"],
-        "Expected reconnect topology reapply not to restore the stale persisted external-monitor wallpaper"
+        appliedImagesByScreen["screen-b"] != stalePersistedExternalURL.standardizedFileURL,
+        "Expected display-change topology reapply not to restore the stale persisted external-monitor wallpaper"
+    )
+    expectEqual(
+        activeImagesByScreen["screen-a"],
+        currentWallpaperURL.standardizedFileURL,
+        "Expected display-change topology reapply to keep the source screen on the current wallpaper"
+    )
+    expectEqual(
+        activeImagesByScreen["screen-b"],
+        currentWallpaperURL.standardizedFileURL,
+        "Expected display-change topology reapply to leave all connected screens on the current wallpaper"
+    )
+    expectEqual(
+        defaults.loadReusableGeneratedWallpapers().map(\.fileURL.standardizedFileURL),
+        [stalePersistedPrimaryURL.standardizedFileURL, stalePersistedExternalURL.standardizedFileURL],
+        "Expected display-change topology reapply not to restore from the stale persisted snapshot"
     )
 }
 
@@ -1457,10 +1311,10 @@ await MainActor.run {
     testAppStateRotationUsesReplacePersistenceOnly()
     testAppStateRotationFailureSkipsPersistenceOperations()
     testAppStateExplicitMergeAndClearForwardToPersistenceBoundary()
-    testAppStateTopologyReapplyUsesCurrentWallpaperAfterTransientReducedTopology()
-    testTopologyReapplyReportsAlreadyAppliedWhenConnectedScreensMatch()
-    testTopologyReapplyReportsApplyFailureExplicitly()
-    testDisplayTopologyCoordinatorWakeReconfigureReconnectFlowSharesCurrentWallpaper()
+    testAppStateTopologyReapplySharesCurrentWallpaperAcrossConnectedScreens()
+    testSharedWallpaperTopologyReapplyReportsAlreadyAppliedExplicitly()
+    testSharedWallpaperTopologyReapplyReportsApplyFailureExplicitly()
+    testDisplayTopologyCoordinatorDisplayChangesShareCurrentWallpaperAcrossConnectedScreens()
 }
 
 print("verify_t64_main passed")
