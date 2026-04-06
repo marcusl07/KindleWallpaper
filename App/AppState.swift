@@ -172,6 +172,7 @@ final class AppState: ObservableObject {
     @Published private(set) var currentQuotePreview: String
     @Published private(set) var importStatus: String
     @Published private(set) var importError: String?
+    @Published private(set) var importWarningDetails: [String]
     @Published private(set) var totalHighlightCount: Int
     @Published private(set) var books: [Book]
     @Published private(set) var isBookMutationInFlight: Bool
@@ -227,6 +228,7 @@ final class AppState: ObservableObject {
         currentQuotePreview: String = "",
         importStatus: String = "",
         importError: String? = nil,
+        importWarningDetails: [String] = [],
         totalHighlightCount: Int? = nil,
         books: [Book]? = nil,
         activeScheduleMode: RotationScheduleMode? = nil,
@@ -325,6 +327,7 @@ final class AppState: ObservableObject {
         self.currentQuotePreview = currentQuotePreview
         self.importStatus = importStatus
         self.importError = importError
+        self.importWarningDetails = importWarningDetails
         self.totalHighlightCount = totalHighlightCount ?? fetchTotalHighlightCount()
         self.books = books ?? fetchAllBooks()
         self.isBookMutationInFlight = false
@@ -745,16 +748,21 @@ final class AppState: ObservableObject {
         self.lastChangedAt = lastChangedAt
     }
 
-    func setImportStatus(_ message: String, isError: Bool) {
+    func setImportStatus(_ message: String, isError: Bool, warningDetails: [String] = []) {
         let normalizedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedWarningDetails = warningDetails
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
         if isError {
             importStatus = ""
             importError = normalizedMessage.isEmpty ? "Import failed: unknown error." : normalizedMessage
+            importWarningDetails = normalizedWarningDetails
             return
         }
 
         importStatus = normalizedMessage
         importError = nil
+        importWarningDetails = normalizedWarningDetails
     }
 
     func refreshLibraryState() {

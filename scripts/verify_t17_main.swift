@@ -66,6 +66,10 @@ struct VerifyT17Main {
                     books: parsedBooks,
                     parseErrorCount: 2,
                     skippedEntryCount: 0,
+                    warningMessages: [
+                        "Could not parse Added on date in entry: \"Book One (Author One) - Your Highlight on page 1\"",
+                        "Could not parse Added on date in entry: \"Book Two (Author Two) - Your Highlight on page 2\""
+                    ],
                     error: nil
                 )
             },
@@ -91,6 +95,7 @@ struct VerifyT17Main {
         assertTrue(result.error == nil, "Successful import should not return an error")
         assertEqual(result.parseWarningCount, 2, "Expected parse warning count to propagate from parser output")
         assertEqual(result.skippedEntryCount, 0, "Expected no skipped entries for the clean parse path")
+        assertEqual(result.warningMessages.count, 2, "Expected warning messages to propagate from parser output")
         assertEqual(upsertedBooks.count, 2, "Should upsert each parsed book once")
         assertEqual(insertedHighlights.count, 3, "Should attempt to insert all parsed highlights")
         assertEqual(totalCountCalls, 2, "Should read total counts before and after import")
@@ -152,6 +157,9 @@ struct VerifyT17Main {
                     books: [parsedBook],
                     parseErrorCount: 1,
                     skippedEntryCount: 0,
+                    warningMessages: [
+                        "Could not parse Added on date in entry: \"Deduped Book (Author) - Your Highlight on page 1\""
+                    ],
                     error: nil
                 )
             },
@@ -172,6 +180,7 @@ struct VerifyT17Main {
         assertTrue(result.error == nil, "Count-delta based dedupe should still be a successful import")
         assertEqual(result.parseWarningCount, 1, "Expected parse warning count to propagate for deduped imports too")
         assertEqual(result.skippedEntryCount, 0, "Expected no skipped entries for the deduped import path")
+        assertEqual(result.warningMessages.count, 1, "Expected warning details to propagate for deduped imports too")
     }
 
     private static func testImportReturnsErrorForMissingFile() {
@@ -192,6 +201,7 @@ struct VerifyT17Main {
                     books: [],
                     parseErrorCount: 0,
                     skippedEntryCount: 0,
+                    warningMessages: [],
                     error: nil
                 )
             },
@@ -214,6 +224,7 @@ struct VerifyT17Main {
         assertTrue(result.error != nil, "Missing file should return an error")
         assertEqual(result.parseWarningCount, 0, "Missing file should not report parse warnings")
         assertEqual(result.skippedEntryCount, 0, "Missing file should not report skipped entries")
+        assertEqual(result.warningMessages, [], "Missing file should not report warning details")
         assertTrue(
             parseCalled == false && upsertCalled == false && insertCalled == false && countCalled == false,
             "Missing file path should short-circuit before parsing or DB calls"

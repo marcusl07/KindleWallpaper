@@ -96,7 +96,11 @@ struct KindleWallApp: App {
     private static func makeMountListener(appState: AppState) -> VolumeWatcher.MountListener? {
         let publishImportStatusOnMain: VolumeWatcher.PublishImportStatus = { status in
             Task { @MainActor in
-                appState.setImportStatus(status.message, isError: status.isError)
+                appState.setImportStatus(
+                    status.message,
+                    isError: status.isError,
+                    warningDetails: status.warningDetails
+                )
                 appState.refreshLibraryState()
             }
         }
@@ -108,7 +112,13 @@ struct KindleWallApp: App {
         #else
         let listener = VolumeWatcher.MountListener(
             importFile: { _ in
-                VolumeWatcher.ImportPayload(newHighlightCount: 0, error: nil, parseWarningCount: 0, skippedEntryCount: 0)
+                VolumeWatcher.ImportPayload(
+                    newHighlightCount: 0,
+                    error: nil,
+                    parseWarningCount: 0,
+                    skippedEntryCount: 0,
+                    warningMessages: []
+                )
             },
             publishImportStatus: publishImportStatusOnMain
         )

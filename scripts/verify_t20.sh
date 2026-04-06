@@ -32,7 +32,13 @@ struct VerifyT20 {
             findClippingsFile: { _ in nil },
             importFile: { _ in
                 importCallCount += 1
-                return VolumeWatcher.ImportPayload(newHighlightCount: 0, error: nil, parseWarningCount: 0)
+                return VolumeWatcher.ImportPayload(
+                    newHighlightCount: 0,
+                    error: nil,
+                    parseWarningCount: 0,
+                    skippedEntryCount: 0,
+                    warningMessages: []
+                )
             },
             publishImportStatus: { status in
                 publishedStatuses.append(status)
@@ -55,7 +61,16 @@ struct VerifyT20 {
             findClippingsFile: { _ in clippingsURL },
             importFile: { url in
                 importedURL = url
-                return VolumeWatcher.ImportPayload(newHighlightCount: 2, error: nil, parseWarningCount: 2)
+                return VolumeWatcher.ImportPayload(
+                    newHighlightCount: 2,
+                    error: nil,
+                    parseWarningCount: 2,
+                    skippedEntryCount: 0,
+                    warningMessages: [
+                        "Could not parse Added on date in entry: \"Book One (Author One) - Your Highlight on page 1\"",
+                        "Could not parse Added on date in entry: \"Book Two (Author Two) - Your Highlight on page 2\""
+                    ]
+                )
             },
             publishImportStatus: { status in
                 publishedStatus = status
@@ -74,6 +89,10 @@ struct VerifyT20 {
             publishedStatus.message.hasSuffix("2 new highlights added (2 parse warnings)"),
             "Expected success message to include new highlight count and parse warning count"
         )
+        expect(
+            publishedStatus.warningDetails.count == 2,
+            "Expected success status to retain warning details"
+        )
     }
 
     private static func testHandleMountedVolumePublishesLibraryUpToDateStatus() {
@@ -85,7 +104,15 @@ struct VerifyT20 {
             volumeURL,
             findClippingsFile: { _ in clippingsURL },
             importFile: { _ in
-                VolumeWatcher.ImportPayload(newHighlightCount: 0, error: nil, parseWarningCount: 1)
+                VolumeWatcher.ImportPayload(
+                    newHighlightCount: 0,
+                    error: nil,
+                    parseWarningCount: 1,
+                    skippedEntryCount: 0,
+                    warningMessages: [
+                        "Could not parse Added on date in entry: \"Book Three (Author Three) - Your Highlight on page 3\""
+                    ]
+                )
             },
             publishImportStatus: { status in
                 publishedStatus = status
@@ -95,7 +122,10 @@ struct VerifyT20 {
         expect(
             publishedStatus == VolumeWatcher.ImportStatus(
                 message: "Library up to date (1 parse warning)",
-                isError: false
+                isError: false,
+                warningDetails: [
+                    "Could not parse Added on date in entry: \"Book Three (Author Three) - Your Highlight on page 3\""
+                ]
             ),
             "Expected parse warning suffix when no new highlights are imported"
         )
@@ -105,20 +135,40 @@ struct VerifyT20 {
         let fixedDate = Date(timeIntervalSince1970: 0)
 
         let resultOne = VolumeWatcher.makeImportStatus(
-            from: VolumeWatcher.ImportPayload(newHighlightCount: 0, error: "Could not read file", parseWarningCount: 0),
+            from: VolumeWatcher.ImportPayload(
+                newHighlightCount: 0,
+                error: "Could not read file",
+                parseWarningCount: 0,
+                skippedEntryCount: 0,
+                warningMessages: []
+            ),
             now: fixedDate
         )
         expect(
-            resultOne == VolumeWatcher.ImportStatus(message: "Import failed: Could not read file", isError: true),
+            resultOne == VolumeWatcher.ImportStatus(
+                message: "Import failed: Could not read file",
+                isError: true,
+                warningDetails: []
+            ),
             "Expected failure status to be prefixed with 'Import failed:'"
         )
 
         let resultTwo = VolumeWatcher.makeImportStatus(
-            from: VolumeWatcher.ImportPayload(newHighlightCount: 0, error: "Import failed: malformed clipping", parseWarningCount: 0),
+            from: VolumeWatcher.ImportPayload(
+                newHighlightCount: 0,
+                error: "Import failed: malformed clipping",
+                parseWarningCount: 0,
+                skippedEntryCount: 0,
+                warningMessages: []
+            ),
             now: fixedDate
         )
         expect(
-            resultTwo == VolumeWatcher.ImportStatus(message: "Import failed: malformed clipping", isError: true),
+            resultTwo == VolumeWatcher.ImportStatus(
+                message: "Import failed: malformed clipping",
+                isError: true,
+                warningDetails: []
+            ),
             "Expected pre-prefixed errors to avoid duplicate prefixes"
         )
     }
@@ -146,7 +196,13 @@ struct VerifyT20 {
             findClippingsFile: { _ in clippingsURL },
             importFile: { _ in
                 importCalled = true
-                return VolumeWatcher.ImportPayload(newHighlightCount: 0, error: nil, parseWarningCount: 0)
+                return VolumeWatcher.ImportPayload(
+                    newHighlightCount: 0,
+                    error: nil,
+                    parseWarningCount: 0,
+                    skippedEntryCount: 0,
+                    warningMessages: []
+                )
             },
             publishImportStatus: { status in
                 publishedStatus = status
@@ -157,7 +213,8 @@ struct VerifyT20 {
         expect(
             publishedStatus == VolumeWatcher.ImportStatus(
                 message: "Import failed: clippings file is larger than 20 MB.",
-                isError: true
+                isError: true,
+                warningDetails: []
             ),
             "Expected oversized file to surface explicit size-limit error"
         )
@@ -182,7 +239,13 @@ struct VerifyT20 {
                 return clippingsURL
             },
             importFile: { _ in
-                VolumeWatcher.ImportPayload(newHighlightCount: 1, error: nil, parseWarningCount: 0)
+                VolumeWatcher.ImportPayload(
+                    newHighlightCount: 1,
+                    error: nil,
+                    parseWarningCount: 0,
+                    skippedEntryCount: 0,
+                    warningMessages: []
+                )
             },
             publishImportStatus: { status in
                 publishedStatuses.append(status)

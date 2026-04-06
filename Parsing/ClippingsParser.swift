@@ -17,6 +17,7 @@ enum ClippingsParser {
         let books: [Book]
         let parseErrorCount: Int
         let skippedEntryCount: Int
+        let warningMessages: [String]
         let error: String?
     }
 
@@ -39,7 +40,7 @@ enum ClippingsParser {
     private enum ChunkClassification: Equatable {
         case highlight(ExtractedChunk)
         case ignored
-        case malformed
+        case malformed(snippet: String)
     }
 
     static func splitRawEntries(_ raw: String) -> [String] {
@@ -123,6 +124,7 @@ enum ClippingsParser {
                 books: [],
                 parseErrorCount: 0,
                 skippedEntryCount: 0,
+                warningMessages: [],
                 error: readFailureMessage(for: error)
             )
         }
@@ -133,24 +135,27 @@ enum ClippingsParser {
                 books: [],
                 parseErrorCount: 0,
                 skippedEntryCount: 0,
+                warningMessages: [],
                 error: "clippings file uses an unsupported text encoding. Use a UTF-8 text file and try again."
             )
         }
 
         var parseErrorCount = 0
+        var warningMessages: [String] = []
         let chunks = splitRawEntries(rawContents)
         let classifications = chunks.map(classifyChunk)
-        let extractedChunks = classifications.compactMap { classification -> ExtractedChunk? in
-            guard case let .highlight(chunk) = classification else {
-                return nil
-            }
-            return chunk
-        }
+        var extractedChunks: [ExtractedChunk] = []
+        extractedChunks.reserveCapacity(classifications.count)
         let skippedEntryCount = classifications.reduce(into: 0) { count, classification in
-            guard case .malformed = classification else {
-                return
+            switch classification {
+            case let .highlight(chunk):
+                extractedChunks.append(chunk)
+            case .ignored:
+                break
+            case let .malformed(snippet):
+                count += 1
+                warningMessages.append("Skipped malformed entry near: \"\(snippet)\"")
             }
-            count += 1
         }
 
         if extractedChunks.isEmpty {
@@ -159,6 +164,7 @@ enum ClippingsParser {
                 books: [],
                 parseErrorCount: 0,
                 skippedEntryCount: skippedEntryCount,
+                warningMessages: warningMessages,
                 error: "clippings file does not contain any valid Kindle highlight entries."
             )
         }
@@ -183,7 +189,9 @@ enum ClippingsParser {
 
             let metadataFields = parseMetadataFields(
                 from: extractedChunk.metadataLine,
-                parseErrorCount: &parseErrorCount
+                entrySnippet: warningSnippet(from: "\(extractedChunk.titleLine) \(extractedChunk.metadataLine)"),
+                parseErrorCount: &parseErrorCount,
+                warningMessages: &warningMessages
             )
             let dedupeKey = computeDedupeKey(
                 bookId: bookRecord.id,
@@ -229,6 +237,7 @@ enum ClippingsParser {
             books: books,
             parseErrorCount: parseErrorCount,
             skippedEntryCount: skippedEntryCount,
+            warningMessages: warningMessages,
             error: nil
         )
     }
@@ -247,15 +256,15 @@ enum ClippingsParser {
             .map(String.init)
 
         guard let titleIndex = lines.firstIndex(where: { !isBlankLine($0) }) else {
-            return .malformed
+            return malformedClassification(for: chunk)
         }
         let titleLine = lines[titleIndex].trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard titleIndex < lines.count - 1 else {
-            return .malformed
+            return malformedClassification(for: chunk)
         }
         guard let metadataIndex = lines[(titleIndex + 1)...].firstIndex(where: { $0.hasPrefix("- Your ") }) else {
-            return .malformed
+            return malformedClassification(for: chunk)
         }
         let metadataLine = lines[metadataIndex].trimmingCharacters(in: .whitespacesAndNewlines)
         guard metadataLine.contains("Your Highlight") else {
@@ -263,22 +272,22 @@ enum ClippingsParser {
         }
 
         guard metadataIndex < lines.count - 1 else {
-            return .malformed
+            return malformedClassification(for: chunk)
         }
         guard let blankLineIndex = lines[(metadataIndex + 1)...].firstIndex(where: isBlankLine) else {
-            return .malformed
+            return malformedClassification(for: chunk)
         }
 
         let quoteStartIndex = blankLineIndex + 1
         guard quoteStartIndex < lines.count else {
-            return .malformed
+            return malformedClassification(for: chunk)
         }
 
         let quoteBody = lines[quoteStartIndex...]
             .joined(separator: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !quoteBody.isEmpty else {
-            return .malformed
+            return malformedClassification(for: chunk)
         }
 
         return .highlight(ExtractedChunk(
@@ -325,7 +334,9 @@ enum ClippingsParser {
 
     private static func parseMetadataFields(
         from metadataLine: String,
-        parseErrorCount: inout Int
+        entrySnippet: String,
+        parseErrorCount: inout Int,
+        warningMessages: inout [String]
     ) -> (location: String?, dateAdded: Date?) {
         let segments = metadataLine.split(separator: "|", omittingEmptySubsequences: false).map {
             $0.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -348,7 +359,12 @@ enum ClippingsParser {
                 let rawDate = String(segment[addedOnRange.upperBound...])
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 if !rawDate.isEmpty {
-                    dateAdded = parseKindleDate(rawDate, parseErrorCount: &parseErrorCount)
+                    dateAdded = parseKindleDate(
+                        rawDate,
+                        entrySnippet: entrySnippet,
+                        parseErrorCount: &parseErrorCount,
+                        warningMessages: &warningMessages
+                    )
                 }
             }
         }
@@ -356,12 +372,36 @@ enum ClippingsParser {
         return (location: location, dateAdded: dateAdded)
     }
 
-    private static func parseKindleDate(_ string: String, parseErrorCount: inout Int) -> Date? {
+    private static func parseKindleDate(
+        _ string: String,
+        entrySnippet: String,
+        parseErrorCount: inout Int,
+        warningMessages: inout [String]
+    ) -> Date? {
         guard let date = parseKindleDate(string) else {
             parseErrorCount += 1
+            warningMessages.append("Could not parse Added on date in entry: \"\(entrySnippet)\"")
             return nil
         }
         return date
+    }
+
+    private static func malformedClassification(for chunk: String) -> ChunkClassification {
+        .malformed(snippet: warningSnippet(from: chunk))
+    }
+
+    private static func warningSnippet(from text: String, maximumLength: Int = 120) -> String {
+        let collapsed = collapseWhitespace(in: text).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !collapsed.isEmpty else {
+            return "entry text unavailable"
+        }
+
+        guard collapsed.count > maximumLength else {
+            return collapsed
+        }
+
+        let cutoffIndex = collapsed.index(collapsed.startIndex, offsetBy: maximumLength - 3)
+        return "\(collapsed[..<cutoffIndex])..."
     }
 
     private static func readFailureMessage(for error: Error) -> String {

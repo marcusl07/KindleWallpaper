@@ -1500,6 +1500,10 @@ private struct QuotesImportHeaderView: View {
             } else {
                 settingsMessageRow("No imports yet.", tone: .secondary)
             }
+
+            if !appState.importWarningDetails.isEmpty {
+                warningDetailsView(appState.importWarningDetails)
+            }
         }
     }
 
@@ -1507,6 +1511,21 @@ private struct QuotesImportHeaderView: View {
         Text(message)
             .font(.callout)
             .foregroundStyle(tone.color)
+    }
+
+    private func warningDetailsView(_ details: [String]) -> some View {
+        DisclosureGroup("Warning details") {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(Array(details.enumerated()), id: \.offset) { _, detail in
+                    Text(detail)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .padding(.top, 4)
+        }
+        .font(.callout)
     }
 }
 
@@ -1542,11 +1561,16 @@ private func importClippingsFile(at fileURL: URL, for appState: AppState) {
             newHighlightCount: result.newHighlightCount,
             error: result.error,
             parseWarningCount: result.parseWarningCount,
-            skippedEntryCount: result.skippedEntryCount
+            skippedEntryCount: result.skippedEntryCount,
+            warningMessages: result.warningMessages
         ),
         now: Date()
     )
-    appState.setImportStatus(status.message, isError: status.isError)
+    appState.setImportStatus(
+        status.message,
+        isError: status.isError,
+        warningDetails: status.warningDetails
+    )
     appState.refreshLibraryState()
     #else
     appState.setImportStatus("Import unavailable in this build.", isError: true)

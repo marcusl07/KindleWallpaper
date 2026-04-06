@@ -134,11 +134,13 @@ extension VolumeWatcher {
         let error: String?
         let parseWarningCount: Int
         let skippedEntryCount: Int
+        let warningMessages: [String]
     }
 
     struct ImportStatus: Equatable {
         let message: String
         let isError: Bool
+        let warningDetails: [String]
     }
 
     typealias FindClippingsFile = (URL) -> URL?
@@ -238,7 +240,13 @@ extension VolumeWatcher {
 
         if let sizeLimitError = importSizeLimitErrorMessage(for: clippingsURL, fileManager: .default) {
             let status = makeImportStatus(
-                from: ImportPayload(newHighlightCount: 0, error: sizeLimitError, parseWarningCount: 0, skippedEntryCount: 0),
+                from: ImportPayload(
+                    newHighlightCount: 0,
+                    error: sizeLimitError,
+                    parseWarningCount: 0,
+                    skippedEntryCount: 0,
+                    warningMessages: []
+                ),
                 now: now()
             )
             publishImportStatus(status)
@@ -252,7 +260,11 @@ extension VolumeWatcher {
 
     static func makeImportStatus(from result: ImportPayload, now: Date) -> ImportStatus {
         if let error = result.error, !error.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return ImportStatus(message: normalizedImportFailureMessage(error), isError: true)
+            return ImportStatus(
+                message: normalizedImportFailureMessage(error),
+                isError: true,
+                warningDetails: result.warningMessages
+            )
         }
 
         guard result.newHighlightCount > 0 else {
@@ -260,12 +272,17 @@ extension VolumeWatcher {
                 let warningSuffix = parseWarningSuffix(for: result.parseWarningCount)
                 return ImportStatus(
                     message: "Last synced: \(importStatusDateFormatter.string(from: now)) - Import completed with warnings: 0 new highlights added, \(result.skippedEntryCount) \(skippedEntryNoun(for: result.skippedEntryCount)) skipped\(warningSuffix)",
-                    isError: false
+                    isError: false,
+                    warningDetails: result.warningMessages
                 )
             }
 
             let warningSuffix = parseWarningSuffix(for: result.parseWarningCount)
-            return ImportStatus(message: "Library up to date\(warningSuffix)", isError: false)
+            return ImportStatus(
+                message: "Library up to date\(warningSuffix)",
+                isError: false,
+                warningDetails: result.warningMessages
+            )
         }
 
         let timestamp = importStatusDateFormatter.string(from: now)
@@ -274,14 +291,16 @@ extension VolumeWatcher {
             let warningSuffix = parseWarningSuffix(for: result.parseWarningCount)
             return ImportStatus(
                 message: "Last synced: \(timestamp) - Import completed with warnings: \(result.newHighlightCount) new \(highlightNoun) added, \(result.skippedEntryCount) \(skippedEntryNoun(for: result.skippedEntryCount)) skipped\(warningSuffix)",
-                isError: false
+                isError: false,
+                warningDetails: result.warningMessages
             )
         }
 
         let warningSuffix = parseWarningSuffix(for: result.parseWarningCount)
         return ImportStatus(
             message: "Last synced: \(timestamp) - \(result.newHighlightCount) new \(highlightNoun) added\(warningSuffix)",
-            isError: false
+            isError: false,
+            warningDetails: result.warningMessages
         )
     }
 
@@ -351,7 +370,8 @@ extension VolumeWatcher.MountListener {
                     newHighlightCount: result.newHighlightCount,
                     error: result.error,
                     parseWarningCount: result.parseWarningCount,
-                    skippedEntryCount: result.skippedEntryCount
+                    skippedEntryCount: result.skippedEntryCount,
+                    warningMessages: result.warningMessages
                 )
             },
             publishImportStatus: publishImportStatus

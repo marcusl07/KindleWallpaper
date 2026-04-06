@@ -9,6 +9,7 @@ struct ImportResult: Equatable {
     let error: String?
     let parseWarningCount: Int
     let skippedEntryCount: Int
+    let warningMessages: [String]
 }
 
 struct ImportCoordinator {
@@ -40,7 +41,8 @@ struct ImportCoordinator {
                 newHighlightCount: 0,
                 error: "Import failed: URL is not a local file.",
                 parseWarningCount: 0,
-                skippedEntryCount: 0
+                skippedEntryCount: 0,
+                warningMessages: []
             )
         }
 
@@ -49,7 +51,8 @@ struct ImportCoordinator {
                 newHighlightCount: 0,
                 error: "Import failed: file does not exist at \(url.path).",
                 parseWarningCount: 0,
-                skippedEntryCount: 0
+                skippedEntryCount: 0,
+                warningMessages: []
             )
         }
 
@@ -60,7 +63,8 @@ struct ImportCoordinator {
                 newHighlightCount: 0,
                 error: error,
                 parseWarningCount: parsed.parseErrorCount,
-                skippedEntryCount: parsed.skippedEntryCount
+                skippedEntryCount: parsed.skippedEntryCount,
+                warningMessages: parsed.warningMessages
             )
         }
 
@@ -107,7 +111,8 @@ struct ImportCoordinator {
                 newHighlightCount: newHighlightCount,
                 error: "Import completed with \(missingBookMappingCount) skipped highlight(s) due to missing book mappings.",
                 parseWarningCount: parsed.parseErrorCount,
-                skippedEntryCount: parsed.skippedEntryCount
+                skippedEntryCount: parsed.skippedEntryCount,
+                warningMessages: parsed.warningMessages
             )
         }
 
@@ -115,7 +120,8 @@ struct ImportCoordinator {
             newHighlightCount: newHighlightCount,
             error: nil,
             parseWarningCount: parsed.parseErrorCount,
-            skippedEntryCount: parsed.skippedEntryCount
+            skippedEntryCount: parsed.skippedEntryCount,
+            warningMessages: parsed.warningMessages
         )
     }
 }

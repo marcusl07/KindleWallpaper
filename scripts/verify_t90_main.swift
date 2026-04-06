@@ -7,7 +7,8 @@ struct VerifyT90Main {
     static func main() {
         testEmptyFileShowsImportFailure()
         testNonHighlightOnlyFileShowsImportFailure()
-        testPartiallyMalformedContentShowsWarningWithCounts()
+        testPartiallyMalformedContentShowsWarningWithCountsAndSnippet()
+        testInvalidDateShowsWarningDetail()
 
         print("T90 verification passed")
     }
@@ -68,7 +69,7 @@ func testNonHighlightOnlyFileShowsImportFailure() {
     assertEqual(totalCountCalls, 0, "Non-highlight-only failures should short-circuit before DB count checks")
 }
 
-func testPartiallyMalformedContentShowsWarningWithCounts() {
+func testPartiallyMalformedContentShowsWarningWithCountsAndSnippet() {
     let fileURL = writeTemporaryFile(
         named: "verify_t90_partial.txt",
         contents: """
@@ -89,11 +90,47 @@ func testPartiallyMalformedContentShowsWarningWithCounts() {
     assertFalse(status.isError, "Partially malformed content should remain a warning, not a failure")
     assertEqual(result.newHighlightCount, 1, "Partial malformed content should still import valid highlights")
     assertEqual(result.skippedEntryCount, 1, "Partial malformed content should report skipped entries")
+    assertEqual(
+        result.warningMessages,
+        ["Skipped malformed entry near: \"Broken clipping data without Kindle metadata\""],
+        "Malformed-entry warnings should carry a source snippet"
+    )
     assertContains(
         status.message,
         "Import completed with warnings: 1 new highlight added, 1 entry skipped",
         "Warning should include both new-highlight and skipped-entry counts"
     )
+    assertEqual(
+        status.warningDetails,
+        ["Skipped malformed entry near: \"Broken clipping data without Kindle metadata\""],
+        "Status should retain malformed-entry warning details"
+    )
+}
+
+func testInvalidDateShowsWarningDetail() {
+    let fileURL = writeTemporaryFile(
+        named: "verify_t90_invalid_date.txt",
+        contents: """
+        Date Book (Author)
+        - Your Highlight on page 1 | Location 1-2 | Added on definitely-not-a-kindle-date
+
+        Quote with invalid date
+        ==========
+        """
+    )
+
+    let coordinator = makeCoordinator(totalCounts: [2, 3])
+    let result = coordinator.importFile(at: fileURL)
+    let status = makeStatus(from: result)
+
+    assertEqual(result.parseWarningCount, 1, "Invalid Added on fields should increment parse warning count")
+    assertEqual(result.warningMessages.count, 1, "Invalid Added on fields should produce one warning detail")
+    assertContains(
+        result.warningMessages[0],
+        "Could not parse Added on date in entry: \"Date Book (Author) - Your Highlight on page 1 | Location 1-2 | Added on definitely-not-a-kindle-date\"",
+        "Date-parse warnings should include an entry snippet"
+    )
+    assertEqual(status.warningDetails, result.warningMessages, "Status should preserve parse warning detail text")
 }
 
 func makeCoordinator(
@@ -131,7 +168,8 @@ func makeStatus(from result: ImportResult) -> VolumeWatcher.ImportStatus {
             newHighlightCount: result.newHighlightCount,
             error: result.error,
             parseWarningCount: result.parseWarningCount,
-            skippedEntryCount: result.skippedEntryCount
+            skippedEntryCount: result.skippedEntryCount,
+            warningMessages: result.warningMessages
         ),
         now: verificationNow
     )

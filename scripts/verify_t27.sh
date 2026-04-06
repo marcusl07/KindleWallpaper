@@ -57,6 +57,7 @@ func testInitLoadsDefaultsAndLibrarySnapshot() throws {
     assertEqual(appState.currentQuotePreview, "", "Expected empty quote preview by default")
     assertEqual(appState.importStatus, "", "Expected importStatus to default to empty string")
     assertEqual(appState.importError, nil, "Expected importError to default to nil")
+    assertEqual(appState.importWarningDetails, [], "Expected importWarningDetails to default to empty")
     assertEqual(appState.totalHighlightCount, 12, "Expected totalHighlightCount to load from fetcher")
     assertBooksEqual(appState.books, expectedBooks, "Expected books to load from fetcher")
     assertEqual(
@@ -77,10 +78,19 @@ func testSetImportStatusSeparatesSuccessAndErrorStates() throws {
     defer { fixture.cleanup() }
 
     let appState = makeAppState(defaults: fixture.defaults)
-    appState.setImportStatus("Library up to date", isError: false)
+    appState.setImportStatus(
+        "Library up to date",
+        isError: false,
+        warningDetails: ["Could not parse Added on date in entry: \"Book One (Author One) - Your Highlight\""]
+    )
 
     assertEqual(appState.importStatus, "Library up to date", "Expected success status message to be stored")
     assertEqual(appState.importError, nil, "Expected success update to clear importError")
+    assertEqual(
+        appState.importWarningDetails,
+        ["Could not parse Added on date in entry: \"Book One (Author One) - Your Highlight\""],
+        "Expected success update to retain warning details"
+    )
 
     appState.setImportStatus("  Import failed: unreadable file  ", isError: true)
     assertEqual(appState.importStatus, "", "Expected error update to clear importStatus")
@@ -89,6 +99,7 @@ func testSetImportStatusSeparatesSuccessAndErrorStates() throws {
         "Import failed: unreadable file",
         "Expected trimmed error message to be stored"
     )
+    assertEqual(appState.importWarningDetails, [], "Expected error update without details to clear warning details")
 
     appState.setImportStatus("   ", isError: true)
     assertEqual(

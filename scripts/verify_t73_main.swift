@@ -73,6 +73,7 @@ func testImportSkipsHighlightsWithoutBookMappings() {
                 books: [],
                 parseErrorCount: 0,
                 skippedEntryCount: 0,
+                warningMessages: [],
                 error: nil
             )
         },
