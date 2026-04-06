@@ -537,3 +537,8 @@ In `WallpaperSetter.swift`, add a helper that takes one canonical wallpaper URL 
 In `AppState.swift`, add a topology-only reapply path that reads the current wallpaper from the main screen (fallback: first connected screen) and reapplies that same file across all connected screens. Do not change the scheduled/manual rotation path or its stored-assignment persistence behavior.
 
 
+
+**T86 — Switch display topology coordinator to shared reapply**
+In `DisplayTopologyCoordinator.swift`, change the debounced display-change callback to call the new topology-specific shared-wallpaper reapply path in `AppState` instead of the stored targeted restore flow.
+
+

@@ -144,7 +144,7 @@ final class DisplayTopologyCoordinator {
                 return
             }
 
-            self.appState?.reapplyStoredWallpaperIfAvailable()
+            self.appState?.reapplyCurrentWallpaperForTopologyChange()
         }
     }
 

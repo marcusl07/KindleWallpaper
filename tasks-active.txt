@@ -24,9 +24,6 @@ Create `QuoteEditView` for editing all fields (quote text, book title, author, l
 
 ## Phase 14 — Wallpaper Restore Reliability
 
-**T86 — Switch display topology coordinator to shared reapply**
-In `DisplayTopologyCoordinator.swift`, change the debounced display-change callback to call the new topology-specific shared-wallpaper reapply path in `AppState` instead of the stored targeted restore flow.
-
 **T87 — Replace reconnect tests with shared-wallpaper topology expectations**
 In `scripts/verify_t64_main.swift`, replace the reconnect tests so they assert `1A` behavior: topology changes reapply the currently active wallpaper file across all connected screens, stale external-monitor wallpapers are not restored by topology events, and no-op/failure cases are explicit.
 

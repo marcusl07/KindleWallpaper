@@ -390,20 +390,20 @@ private final class ManualRestoreScheduler {
 }
 
 @MainActor
-private func makeRestoreTestingAppState(
-    reapplyStoredWallpaper: @escaping AppState.ReapplyStoredWallpaper
+private func makeTopologyTestingAppState(
+    reapplyCurrentWallpaperForTopology: @escaping AppState.ReapplyCurrentWallpaperForTopology
 ) -> AppState {
     AppState(
         pickNextHighlight: { nil },
         generateWallpaper: { _, _ in
-            fail("Expected display topology restore tests not to generate new wallpapers")
+            fail("Expected display topology tests not to generate new wallpapers")
         },
         setWallpaper: { _ in
-            fail("Expected display topology restore tests not to use the rotation apply path")
+            fail("Expected display topology tests not to use the rotation apply path")
         },
-        reapplyStoredWallpaper: reapplyStoredWallpaper,
+        reapplyCurrentWallpaperForTopology: reapplyCurrentWallpaperForTopology,
         markHighlightShown: { _ in
-            fail("Expected display topology restore tests not to mark highlights")
+            fail("Expected display topology tests not to mark highlights")
         }
     )
 }
@@ -757,9 +757,9 @@ private func testDisplayTopologyCoordinatorDebouncesWakeThenReconfiguration() {
     let displayCenter = NotificationCenter()
     let scheduler = ManualRestoreScheduler()
     var reapplyCallCount = 0
-    let appState = makeRestoreTestingAppState {
+    let appState = makeTopologyTestingAppState {
         reapplyCallCount += 1
-        return .partialRestore
+        return .reapplied
     }
 
     let coordinator = DisplayTopologyCoordinator(
@@ -791,9 +791,9 @@ private func testDisplayTopologyCoordinatorDebouncesWakeThenReconfiguration() {
 private func testDisplayTopologyCoordinatorDebouncesRepeatedReconfigurationBursts() {
     let scheduler = ManualRestoreScheduler()
     var reapplyCallCount = 0
-    let appState = makeRestoreTestingAppState {
+    let appState = makeTopologyTestingAppState {
         reapplyCallCount += 1
-        return .fullRestore
+        return .alreadyApplied
     }
 
     let coordinator = DisplayTopologyCoordinator(
@@ -824,9 +824,9 @@ private func testDisplayTopologyCoordinatorDebouncesRepeatedReconfigurationBurst
 private func testDisplayTopologyCoordinatorStopInvalidatesPendingRestore() {
     let scheduler = ManualRestoreScheduler()
     var reapplyCallCount = 0
-    let appState = makeRestoreTestingAppState {
+    let appState = makeTopologyTestingAppState {
         reapplyCallCount += 1
-        return .fullRestore
+        return .reapplied
     }
 
     let coordinator = DisplayTopologyCoordinator(
@@ -849,33 +849,33 @@ private func testDisplayTopologyCoordinatorStopInvalidatesPendingRestore() {
 }
 
 @MainActor
-private func testAppStateReapplyForwardsStructuredOutcome() {
+private func testAppStateTopologyReapplyForwardsStructuredOutcome() {
     var reapplyCallCount = 0
     var markHighlightShownCount = 0
 
     let appState = AppState(
         pickNextHighlight: {
-            fail("Expected wake restore not to request a new highlight")
+            fail("Expected topology reapply not to request a new highlight")
         },
         generateWallpaper: { _, _ in
-            fail("Expected wake restore not to generate a new wallpaper")
+            fail("Expected topology reapply not to generate a new wallpaper")
         },
         setWallpaper: { _ in
-            fail("Expected wake restore not to use the rotation apply path")
+            fail("Expected topology reapply not to use the rotation apply path")
         },
-        reapplyStoredWallpaper: {
+        reapplyCurrentWallpaperForTopology: {
             reapplyCallCount += 1
-            return .partialRestore
+            return .alreadyApplied
         },
         markHighlightShown: { _ in
             markHighlightShownCount += 1
         }
     )
 
-    let outcome = appState.reapplyStoredWallpaperIfAvailable()
-    expectEqual(outcome, .partialRestore, "Expected AppState wake restore to forward the structured outcome")
-    expectEqual(reapplyCallCount, 1, "Expected AppState wake restore to delegate exactly once")
-    expectEqual(markHighlightShownCount, 0, "Expected wake restore not to advance rotation state")
+    let outcome = appState.reapplyCurrentWallpaperForTopologyChange()
+    expectEqual(outcome, .alreadyApplied, "Expected AppState topology reapply to forward the structured outcome")
+    expectEqual(reapplyCallCount, 1, "Expected AppState topology reapply to delegate exactly once")
+    expectEqual(markHighlightShownCount, 0, "Expected topology reapply not to advance rotation state")
 }
 
 @MainActor
@@ -1011,7 +1011,7 @@ private func testAppStateExplicitMergeAndClearForwardToPersistenceBoundary() {
 }
 
 @MainActor
-private func testAppStatePreservesStoredAssignmentsAcrossTransientReducedTopology() {
+private func testAppStateTopologyReapplyUsesCurrentWallpaperAfterTransientReducedTopology() {
     let defaults = makeDefaults()
     defer { clearDefaults(defaults) }
 
@@ -1056,7 +1056,8 @@ private func testAppStatePreservesStoredAssignmentsAcrossTransientReducedTopolog
     var currentTargets = [primaryTarget, secondaryTarget]
     var currentResolvedScreens = [primaryScreen, secondaryScreen]
     var rotationNumber = 0
-    var restoredImagesByScreen: [String: URL] = [:]
+    var activeImagesByScreen: [String: URL] = [:]
+    var reappliedImagesByScreen: [String: URL] = [:]
 
     let appState = AppState(
         pickNextHighlight: { makeHighlight(quoteText: "Preserve transient topology state") },
@@ -1079,7 +1080,9 @@ private func testAppStatePreservesStoredAssignmentsAcrossTransientReducedTopolog
                 _ = WallpaperSetter.applyWallpapers(
                     assignments: assignments,
                     resolvedScreens: resolvedScreens,
-                    setDesktopImage: { (_: URL, _: String) in }
+                    setDesktopImage: { url, screen in
+                        activeImagesByScreen[screen] = url.standardizedFileURL
+                    }
                 )
             }
         },
@@ -1102,13 +1105,19 @@ private func testAppStatePreservesStoredAssignmentsAcrossTransientReducedTopolog
             }
         },
         storedWallpaperAssignmentPersistence: makeStoredWallpaperAssignmentPersistence(defaults: defaults),
-        reapplyStoredWallpaper: {
-            restoredImagesByScreen.removeAll()
-            return DisplayIdentityResolver.restoreStoredWallpapers(
-                defaults.loadReusableGeneratedWallpapers(),
+        reapplyCurrentWallpaperForTopology: {
+            reappliedImagesByScreen.removeAll()
+            return AppState.reapplyCurrentWallpaperForTopology(
                 resolvedScreens: currentResolvedScreens,
+                preferredSourceScreen: "screen-a",
+                sameScreen: ==,
+                currentDesktopImageURL: { screen in
+                    activeImagesByScreen[screen]
+                },
                 setDesktopImage: { url, screen in
-                    restoredImagesByScreen[screen] = url.standardizedFileURL
+                    let standardizedURL = url.standardizedFileURL
+                    activeImagesByScreen[screen] = standardizedURL
+                    reappliedImagesByScreen[screen] = standardizedURL
                 }
             )
         },
@@ -1150,24 +1159,74 @@ private func testAppStatePreservesStoredAssignmentsAcrossTransientReducedTopolog
     )
 
     currentResolvedScreens = [primaryScreen, secondaryScreen]
+    activeImagesByScreen["screen-a"] = reducedStoredURLsByTarget["display-a"]
+    activeImagesByScreen["screen-b"] = reducedStoredURLsByTarget["display-b"]
 
-    let restoreOutcome = appState.reapplyStoredWallpaperIfAvailable()
-    expectEqual(restoreOutcome, .fullRestore, "Expected reconnect restore to reapply both stored display assignments")
-    expectEqual(restoredImagesByScreen.count, 2, "Expected reconnect restore to target both displays")
+    let reapplyOutcome = appState.reapplyCurrentWallpaperForTopologyChange()
+    expectEqual(reapplyOutcome, .reapplied, "Expected reconnect topology reapply to share the active wallpaper")
+    expectEqual(reappliedImagesByScreen.count, 1, "Expected reconnect topology reapply to update only the mismatched screen")
     expectEqual(
-        restoredImagesByScreen["screen-a"],
-        reducedStoredURLsByTarget["display-a"],
-        "Expected the reconnected primary display to restore its latest persisted wallpaper"
+        reappliedImagesByScreen["screen-a"],
+        nil,
+        "Expected reconnect topology reapply not to rewrite the already-correct source screen"
     )
     expectEqual(
-        restoredImagesByScreen["screen-b"],
-        reducedStoredURLsByTarget["display-b"],
-        "Expected the reconnected secondary display to restore the preserved wallpaper"
+        reappliedImagesByScreen["screen-b"],
+        reducedStoredURLsByTarget["display-a"],
+        "Expected the reconnected secondary display to receive the currently active wallpaper"
+    )
+    expect(
+        reappliedImagesByScreen["screen-b"] != reducedStoredURLsByTarget["display-b"],
+        "Expected reconnect topology reapply not to restore the stale persisted external-monitor wallpaper"
     )
 }
 
 @MainActor
-private func testDisplayTopologyCoordinatorWakeReconfigureReconnectFlowRestoresOnlyMissingScreen() {
+private func testTopologyReapplyReportsAlreadyAppliedWhenConnectedScreensMatch() {
+    let sharedWallpaperURL = URL(fileURLWithPath: "/tmp/t64-shared.png").standardizedFileURL
+    let resolvedScreens = [
+        makeResolvedScreen(screen: "screen-a", identifier: "display-a"),
+        makeResolvedScreen(screen: "screen-b", identifier: "display-b")
+    ]
+
+    let outcome = AppState.reapplyCurrentWallpaperForTopology(
+        resolvedScreens: resolvedScreens,
+        preferredSourceScreen: "screen-a",
+        sameScreen: ==,
+        currentDesktopImageURL: { _ in sharedWallpaperURL },
+        setDesktopImage: { (_: URL, _: String) in
+            fail("Expected already-applied topology reapply not to rewrite wallpapers")
+        }
+    )
+
+    expectEqual(outcome, .alreadyApplied, "Expected topology reapply to report an explicit no-op outcome")
+}
+
+@MainActor
+private func testTopologyReapplyReportsApplyFailureExplicitly() {
+    let sharedWallpaperURL = URL(fileURLWithPath: "/tmp/t64-apply-failure.png").standardizedFileURL
+    let resolvedScreens = [
+        makeResolvedScreen(screen: "screen-a", identifier: "display-a"),
+        makeResolvedScreen(screen: "screen-b", identifier: "display-b")
+    ]
+
+    let outcome = AppState.reapplyCurrentWallpaperForTopology(
+        resolvedScreens: resolvedScreens,
+        preferredSourceScreen: "screen-a",
+        sameScreen: ==,
+        currentDesktopImageURL: { screen in
+            screen == "screen-a" ? sharedWallpaperURL : nil
+        },
+        setDesktopImage: { _, _ in
+            throw TestError.applyFailed
+        }
+    )
+
+    expectEqual(outcome, .applyFailure, "Expected topology reapply to report an explicit apply failure outcome")
+}
+
+@MainActor
+private func testDisplayTopologyCoordinatorWakeReconfigureReconnectFlowSharesCurrentWallpaper() {
     let defaults = makeDefaults()
     defer { clearDefaults(defaults) }
 
@@ -1213,7 +1272,7 @@ private func testDisplayTopologyCoordinatorWakeReconfigureReconnectFlowRestoresO
     var currentResolvedScreens = [primaryScreen, secondaryScreen]
     var activeImagesByScreen: [String: URL] = [:]
     var appliedImagesByScreen: [String: URL] = [:]
-    var restoreOutcomes: [WallpaperSetter.RestoreOutcome] = []
+    var reapplyOutcomes: [AppState.TopologyWallpaperReapplyOutcome] = []
     var rotationNumber = 0
     let scheduler = ManualRestoreScheduler()
     let wakeNotificationName = Notification.Name("verify-t64-wake-reconnect-wake")
@@ -1272,10 +1331,11 @@ private func testDisplayTopologyCoordinatorWakeReconfigureReconnectFlowRestoresO
             }
         },
         storedWallpaperAssignmentPersistence: makeStoredWallpaperAssignmentPersistence(defaults: defaults),
-        reapplyStoredWallpaper: {
-            let outcome = DisplayIdentityResolver.restoreStoredWallpapers(
-                defaults.loadReusableGeneratedWallpapers(),
+        reapplyCurrentWallpaperForTopology: {
+            let outcome = AppState.reapplyCurrentWallpaperForTopology(
                 resolvedScreens: currentResolvedScreens,
+                preferredSourceScreen: "screen-a",
+                sameScreen: ==,
                 currentDesktopImageURL: { screen in
                     activeImagesByScreen[screen]
                 },
@@ -1285,7 +1345,7 @@ private func testDisplayTopologyCoordinatorWakeReconfigureReconnectFlowRestoresO
                     appliedImagesByScreen[screen] = standardizedURL
                 }
             )
-            restoreOutcomes.append(outcome)
+            reapplyOutcomes.append(outcome)
             return outcome
         },
         markHighlightShown: { _ in }
@@ -1339,9 +1399,9 @@ private func testDisplayTopologyCoordinatorWakeReconfigureReconnectFlowRestoresO
     currentTargets = [primaryTarget, secondaryTarget]
     currentResolvedScreens = [primaryScreen, secondaryScreen]
     activeImagesByScreen["screen-a"] = reducedStoredURLsByTarget["display-a"]
-    activeImagesByScreen["screen-b"] = nil
+    activeImagesByScreen["screen-b"] = reducedStoredURLsByTarget["display-b"]
     appliedImagesByScreen.removeAll()
-    restoreOutcomes.removeAll()
+    reapplyOutcomes.removeAll()
 
     coordinator.start()
     wakeCenter.post(name: wakeNotificationName, object: nil)
@@ -1350,21 +1410,25 @@ private func testDisplayTopologyCoordinatorWakeReconfigureReconnectFlowRestoresO
     expectEqual(scheduler.entries.count, 2, "Expected wake plus display reconfiguration to schedule two debounced restore attempts")
 
     scheduler.fire(at: 0)
-    expectEqual(restoreOutcomes, [], "Expected the superseded wake restore not to run after the later reconfiguration")
-    expectEqual(appliedImagesByScreen, [:], "Expected the superseded wake restore not to apply any wallpapers")
+    expectEqual(reapplyOutcomes, [], "Expected the superseded wake reapply not to run after the later reconfiguration")
+    expectEqual(appliedImagesByScreen, [:], "Expected the superseded wake reapply not to apply any wallpapers")
 
     scheduler.fire(at: 1)
-    expectEqual(restoreOutcomes, [.fullRestore], "Expected the settled reconnect restore to report a full restore")
-    expectEqual(appliedImagesByScreen.count, 1, "Expected reconnect restore to apply only the screen missing its wallpaper")
+    expectEqual(reapplyOutcomes, [.reapplied], "Expected the settled reconnect topology reapply to report an explicit reapply outcome")
+    expectEqual(appliedImagesByScreen.count, 1, "Expected reconnect topology reapply to update only the mismatched screen")
     expectEqual(
         appliedImagesByScreen["screen-a"],
         nil,
-        "Expected reconnect restore to skip rewriting the screen that already had the desired wallpaper"
+        "Expected reconnect topology reapply to skip rewriting the source screen"
     )
     expectEqual(
         appliedImagesByScreen["screen-b"],
-        reducedStoredURLsByTarget["display-b"],
-        "Expected reconnect restore to reapply the preserved wallpaper only to the missing screen"
+        reducedStoredURLsByTarget["display-a"],
+        "Expected reconnect topology reapply to push the active wallpaper onto the reconnected screen"
+    )
+    expect(
+        appliedImagesByScreen["screen-b"] != reducedStoredURLsByTarget["display-b"],
+        "Expected reconnect topology reapply not to restore the stale persisted external-monitor wallpaper"
     )
 }
 
@@ -1389,12 +1453,14 @@ await MainActor.run {
     testDisplayTopologyCoordinatorDebouncesWakeThenReconfiguration()
     testDisplayTopologyCoordinatorDebouncesRepeatedReconfigurationBursts()
     testDisplayTopologyCoordinatorStopInvalidatesPendingRestore()
-    testAppStateReapplyForwardsStructuredOutcome()
+    testAppStateTopologyReapplyForwardsStructuredOutcome()
     testAppStateRotationUsesReplacePersistenceOnly()
     testAppStateRotationFailureSkipsPersistenceOperations()
     testAppStateExplicitMergeAndClearForwardToPersistenceBoundary()
-    testAppStatePreservesStoredAssignmentsAcrossTransientReducedTopology()
-    testDisplayTopologyCoordinatorWakeReconfigureReconnectFlowRestoresOnlyMissingScreen()
+    testAppStateTopologyReapplyUsesCurrentWallpaperAfterTransientReducedTopology()
+    testTopologyReapplyReportsAlreadyAppliedWhenConnectedScreensMatch()
+    testTopologyReapplyReportsApplyFailureExplicitly()
+    testDisplayTopologyCoordinatorWakeReconfigureReconnectFlowSharesCurrentWallpaper()
 }
 
 print("verify_t64_main passed")
