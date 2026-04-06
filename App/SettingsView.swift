@@ -143,7 +143,7 @@ struct SettingsView: View {
                 HStack(spacing: 12) {
                     Text("Every interval:")
                     TextField(
-                        "0",
+                        "",
                         value: scheduleIntervalHoursBinding,
                         formatter: Self.intervalComponentFormatter
                     )
@@ -155,7 +155,7 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
 
                     TextField(
-                        "30",
+                        "",
                         value: scheduleIntervalMinutesBinding,
                         formatter: Self.intervalComponentFormatter
                     )
