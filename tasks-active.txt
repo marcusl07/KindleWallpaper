@@ -1,0 +1,2 @@
+When a task is completed, run `scripts/archive_task.sh <TASK_ID>` to move it out of `tasks-active.txt` and append it to `tasks-archive.txt`.
+Do not leave completed tasks in `tasks-active.txt`.
