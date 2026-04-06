@@ -211,11 +211,13 @@ final class AppState: ObservableObject {
     private let bookMutationLock = NSLock()
 
     nonisolated private static func enqueueRotationWork(_ work: @escaping () -> Void) {
-        wallpaperRotationQueue.async(execute: work)
+        let workItem = DispatchWorkItem(block: work)
+        wallpaperRotationQueue.async(execute: workItem)
     }
 
     nonisolated private static func deliverRotationResultOnMain(_ work: @escaping () -> Void) {
-        DispatchQueue.main.async(execute: work)
+        let workItem = DispatchWorkItem(block: work)
+        DispatchQueue.main.async(execute: workItem)
     }
 
     init(
