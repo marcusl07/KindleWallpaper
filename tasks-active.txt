@@ -10,6 +10,9 @@ This file is the working context for agents. When an item is completed, move it 
 
 ## Phase 12 — Settings Navigation and Collection Ordering
 
+**T93 — Keep settings content below titlebar controls while scrolling**
+Fix the Settings window so scrolling content never renders beneath the macOS traffic lights or the back/forward toolbar buttons. Prefer restoring standard macOS titlebar/content separation over adding custom inset workarounds. Update the existing settings window verification to match the chosen window chrome configuration and confirm open/reopen/deactivation behavior still works.
+
 ---
 
 ## Phase 13 — Quote Management
@@ -23,7 +26,6 @@ Create `QuoteEditView` for editing all fields (quote text, book title, author, l
 ---
 
 ## Phase 14 — Wallpaper Restore Reliability
-
 
 ---
 
