@@ -140,36 +140,31 @@ struct SettingsView: View {
             }
 
             if appState.activeScheduleMode == .everyInterval {
-                VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 12) {
                     Text("Every interval:")
-                    HStack(spacing: 16) {
-                        TextField(
-                            "0",
-                            value: scheduleIntervalHoursBinding,
-                            formatter: Self.intervalComponentFormatter
-                        )
-                        .textFieldStyle(.roundedBorder)
-                        .multilineTextAlignment(.trailing)
-                        .frame(width: 56)
+                    TextField(
+                        "0",
+                        value: scheduleIntervalHoursBinding,
+                        formatter: Self.intervalComponentFormatter
+                    )
+                    .textFieldStyle(.roundedBorder)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 56)
 
-                        Text("hr")
-                            .foregroundStyle(.secondary)
+                    Text("hr")
+                        .foregroundStyle(.secondary)
 
-                        TextField(
-                            "30",
-                            value: scheduleIntervalMinutesBinding,
-                            formatter: Self.intervalComponentFormatter
-                        )
-                        .textFieldStyle(.roundedBorder)
-                        .multilineTextAlignment(.trailing)
-                        .frame(width: 56)
+                    TextField(
+                        "30",
+                        value: scheduleIntervalMinutesBinding,
+                        formatter: Self.intervalComponentFormatter
+                    )
+                    .textFieldStyle(.roundedBorder)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 56)
 
-                        Text("min")
-                            .foregroundStyle(.secondary)
-
-                        Text(scheduleIntervalSummary)
-                            .foregroundStyle(.secondary)
-                    }
+                    Text("min")
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -316,24 +311,6 @@ struct SettingsView: View {
 
     private var quoteLibrarySummary: String {
         "\(appState.totalHighlightCount) \(appState.totalHighlightCount == 1 ? "highlight" : "highlights") in library"
-    }
-
-    private var scheduleIntervalSummary: String {
-        let totalMinutes = UserDefaults.standard.scheduleIntervalMinutes
-        let hours = totalMinutes / 60
-        let minutes = totalMinutes % 60
-
-        if hours == 0 {
-            return minutes == 1 ? "Every 1 minute" : "Every \(minutes) minutes"
-        }
-
-        if minutes == 0 {
-            return hours == 1 ? "Every 1 hour" : "Every \(hours) hours"
-        }
-
-        let hourPart = hours == 1 ? "1 hour" : "\(hours) hours"
-        let minutePart = minutes == 1 ? "1 minute" : "\(minutes) minutes"
-        return "Every \(hourPart) \(minutePart)"
     }
 
     private func settingsNavigationRow(title: String, subtitle: String) -> some View {

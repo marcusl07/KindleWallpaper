@@ -21,7 +21,6 @@ require_pattern "$SETTINGS_VIEW_FILE" 'Text\("Every interval"\)' "generic interv
 require_pattern "$SETTINGS_VIEW_FILE" 'TextField\(' "interval text field"
 require_pattern "$SETTINGS_VIEW_FILE" 'value: scheduleIntervalHoursBinding' "interval hours text entry"
 require_pattern "$SETTINGS_VIEW_FILE" 'value: scheduleIntervalMinutesBinding' "interval minutes text entry"
-require_pattern "$SETTINGS_VIEW_FILE" 'scheduleIntervalSummary' "interval summary label"
 
 cat > "$TMP_DIR/main.swift" <<'SWIFT'
 import Foundation
