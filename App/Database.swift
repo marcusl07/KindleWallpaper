@@ -2,6 +2,8 @@ import Foundation
 import GRDB
 
 enum DatabaseManager {
+    private static let tombstoneInsertBatchRowLimit = 400
+
     static let shared: DatabaseQueue = {
         do {
             let databaseURL = try makeDatabaseURL()
@@ -503,22 +505,19 @@ enum DatabaseManager {
                 }
 
                 let deletedAt = iso8601Formatter.string(from: Date())
-                for highlight in capturedLiveHighlights {
-                    let quoteIdentityKey = computeImportStableQuoteIdentity(
+                let quoteIdentityKeys = capturedLiveHighlights.map { highlight in
+                    computeImportStableQuoteIdentity(
                         bookTitle: highlight.bookTitle,
                         author: highlight.author,
                         location: highlight.location,
                         quoteText: highlight.quoteText
                     )
-
-                    try database.execute(
-                        sql: """
-                        INSERT OR IGNORE INTO highlight_tombstones (quoteIdentityKey, deletedAt)
-                        VALUES (?, ?)
-                        """,
-                        arguments: [quoteIdentityKey, deletedAt]
-                    )
                 }
+                try insertHighlightTombstones(
+                    quoteIdentityKeys: quoteIdentityKeys,
+                    deletedAt: deletedAt,
+                    database: database
+                )
 
                 let capturedHighlightIDs = capturedLiveHighlights.map(\.id.uuidString)
                 try database.execute(
@@ -565,22 +564,19 @@ enum DatabaseManager {
                 }
 
                 let deletedAt = iso8601Formatter.string(from: Date())
-                for linkedHighlight in plan.linkedHighlights {
-                    let quoteIdentityKey = computeImportStableQuoteIdentity(
+                let quoteIdentityKeys = plan.linkedHighlights.map { linkedHighlight in
+                    computeImportStableQuoteIdentity(
                         bookTitle: linkedHighlight.bookTitle,
                         author: linkedHighlight.author,
                         location: linkedHighlight.location,
                         quoteText: linkedHighlight.quoteText
                     )
-
-                    try database.execute(
-                        sql: """
-                        INSERT OR IGNORE INTO highlight_tombstones (quoteIdentityKey, deletedAt)
-                        VALUES (?, ?)
-                        """,
-                        arguments: [quoteIdentityKey, deletedAt]
-                    )
                 }
+                try insertHighlightTombstones(
+                    quoteIdentityKeys: quoteIdentityKeys,
+                    deletedAt: deletedAt,
+                    database: database
+                )
 
                 let capturedLinkedHighlightIDs = uniqueUUIDStrings(from: plan.linkedHighlightIDs)
                 if !capturedLinkedHighlightIDs.isEmpty {
@@ -752,6 +748,34 @@ enum DatabaseManager {
         return iso8601Formatter.string(from: date)
     }
 
+    private static func insertHighlightTombstones(
+        quoteIdentityKeys: [String],
+        deletedAt: String,
+        database: Database
+    ) throws {
+        let uniqueQuoteIdentityKeys = uniqueStringsPreservingOrder(from: quoteIdentityKeys)
+        guard !uniqueQuoteIdentityKeys.isEmpty else {
+            return
+        }
+
+        var batchStartIndex = 0
+        while batchStartIndex < uniqueQuoteIdentityKeys.count {
+            let batchEndIndex = min(batchStartIndex + tombstoneInsertBatchRowLimit, uniqueQuoteIdentityKeys.count)
+            let tombstoneBatch = Array(uniqueQuoteIdentityKeys[batchStartIndex..<batchEndIndex])
+            let sqlValueTuples = Array(repeating: "(?, ?)", count: tombstoneBatch.count).joined(separator: ", ")
+
+            try database.execute(
+                sql: """
+                INSERT OR IGNORE INTO highlight_tombstones (quoteIdentityKey, deletedAt)
+                VALUES \(sqlValueTuples)
+                """,
+                arguments: StatementArguments(tombstoneBatch.flatMap { [$0, deletedAt] })
+            )
+
+            batchStartIndex = batchEndIndex
+        }
+    }
+
     private static func fetchLiveHighlights(matchingIDs ids: [UUID], database: Database) throws -> [Highlight] {
         let uniqueHighlightIDs = uniqueUUIDStrings(from: ids)
         guard !uniqueHighlightIDs.isEmpty else {
@@ -854,6 +878,16 @@ enum DatabaseManager {
                 return nil
             }
             return id.uuidString
+        }
+    }
+
+    private static func uniqueStringsPreservingOrder(from values: [String]) -> [String] {
+        var seen = Set<String>()
+        return values.compactMap { value in
+            guard seen.insert(value).inserted else {
+                return nil
+            }
+            return value
         }
     }
 
