@@ -15,22 +15,26 @@ struct ImportResult: Equatable {
 struct ImportCoordinator {
     typealias ParseClippings = (URL) -> ClippingsParser.ParseResult
     typealias UpsertBook = (Book) -> UUID
+    typealias HighlightHasTombstone = (Highlight) -> Bool
     typealias InsertHighlightIfNew = (Highlight) -> Void
     typealias TotalHighlightCount = () -> Int
 
     private let parseClippings: ParseClippings
     private let upsertBook: UpsertBook
+    private let highlightHasTombstone: HighlightHasTombstone
     private let insertHighlightIfNew: InsertHighlightIfNew
     private let totalHighlightCount: TotalHighlightCount
 
     init(
         parseClippings: @escaping ParseClippings,
         upsertBook: @escaping UpsertBook,
+        highlightHasTombstone: @escaping HighlightHasTombstone = { _ in false },
         insertHighlightIfNew: @escaping InsertHighlightIfNew,
         totalHighlightCount: @escaping TotalHighlightCount
     ) {
         self.parseClippings = parseClippings
         self.upsertBook = upsertBook
+        self.highlightHasTombstone = highlightHasTombstone
         self.insertHighlightIfNew = insertHighlightIfNew
         self.totalHighlightCount = totalHighlightCount
     }
@@ -100,6 +104,11 @@ struct ImportCoordinator {
                 lastShownAt: highlight.lastShownAt,
                 isEnabled: highlight.isEnabled
             )
+
+            guard highlightHasTombstone(persistedHighlight) == false else {
+                continue
+            }
+
             insertHighlightIfNew(persistedHighlight)
         }
 
@@ -131,6 +140,14 @@ extension ImportCoordinator {
     static let live = ImportCoordinator(
         parseClippings: ClippingsParser.parseClippings(fileURL:),
         upsertBook: DatabaseManager.upsertBook,
+        highlightHasTombstone: { highlight in
+            DatabaseManager.hasHighlightTombstone(
+                bookTitle: highlight.bookTitle,
+                author: highlight.author,
+                location: highlight.location,
+                quoteText: highlight.quoteText
+            )
+        },
         insertHighlightIfNew: DatabaseManager.insertHighlightIfNew,
         totalHighlightCount: DatabaseManager.totalHighlightCount
     )

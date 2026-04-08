@@ -54,6 +54,13 @@ enum DatabaseManager {
     ON highlights(bookId, lastShownAt);
     """
 
+    private static let createHighlightTombstonesTableSQL = """
+    CREATE TABLE IF NOT EXISTS highlight_tombstones (
+        quoteIdentityKey TEXT PRIMARY KEY,
+        deletedAt        TEXT NOT NULL
+    );
+    """
+
     private static let activeHighlightsPredicateSQL = """
     (bookId IS NULL OR bookId IN (SELECT id FROM books WHERE isEnabled = 1))
       AND isEnabled = 1
@@ -73,6 +80,7 @@ enum DatabaseManager {
             try database.execute(sql: createHighlightsTableSQL)
             try database.execute(sql: createHighlightsBookIDIndexSQL)
             try database.execute(sql: createHighlightsBookIDLastShownAtIndexSQL)
+            try database.execute(sql: createHighlightTombstonesTableSQL)
         }
 
         migrator.registerMigration("addHighlightsIsEnabled") { database in
@@ -151,6 +159,10 @@ enum DatabaseManager {
             try database.execute(sql: "ALTER TABLE highlights_migrated RENAME TO highlights")
             try database.execute(sql: createHighlightsBookIDIndexSQL)
             try database.execute(sql: createHighlightsBookIDLastShownAtIndexSQL)
+        }
+
+        migrator.registerMigration("createHighlightTombstones") { database in
+            try database.execute(sql: createHighlightTombstonesTableSQL)
         }
 
         return migrator
@@ -481,6 +493,33 @@ enum DatabaseManager {
     static func deleteHighlight(id: UUID) {
         do {
             try shared.write { database in
+                if let row = try Row.fetchOne(
+                    database,
+                    sql: """
+                    SELECT id, bookId, quoteText, bookTitle, author, location, dateAdded, lastShownAt, isEnabled
+                    FROM highlights
+                    WHERE id = ?
+                    LIMIT 1
+                    """,
+                    arguments: [id.uuidString]
+                ) {
+                    let highlight = highlight(from: row)
+                    let quoteIdentityKey = computeImportStableQuoteIdentity(
+                        bookTitle: highlight.bookTitle,
+                        author: highlight.author,
+                        location: highlight.location,
+                        quoteText: highlight.quoteText
+                    )
+
+                    try database.execute(
+                        sql: """
+                        INSERT OR IGNORE INTO highlight_tombstones (quoteIdentityKey, deletedAt)
+                        VALUES (?, ?)
+                        """,
+                        arguments: [quoteIdentityKey, iso8601Formatter.string(from: Date())]
+                    )
+                }
+
                 try database.execute(
                     sql: """
                     DELETE FROM highlights
@@ -578,6 +617,37 @@ enum DatabaseManager {
         }
     }
 
+    static func hasHighlightTombstone(
+        bookTitle: String,
+        author: String,
+        location: String?,
+        quoteText: String
+    ) -> Bool {
+        let quoteIdentityKey = computeImportStableQuoteIdentity(
+            bookTitle: bookTitle,
+            author: author,
+            location: location,
+            quoteText: quoteText
+        )
+
+        do {
+            return try shared.read { database in
+                try Int.fetchOne(
+                    database,
+                    sql: """
+                    SELECT 1
+                    FROM highlight_tombstones
+                    WHERE quoteIdentityKey = ?
+                    LIMIT 1
+                    """,
+                    arguments: [quoteIdentityKey]
+                ) != nil
+            }
+        } catch {
+            fatalError("Failed to check highlight tombstone: \(error)")
+        }
+    }
+
     private static func computeDedupeKey(for highlight: Highlight) -> String {
         DedupeKeyBuilder.makeKey(
             bookId: highlight.bookId,
@@ -585,6 +655,20 @@ enum DatabaseManager {
             author: highlight.author,
             location: highlight.location,
             quoteText: highlight.quoteText
+        )
+    }
+
+    private static func computeImportStableQuoteIdentity(
+        bookTitle: String,
+        author: String,
+        location: String?,
+        quoteText: String
+    ) -> String {
+        ImportStableQuoteIdentityKeyBuilder.makeKey(
+            bookTitle: bookTitle,
+            author: author,
+            location: location,
+            quoteText: quoteText
         )
     }
 

@@ -569,3 +569,13 @@ Fix the Settings window so scrolling content never renders beneath the macOS tra
 **T92 — Replace fixed 30-minute rotation with custom interval picker**
 Replace the `Every 30 minutes` schedule option with a generic `Every interval` mode. In Settings, show an hours/minutes scroller when that mode is selected, allowing `1 minute` through `23h 59m` and defaulting to `0h 30m`. Persist the interval in `UserDefaults`, migrate existing `every30Minutes` mode values to the new generic interval mode, and update `WallpaperScheduler` to use the stored interval instead of a hard-coded 30-minute threshold. Add or update verification for persistence, scheduler threshold behavior, and the settings UI label and control.
 
+
+**T97-a — Add import-stable quote tombstone identity and schema**
+Define a shared import-stable quote identity key that uses normalized `bookTitle`, `author`, optional `location`, and full normalized `quoteText` with no database UUID component. Add persistent tombstone storage plus any required migration/index so deleted quotes can be suppressed during future imports even if the originating book row is recreated with a new ID.
+
+
+
+**T97-b — Suppress re-import of deleted quotes**
+Update import so parsed highlights are skipped when their import-stable quote identity matches a tombstone. Treat pre-feature deletions as a known limitation: only quotes deleted after this change gain re-import suppression.
+
+
