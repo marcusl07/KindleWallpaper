@@ -10,6 +10,13 @@ struct ImportResult: Equatable {
     let parseWarningCount: Int
     let skippedEntryCount: Int
     let warningMessages: [String]
+    let librarySnapshot: LibrarySnapshot?
+}
+
+struct ImportPersistenceResult: Equatable {
+    let newHighlightCount: Int
+    let missingBookMappingCount: Int
+    let librarySnapshot: LibrarySnapshot
 }
 
 struct ImportCoordinator {
@@ -18,25 +25,29 @@ struct ImportCoordinator {
     typealias HighlightHasTombstone = (Highlight) -> Bool
     typealias InsertHighlightIfNew = (Highlight) -> Void
     typealias TotalHighlightCount = () -> Int
+    typealias PersistImport = ([Book], [Highlight]) -> ImportPersistenceResult
 
     private let parseClippings: ParseClippings
     private let upsertBook: UpsertBook
     private let highlightHasTombstone: HighlightHasTombstone
     private let insertHighlightIfNew: InsertHighlightIfNew
     private let totalHighlightCount: TotalHighlightCount
+    private let persistImport: PersistImport?
 
     init(
         parseClippings: @escaping ParseClippings,
         upsertBook: @escaping UpsertBook,
         highlightHasTombstone: @escaping HighlightHasTombstone = { _ in false },
         insertHighlightIfNew: @escaping InsertHighlightIfNew,
-        totalHighlightCount: @escaping TotalHighlightCount
+        totalHighlightCount: @escaping TotalHighlightCount,
+        persistImport: PersistImport? = nil
     ) {
         self.parseClippings = parseClippings
         self.upsertBook = upsertBook
         self.highlightHasTombstone = highlightHasTombstone
         self.insertHighlightIfNew = insertHighlightIfNew
         self.totalHighlightCount = totalHighlightCount
+        self.persistImport = persistImport
     }
 
     func importFile(at url: URL) -> ImportResult {
@@ -46,7 +57,8 @@ struct ImportCoordinator {
                 error: "Import failed: URL is not a local file.",
                 parseWarningCount: 0,
                 skippedEntryCount: 0,
-                warningMessages: []
+                warningMessages: [],
+                librarySnapshot: nil
             )
         }
 
@@ -56,7 +68,8 @@ struct ImportCoordinator {
                 error: "Import failed: file does not exist at \(url.path).",
                 parseWarningCount: 0,
                 skippedEntryCount: 0,
-                warningMessages: []
+                warningMessages: [],
+                librarySnapshot: nil
             )
         }
 
@@ -68,7 +81,20 @@ struct ImportCoordinator {
                 error: error,
                 parseWarningCount: parsed.parseErrorCount,
                 skippedEntryCount: parsed.skippedEntryCount,
-                warningMessages: parsed.warningMessages
+                warningMessages: parsed.warningMessages,
+                librarySnapshot: nil
+            )
+        }
+
+        if let persistImport {
+            let persistenceResult = persistImport(parsed.books, parsed.highlights)
+            return makeImportResult(
+                newHighlightCount: persistenceResult.newHighlightCount,
+                missingBookMappingCount: persistenceResult.missingBookMappingCount,
+                parseWarningCount: parsed.parseErrorCount,
+                skippedEntryCount: parsed.skippedEntryCount,
+                warningMessages: parsed.warningMessages,
+                librarySnapshot: persistenceResult.librarySnapshot
             )
         }
 
@@ -115,22 +141,38 @@ struct ImportCoordinator {
         let afterCount = totalHighlightCount()
         let newHighlightCount = max(0, afterCount - beforeCount)
 
+        return makeImportResult(
+            newHighlightCount: newHighlightCount,
+            missingBookMappingCount: missingBookMappingCount,
+            parseWarningCount: parsed.parseErrorCount,
+            skippedEntryCount: parsed.skippedEntryCount,
+            warningMessages: parsed.warningMessages,
+            librarySnapshot: nil
+        )
+    }
+
+    private func makeImportResult(
+        newHighlightCount: Int,
+        missingBookMappingCount: Int,
+        parseWarningCount: Int,
+        skippedEntryCount: Int,
+        warningMessages: [String],
+        librarySnapshot: LibrarySnapshot?
+    ) -> ImportResult {
+        let error: String?
         if missingBookMappingCount > 0 {
-            return ImportResult(
-                newHighlightCount: newHighlightCount,
-                error: "Import completed with \(missingBookMappingCount) skipped highlight(s) due to missing book mappings.",
-                parseWarningCount: parsed.parseErrorCount,
-                skippedEntryCount: parsed.skippedEntryCount,
-                warningMessages: parsed.warningMessages
-            )
+            error = "Import completed with \(missingBookMappingCount) skipped highlight(s) due to missing book mappings."
+        } else {
+            error = nil
         }
 
         return ImportResult(
             newHighlightCount: newHighlightCount,
-            error: nil,
-            parseWarningCount: parsed.parseErrorCount,
-            skippedEntryCount: parsed.skippedEntryCount,
-            warningMessages: parsed.warningMessages
+            error: error,
+            parseWarningCount: parseWarningCount,
+            skippedEntryCount: skippedEntryCount,
+            warningMessages: warningMessages,
+            librarySnapshot: librarySnapshot
         )
     }
 }
@@ -139,17 +181,10 @@ struct ImportCoordinator {
 extension ImportCoordinator {
     static let live = ImportCoordinator(
         parseClippings: ClippingsParser.parseClippings(fileURL:),
-        upsertBook: DatabaseManager.upsertBook,
-        highlightHasTombstone: { highlight in
-            DatabaseManager.hasHighlightTombstone(
-                bookTitle: highlight.bookTitle,
-                author: highlight.author,
-                location: highlight.location,
-                quoteText: highlight.quoteText
-            )
-        },
-        insertHighlightIfNew: DatabaseManager.insertHighlightIfNew,
-        totalHighlightCount: DatabaseManager.totalHighlightCount
+        upsertBook: { $0.id },
+        insertHighlightIfNew: { _ in },
+        totalHighlightCount: { 0 },
+        persistImport: DatabaseManager.persistImport(books:highlights:)
     )
 }
 

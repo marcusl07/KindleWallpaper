@@ -119,7 +119,10 @@ private func testBulkDeleteRefreshesLibraryStateOnce() {
         generateWallpaper: { _, _ in URL(fileURLWithPath: "/tmp/unused.png") },
         setWallpaper: { _ in },
         markHighlightShown: { _ in },
-        deleteHighlights: { deletedBatches.append($0) },
+        deleteHighlights: {
+            deletedBatches.append($0)
+            return LibrarySnapshot(totalHighlightCount: 1, books: refreshedBooks)
+        },
         fetchAllBooks: {
             fetchBooksCallCount += 1
             return refreshedBooks
@@ -133,8 +136,8 @@ private func testBulkDeleteRefreshesLibraryStateOnce() {
     appState.deleteHighlights(ids: deletedIDs)
 
     assertEqual(deletedBatches, [deletedIDs], "Expected bulk delete to invoke the injected batch delete action once")
-    assertEqual(fetchBooksCallCount, 1, "Expected bulk delete to refresh books once")
-    assertEqual(fetchCountCallCount, 1, "Expected bulk delete to refresh total count once")
+    assertEqual(fetchBooksCallCount, 0, "Expected bulk delete snapshot wiring to avoid a follow-up books fetch")
+    assertEqual(fetchCountCallCount, 0, "Expected bulk delete snapshot wiring to avoid a follow-up count fetch")
     assertEqual(appState.totalHighlightCount, 1, "Expected bulk delete to publish the refreshed total count")
     assertEqual(appState.books.first?.id, refreshedBooks.first?.id, "Expected bulk delete to publish refreshed books")
     assertEqual(appState.books.first?.highlightCount, refreshedBooks.first?.highlightCount, "Expected bulk delete to publish refreshed highlight counts")
@@ -154,7 +157,10 @@ private func testSingleDeleteRoutesThroughBulkDeleteBoundary() {
         generateWallpaper: { _, _ in URL(fileURLWithPath: "/tmp/unused.png") },
         setWallpaper: { _ in },
         markHighlightShown: { _ in },
-        deleteHighlights: { deletedBatches.append($0) }
+        deleteHighlights: {
+            deletedBatches.append($0)
+            return LibrarySnapshot(totalHighlightCount: 0, books: [])
+        }
     )
 
     appState.deleteHighlight(id: deletedID)

@@ -18,7 +18,7 @@ require_pattern() {
   fi
 }
 
-require_pattern "$APP_STATE_FILE" 'typealias[[:space:]]+DeleteHighlights[[:space:]]*=[[:space:]]*\(\[UUID\]\)[[:space:]]*->[[:space:]]*Void' "bulk delete typealias"
+require_pattern "$APP_STATE_FILE" 'typealias[[:space:]]+DeleteHighlights[[:space:]]*=[[:space:]]*\(\[UUID\]\)[[:space:]]*->[[:space:]]*LibrarySnapshot' "bulk delete snapshot typealias"
 require_pattern "$APP_STATE_FILE" 'func[[:space:]]+deleteHighlights\(ids:[[:space:]]*\[UUID\]\)' "bulk delete app state API"
 require_pattern "$APP_STATE_FILE" 'func[[:space:]]+deleteHighlight\(id:[[:space:]]*UUID\)' "single delete app state API"
 require_pattern "$APP_STATE_FILE" 'deleteHighlights\(ids:[[:space:]]*\[id\]\)' "single delete routing through bulk path"

@@ -360,12 +360,16 @@ extension VolumeWatcher {
 extension VolumeWatcher.MountListener {
     static func live(
         publishImportStatus: @escaping VolumeWatcher.PublishImportStatus,
+        applyLibrarySnapshot: @escaping (LibrarySnapshot) -> Void,
         notificationCenter: NotificationCenter = NSWorkspace.shared.notificationCenter
     ) -> VolumeWatcher.MountListener {
         VolumeWatcher.MountListener(
             notificationCenter: notificationCenter,
             importFile: { clippingsURL in
                 let result = ImportCoordinator.live.importFile(at: clippingsURL)
+                if let librarySnapshot = result.librarySnapshot {
+                    applyLibrarySnapshot(librarySnapshot)
+                }
                 return VolumeWatcher.ImportPayload(
                     newHighlightCount: result.newHighlightCount,
                     error: result.error,

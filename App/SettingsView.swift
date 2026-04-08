@@ -1838,7 +1838,11 @@ private func importClippingsFile(at fileURL: URL, for appState: AppState) {
         isError: status.isError,
         warningDetails: status.warningDetails
     )
-    appState.refreshLibraryState()
+    if let librarySnapshot = result.librarySnapshot {
+        appState.applyLibrarySnapshot(librarySnapshot)
+    } else {
+        appState.refreshLibraryState()
+    }
     #else
     appState.setImportStatus("Import unavailable in this build.", isError: true)
     #endif

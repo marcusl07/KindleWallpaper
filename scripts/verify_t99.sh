@@ -19,7 +19,7 @@ require_pattern() {
 }
 
 require_pattern "$APP_STATE_FILE" 'typealias[[:space:]]+PrepareBulkBookDeletion[[:space:]]*=[[:space:]]*\(\[UUID\]\)[[:space:]]*->[[:space:]]*BulkBookDeletionPlan' "bulk book deletion plan typealias"
-require_pattern "$APP_STATE_FILE" 'typealias[[:space:]]+DeleteBooks[[:space:]]*=[[:space:]]*\(BulkBookDeletionPlan\)[[:space:]]*->[[:space:]]*Void' "bulk book delete typealias"
+require_pattern "$APP_STATE_FILE" 'typealias[[:space:]]+DeleteBooks[[:space:]]*=[[:space:]]*\(BulkBookDeletionPlan\)[[:space:]]*->[[:space:]]*LibrarySnapshot' "bulk book delete snapshot typealias"
 require_pattern "$APP_STATE_FILE" 'func[[:space:]]+prepareBulkBookDeletion\(bookIDs:[[:space:]]*\[UUID\]\)' "bulk book deletion plan app state API"
 require_pattern "$APP_STATE_FILE" 'func[[:space:]]+deleteBooks\(using[[:space:]]+plan:[[:space:]]*BulkBookDeletionPlan\)' "bulk book delete app state API"
 require_pattern "$APP_STATE_FILE" 'prepareBulkBookDeletion:[[:space:]]*DatabaseManager\.makeBulkBookDeletionPlan\(bookIDs:\)' "live bulk book plan wiring"

@@ -153,9 +153,9 @@ final class AppState: ObservableObject {
     typealias InsertHighlight = (Highlight) -> Void
     typealias UpdateHighlight = (Highlight) -> Void
     typealias DeleteHighlight = (UUID) -> Void
-    typealias DeleteHighlights = ([UUID]) -> Void
+    typealias DeleteHighlights = ([UUID]) -> LibrarySnapshot
     typealias PrepareBulkBookDeletion = ([UUID]) -> BulkBookDeletionPlan
-    typealias DeleteBooks = (BulkBookDeletionPlan) -> Void
+    typealias DeleteBooks = (BulkBookDeletionPlan) -> LibrarySnapshot
     typealias SetBookEnabled = (UUID, Bool) -> Void
     typealias SetAllBooksEnabled = (Bool) -> Void
     typealias SetHighlightEnabled = (UUID, Bool) -> Void
@@ -256,7 +256,7 @@ final class AppState: ObservableObject {
         prepareBulkBookDeletion: @escaping PrepareBulkBookDeletion = { _ in
             BulkBookDeletionPlan(bookIDs: [], linkedHighlights: [])
         },
-        deleteBooks: @escaping DeleteBooks = { _ in },
+        deleteBooks: DeleteBooks? = nil,
         setBookEnabled: @escaping SetBookEnabled = { _, _ in },
         setAllBooksEnabled: @escaping SetAllBooksEnabled = { _ in },
         setHighlightEnabled: @escaping SetHighlightEnabled = { _, _ in },
@@ -362,10 +362,23 @@ final class AppState: ObservableObject {
         } else {
             self.deleteHighlightsAction = { ids in
                 ids.forEach(deleteHighlight)
+                return LibrarySnapshot(
+                    totalHighlightCount: fetchTotalHighlightCount(),
+                    books: fetchAllBooks()
+                )
             }
         }
         self.prepareBulkBookDeletionAction = prepareBulkBookDeletion
-        self.deleteBooksAction = deleteBooks
+        if let deleteBooks {
+            self.deleteBooksAction = deleteBooks
+        } else {
+            self.deleteBooksAction = { _ in
+                LibrarySnapshot(
+                    totalHighlightCount: fetchTotalHighlightCount(),
+                    books: fetchAllBooks()
+                )
+            }
+        }
         self.setBookEnabledAction = setBookEnabled
         self.setAllBooksEnabledAction = setAllBooksEnabled
         self.setHighlightEnabledAction = setHighlightEnabled
@@ -784,8 +797,12 @@ final class AppState: ObservableObject {
     }
 
     func refreshLibraryState() {
-        totalHighlightCount = fetchTotalHighlightCount()
-        books = fetchAllBooks()
+        applyLibrarySnapshot(
+            LibrarySnapshot(
+                totalHighlightCount: fetchTotalHighlightCount(),
+                books: fetchAllBooks()
+            )
+        )
     }
 
     func loadAllHighlights() -> [Highlight] {
@@ -832,8 +849,7 @@ final class AppState: ObservableObject {
     }
 
     func deleteHighlights(ids: [UUID]) {
-        deleteHighlightsAction(ids)
-        refreshLibraryState()
+        applyLibrarySnapshot(deleteHighlightsAction(ids))
     }
 
     @discardableResult
@@ -842,13 +858,12 @@ final class AppState: ObservableObject {
     }
 
     func deleteBooks(using plan: BulkBookDeletionPlan) {
-        performBookMutation {
+        performBookMutationUsingSnapshot {
             guard !plan.bookIDs.isEmpty else {
-                return false
+                return nil
             }
 
-            deleteBooksAction(plan)
-            return true
+            return deleteBooksAction(plan)
         }
     }
 
@@ -921,6 +936,11 @@ final class AppState: ObservableObject {
         capitalizeHighlightText = enabled
     }
 
+    func applyLibrarySnapshot(_ snapshot: LibrarySnapshot) {
+        totalHighlightCount = snapshot.totalHighlightCount
+        books = snapshot.books
+    }
+
     private func performBookMutation(_ mutation: () -> Bool) {
         bookMutationLock.lock()
         isBookMutationInFlight = true
@@ -933,6 +953,20 @@ final class AppState: ObservableObject {
             return
         }
         refreshLibraryState()
+    }
+
+    private func performBookMutationUsingSnapshot(_ mutation: () -> LibrarySnapshot?) {
+        bookMutationLock.lock()
+        isBookMutationInFlight = true
+        defer {
+            isBookMutationInFlight = false
+            bookMutationLock.unlock()
+        }
+
+        guard let snapshot = mutation() else {
+            return
+        }
+        applyLibrarySnapshot(snapshot)
     }
 }
 

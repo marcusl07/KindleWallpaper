@@ -193,32 +193,7 @@ enum DatabaseManager {
     static func upsertBook(_ book: Book) -> UUID {
         do {
             return try shared.write { database in
-                try database.execute(
-                    sql: """
-                    INSERT OR IGNORE INTO books (id, title, author, isEnabled)
-                    VALUES (?, ?, ?, ?)
-                    """,
-                    arguments: [book.id.uuidString, book.title, book.author, book.isEnabled ? 1 : 0]
-                )
-
-                guard let storedBookID = try String.fetchOne(
-                    database,
-                    sql: """
-                    SELECT id
-                    FROM books
-                    WHERE title = ? AND author = ?
-                    LIMIT 1
-                    """,
-                    arguments: [book.title, book.author]
-                ) else {
-                    fatalError("Failed to find book row after upsert for title '\(book.title)' and author '\(book.author)'")
-                }
-
-                guard let uuid = UUID(uuidString: storedBookID) else {
-                    fatalError("Invalid UUID stored for book id '\(storedBookID)'")
-                }
-
-                return uuid
+                try upsertBook(book, database: database)
             }
         } catch {
             fatalError("Failed to upsert book: \(error)")
@@ -228,51 +203,7 @@ enum DatabaseManager {
     static func insertHighlightIfNew(_ highlight: Highlight) {
         do {
             try shared.write { database in
-                let dedupeKey = computeDedupeKey(for: highlight)
-                let alreadyExists = try Int.fetchOne(
-                    database,
-                    sql: """
-                    SELECT 1
-                    FROM highlights
-                    WHERE dedupeKey = ?
-                    LIMIT 1
-                    """,
-                    arguments: [dedupeKey]
-                ) != nil
-
-                guard !alreadyExists else {
-                    return
-                }
-
-                try database.execute(
-                    sql: """
-                    INSERT INTO highlights (
-                        id,
-                        bookId,
-                        quoteText,
-                        bookTitle,
-                        author,
-                        location,
-                        dateAdded,
-                        lastShownAt,
-                        isEnabled,
-                        dedupeKey
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    arguments: [
-                        highlight.id.uuidString,
-                        highlight.bookId?.uuidString,
-                        highlight.quoteText,
-                        highlight.bookTitle,
-                        highlight.author,
-                        highlight.location,
-                        iso8601String(from: highlight.dateAdded),
-                        iso8601String(from: highlight.lastShownAt),
-                        highlight.isEnabled ? 1 : 0,
-                        dedupeKey
-                    ]
-                )
+                _ = try insertHighlightIfNew(highlight, database: database)
             }
         } catch {
             fatalError("Failed to insert highlight: \(error)")
@@ -492,16 +423,16 @@ enum DatabaseManager {
         }
     }
 
-    static func deleteHighlight(id: UUID) {
+    static func deleteHighlight(id: UUID) -> LibrarySnapshot {
         deleteHighlights(ids: [id])
     }
 
-    static func deleteHighlights(ids: [UUID]) {
+    static func deleteHighlights(ids: [UUID]) -> LibrarySnapshot {
         do {
-            try shared.write { database in
+            return try shared.write { database in
                 let capturedLiveHighlights = try fetchLiveHighlights(matchingIDs: ids, database: database)
                 guard !capturedLiveHighlights.isEmpty else {
-                    return
+                    return try makeLibrarySnapshot(database: database)
                 }
 
                 let deletedAt = iso8601Formatter.string(from: Date())
@@ -527,6 +458,8 @@ enum DatabaseManager {
                     """,
                     arguments: StatementArguments(capturedHighlightIDs)
                 )
+
+                return try makeLibrarySnapshot(database: database)
             }
         } catch {
             fatalError("Failed to delete highlights: \(error)")
@@ -555,12 +488,12 @@ enum DatabaseManager {
         }
     }
 
-    static func deleteBooks(using plan: BulkBookDeletionPlan) {
+    static func deleteBooks(using plan: BulkBookDeletionPlan) -> LibrarySnapshot {
         do {
-            try shared.write { database in
+            return try shared.write { database in
                 let capturedBookIDs = uniqueUUIDStrings(from: plan.bookIDs)
                 guard !capturedBookIDs.isEmpty else {
-                    return
+                    return try makeLibrarySnapshot(database: database)
                 }
 
                 let deletedAt = iso8601Formatter.string(from: Date())
@@ -596,50 +529,76 @@ enum DatabaseManager {
                     """,
                     arguments: StatementArguments(capturedBookIDs)
                 )
+
+                return try makeLibrarySnapshot(database: database)
             }
         } catch {
             fatalError("Failed to delete books: \(error)")
         }
     }
 
+    static func persistImport(
+        books: [Book],
+        highlights: [Highlight]
+    ) -> ImportPersistenceResult {
+        do {
+            return try shared.write { database in
+                var persistedBookIDsByParsedID: [UUID: UUID] = [:]
+                persistedBookIDsByParsedID.reserveCapacity(books.count)
+
+                for book in books {
+                    let persistedBookID = try upsertBook(book, database: database)
+                    persistedBookIDsByParsedID[book.id] = persistedBookID
+                }
+
+                var missingBookMappingCount = 0
+                var insertedHighlightCount = 0
+
+                for highlight in highlights {
+                    guard
+                        let parsedBookID = highlight.bookId,
+                        let persistedBookID = persistedBookIDsByParsedID[parsedBookID]
+                    else {
+                        missingBookMappingCount += 1
+                        continue
+                    }
+
+                    let persistedHighlight = Highlight(
+                        id: highlight.id,
+                        bookId: persistedBookID,
+                        quoteText: highlight.quoteText,
+                        bookTitle: highlight.bookTitle,
+                        author: highlight.author,
+                        location: highlight.location,
+                        dateAdded: highlight.dateAdded,
+                        lastShownAt: highlight.lastShownAt,
+                        isEnabled: highlight.isEnabled
+                    )
+
+                    guard try hasHighlightTombstone(highlight: persistedHighlight, database: database) == false else {
+                        continue
+                    }
+
+                    if try insertHighlightIfNew(persistedHighlight, database: database) {
+                        insertedHighlightCount += 1
+                    }
+                }
+
+                return ImportPersistenceResult(
+                    newHighlightCount: insertedHighlightCount,
+                    missingBookMappingCount: missingBookMappingCount,
+                    librarySnapshot: try makeLibrarySnapshot(database: database)
+                )
+            }
+        } catch {
+            fatalError("Failed to persist import: \(error)")
+        }
+    }
+
     static func fetchAllBooks() -> [Book] {
         do {
             return try shared.read { database in
-                let rows = try Row.fetchAll(
-                    database,
-                    sql: """
-                    SELECT
-                        books.id,
-                        books.title,
-                        books.author,
-                        books.isEnabled,
-                        COUNT(highlights.id) AS highlightCount
-                    FROM books
-                    LEFT JOIN highlights ON highlights.bookId = books.id
-                    GROUP BY books.id, books.title, books.author, books.isEnabled
-                    ORDER BY books.title COLLATE NOCASE ASC
-                    """
-                )
-
-                return rows.map { row in
-                    guard
-                        let idValue: String = row["id"],
-                        let id = UUID(uuidString: idValue)
-                    else {
-                        fatalError("Invalid book id in database row")
-                    }
-
-                    let isEnabledValue: Int = row["isEnabled"]
-                    let highlightCountValue: Int = row["highlightCount"]
-
-                    return Book(
-                        id: id,
-                        title: row["title"],
-                        author: row["author"],
-                        isEnabled: isEnabledValue != 0,
-                        highlightCount: highlightCountValue
-                    )
-                }
+                try fetchAllBooks(database: database)
             }
         } catch {
             fatalError("Failed to fetch all books: \(error)")
@@ -673,13 +632,7 @@ enum DatabaseManager {
     static func totalHighlightCount() -> Int {
         do {
             return try shared.read { database in
-                try Int.fetchOne(
-                    database,
-                    sql: """
-                    SELECT COUNT(*)
-                    FROM highlights
-                    """
-                ) ?? 0
+                try totalHighlightCount(database: database)
             }
         } catch {
             fatalError("Failed to fetch total highlight count: \(error)")
@@ -701,16 +654,10 @@ enum DatabaseManager {
 
         do {
             return try shared.read { database in
-                try Int.fetchOne(
-                    database,
-                    sql: """
-                    SELECT 1
-                    FROM highlight_tombstones
-                    WHERE quoteIdentityKey = ?
-                    LIMIT 1
-                    """,
-                    arguments: [quoteIdentityKey]
-                ) != nil
+                try hasHighlightTombstone(
+                    quoteIdentityKey: quoteIdentityKey,
+                    database: database
+                )
             }
         } catch {
             fatalError("Failed to check highlight tombstone: \(error)")
@@ -774,6 +721,175 @@ enum DatabaseManager {
 
             batchStartIndex = batchEndIndex
         }
+    }
+
+    private static func upsertBook(_ book: Book, database: Database) throws -> UUID {
+        try database.execute(
+            sql: """
+            INSERT OR IGNORE INTO books (id, title, author, isEnabled)
+            VALUES (?, ?, ?, ?)
+            """,
+            arguments: [book.id.uuidString, book.title, book.author, book.isEnabled ? 1 : 0]
+        )
+
+        guard let storedBookID = try String.fetchOne(
+            database,
+            sql: """
+            SELECT id
+            FROM books
+            WHERE title = ? AND author = ?
+            LIMIT 1
+            """,
+            arguments: [book.title, book.author]
+        ) else {
+            fatalError("Failed to find book row after upsert for title '\(book.title)' and author '\(book.author)'")
+        }
+
+        guard let uuid = UUID(uuidString: storedBookID) else {
+            fatalError("Invalid UUID stored for book id '\(storedBookID)'")
+        }
+
+        return uuid
+    }
+
+    private static func insertHighlightIfNew(
+        _ highlight: Highlight,
+        database: Database
+    ) throws -> Bool {
+        let dedupeKey = computeDedupeKey(for: highlight)
+        let alreadyExists = try Int.fetchOne(
+            database,
+            sql: """
+            SELECT 1
+            FROM highlights
+            WHERE dedupeKey = ?
+            LIMIT 1
+            """,
+            arguments: [dedupeKey]
+        ) != nil
+
+        guard !alreadyExists else {
+            return false
+        }
+
+        try database.execute(
+            sql: """
+            INSERT INTO highlights (
+                id,
+                bookId,
+                quoteText,
+                bookTitle,
+                author,
+                location,
+                dateAdded,
+                lastShownAt,
+                isEnabled,
+                dedupeKey
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            arguments: [
+                highlight.id.uuidString,
+                highlight.bookId?.uuidString,
+                highlight.quoteText,
+                highlight.bookTitle,
+                highlight.author,
+                highlight.location,
+                iso8601String(from: highlight.dateAdded),
+                iso8601String(from: highlight.lastShownAt),
+                highlight.isEnabled ? 1 : 0,
+                dedupeKey
+            ]
+        )
+
+        return true
+    }
+
+    private static func fetchAllBooks(database: Database) throws -> [Book] {
+        let rows = try Row.fetchAll(
+            database,
+            sql: """
+            SELECT
+                books.id,
+                books.title,
+                books.author,
+                books.isEnabled,
+                COUNT(highlights.id) AS highlightCount
+            FROM books
+            LEFT JOIN highlights ON highlights.bookId = books.id
+            GROUP BY books.id, books.title, books.author, books.isEnabled
+            ORDER BY books.title COLLATE NOCASE ASC
+            """
+        )
+
+        return rows.map { row in
+            guard
+                let idValue: String = row["id"],
+                let id = UUID(uuidString: idValue)
+            else {
+                fatalError("Invalid book id in database row")
+            }
+
+            let isEnabledValue: Int = row["isEnabled"]
+            let highlightCountValue: Int = row["highlightCount"]
+
+            return Book(
+                id: id,
+                title: row["title"],
+                author: row["author"],
+                isEnabled: isEnabledValue != 0,
+                highlightCount: highlightCountValue
+            )
+        }
+    }
+
+    private static func totalHighlightCount(database: Database) throws -> Int {
+        try Int.fetchOne(
+            database,
+            sql: """
+            SELECT COUNT(*)
+            FROM highlights
+            """
+        ) ?? 0
+    }
+
+    private static func makeLibrarySnapshot(database: Database) throws -> LibrarySnapshot {
+        LibrarySnapshot(
+            totalHighlightCount: try totalHighlightCount(database: database),
+            books: try fetchAllBooks(database: database)
+        )
+    }
+
+    private static func hasHighlightTombstone(
+        highlight: Highlight,
+        database: Database
+    ) throws -> Bool {
+        let quoteIdentityKey = computeImportStableQuoteIdentity(
+            bookTitle: highlight.bookTitle,
+            author: highlight.author,
+            location: highlight.location,
+            quoteText: highlight.quoteText
+        )
+        return try hasHighlightTombstone(
+            quoteIdentityKey: quoteIdentityKey,
+            database: database
+        )
+    }
+
+    private static func hasHighlightTombstone(
+        quoteIdentityKey: String,
+        database: Database
+    ) throws -> Bool {
+        try Int.fetchOne(
+            database,
+            sql: """
+            SELECT 1
+            FROM highlight_tombstones
+            WHERE quoteIdentityKey = ?
+            LIMIT 1
+            """,
+            arguments: [quoteIdentityKey]
+        ) != nil
     }
 
     private static func fetchLiveHighlights(matchingIDs ids: [UUID], database: Database) throws -> [Highlight] {

@@ -101,13 +101,17 @@ struct KindleWallApp: App {
                     isError: status.isError,
                     warningDetails: status.warningDetails
                 )
-                appState.refreshLibraryState()
             }
         }
 
         #if canImport(GRDB)
         let listener = VolumeWatcher.MountListener.live(
-            publishImportStatus: publishImportStatusOnMain
+            publishImportStatus: publishImportStatusOnMain,
+            applyLibrarySnapshot: { snapshot in
+                Task { @MainActor in
+                    appState.applyLibrarySnapshot(snapshot)
+                }
+            }
         )
         #else
         let listener = VolumeWatcher.MountListener(

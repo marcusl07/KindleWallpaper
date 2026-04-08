@@ -1,6 +1,6 @@
 import Foundation
 
-struct Highlight: Identifiable {
+struct Highlight: Identifiable, Equatable {
     let id: UUID
     let bookId: UUID?
     let quoteText: String
