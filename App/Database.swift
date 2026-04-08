@@ -534,6 +534,78 @@ enum DatabaseManager {
         }
     }
 
+    static func makeBulkBookDeletionPlan(bookIDs: [UUID]) -> BulkBookDeletionPlan {
+        do {
+            return try shared.read { database in
+                let capturedBookIDs = try fetchLiveBookIDs(matchingIDs: bookIDs, database: database)
+                guard !capturedBookIDs.isEmpty else {
+                    return BulkBookDeletionPlan(bookIDs: [], linkedHighlights: [])
+                }
+
+                let linkedHighlights = try fetchLiveLinkedHighlights(
+                    linkedToBookIDs: capturedBookIDs,
+                    database: database
+                )
+                return BulkBookDeletionPlan(
+                    bookIDs: capturedBookIDs,
+                    linkedHighlights: linkedHighlights
+                )
+            }
+        } catch {
+            fatalError("Failed to prepare bulk book deletion: \(error)")
+        }
+    }
+
+    static func deleteBooks(using plan: BulkBookDeletionPlan) {
+        do {
+            try shared.write { database in
+                let capturedBookIDs = uniqueUUIDStrings(from: plan.bookIDs)
+                guard !capturedBookIDs.isEmpty else {
+                    return
+                }
+
+                let deletedAt = iso8601Formatter.string(from: Date())
+                for linkedHighlight in plan.linkedHighlights {
+                    let quoteIdentityKey = computeImportStableQuoteIdentity(
+                        bookTitle: linkedHighlight.bookTitle,
+                        author: linkedHighlight.author,
+                        location: linkedHighlight.location,
+                        quoteText: linkedHighlight.quoteText
+                    )
+
+                    try database.execute(
+                        sql: """
+                        INSERT OR IGNORE INTO highlight_tombstones (quoteIdentityKey, deletedAt)
+                        VALUES (?, ?)
+                        """,
+                        arguments: [quoteIdentityKey, deletedAt]
+                    )
+                }
+
+                let capturedLinkedHighlightIDs = uniqueUUIDStrings(from: plan.linkedHighlightIDs)
+                if !capturedLinkedHighlightIDs.isEmpty {
+                    try database.execute(
+                        sql: """
+                        DELETE FROM highlights
+                        WHERE id IN (\(sqlPlaceholders(count: capturedLinkedHighlightIDs.count)))
+                        """,
+                        arguments: StatementArguments(capturedLinkedHighlightIDs)
+                    )
+                }
+
+                try database.execute(
+                    sql: """
+                    DELETE FROM books
+                    WHERE id IN (\(sqlPlaceholders(count: capturedBookIDs.count)))
+                    """,
+                    arguments: StatementArguments(capturedBookIDs)
+                )
+            }
+        } catch {
+            fatalError("Failed to delete books: \(error)")
+        }
+    }
+
     static func fetchAllBooks() -> [Book] {
         do {
             return try shared.read { database in
@@ -697,6 +769,82 @@ enum DatabaseManager {
         )
 
         return rows.map(highlight(from:))
+    }
+
+    private static func fetchLiveBookIDs(matchingIDs ids: [UUID], database: Database) throws -> [UUID] {
+        let uniqueBookIDs = uniqueUUIDStrings(from: ids)
+        guard !uniqueBookIDs.isEmpty else {
+            return []
+        }
+
+        let storedBookIDRows = try Row.fetchAll(
+            database,
+            sql: """
+            SELECT id
+            FROM books
+            WHERE id IN (\(sqlPlaceholders(count: uniqueBookIDs.count)))
+            """,
+            arguments: StatementArguments(uniqueBookIDs)
+        )
+
+        let storedBookIDSet = Set(storedBookIDRows.compactMap { row in
+            row["id"] as String?
+        })
+
+        return uniqueBookIDs.compactMap { bookIDString in
+            guard storedBookIDSet.contains(bookIDString) else {
+                return nil
+            }
+
+            guard let bookID = UUID(uuidString: bookIDString) else {
+                fatalError("Invalid book id in database row")
+            }
+            return bookID
+        }
+    }
+
+    private static func fetchLiveLinkedHighlights(
+        linkedToBookIDs bookIDs: [UUID],
+        database: Database
+    ) throws -> [BulkBookDeletionLinkedHighlight] {
+        let uniqueBookIDs = uniqueUUIDStrings(from: bookIDs)
+        guard !uniqueBookIDs.isEmpty else {
+            return []
+        }
+
+        let rows = try Row.fetchAll(
+            database,
+            sql: """
+            SELECT id, bookTitle, author, location, quoteText
+            FROM highlights
+            WHERE bookId IN (\(sqlPlaceholders(count: uniqueBookIDs.count)))
+            ORDER BY
+                bookTitle COLLATE NOCASE ASC,
+                author COLLATE NOCASE ASC,
+                CASE WHEN location IS NULL THEN 1 ELSE 0 END ASC,
+                location COLLATE NOCASE ASC,
+                quoteText COLLATE NOCASE ASC,
+                id ASC
+            """,
+            arguments: StatementArguments(uniqueBookIDs)
+        )
+
+        return rows.map { row in
+            guard
+                let idValue: String = row["id"],
+                let id = UUID(uuidString: idValue)
+            else {
+                fatalError("Invalid highlight id in database row")
+            }
+
+            return BulkBookDeletionLinkedHighlight(
+                id: id,
+                bookTitle: row["bookTitle"],
+                author: row["author"],
+                location: row["location"],
+                quoteText: row["quoteText"]
+            )
+        }
     }
 
     private static func uniqueUUIDStrings(from ids: [UUID]) -> [String] {
