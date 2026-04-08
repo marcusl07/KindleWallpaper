@@ -56,6 +56,21 @@ enum DatabaseManager {
     ON highlights(bookId, lastShownAt);
     """
 
+    private static let createHighlightsBookTitleIndexSQL = """
+    CREATE INDEX IF NOT EXISTS idx_highlights_bookTitle_nocase
+    ON highlights(bookTitle COLLATE NOCASE);
+    """
+
+    private static let createHighlightsAuthorIndexSQL = """
+    CREATE INDEX IF NOT EXISTS idx_highlights_author_nocase
+    ON highlights(author COLLATE NOCASE);
+    """
+
+    private static let createHighlightsDateAddedIndexSQL = """
+    CREATE INDEX IF NOT EXISTS idx_highlights_dateAdded
+    ON highlights(dateAdded);
+    """
+
     private static let createHighlightTombstonesTableSQL = """
     CREATE TABLE IF NOT EXISTS highlight_tombstones (
         quoteIdentityKey TEXT PRIMARY KEY,
@@ -80,8 +95,7 @@ enum DatabaseManager {
         migrator.registerMigration("createInitialSchema") { database in
             try database.execute(sql: createBooksTableSQL)
             try database.execute(sql: createHighlightsTableSQL)
-            try database.execute(sql: createHighlightsBookIDIndexSQL)
-            try database.execute(sql: createHighlightsBookIDLastShownAtIndexSQL)
+            try createHighlightsIndexes(in: database)
             try database.execute(sql: createHighlightTombstonesTableSQL)
         }
 
@@ -159,12 +173,17 @@ enum DatabaseManager {
 
             try database.execute(sql: "DROP TABLE highlights")
             try database.execute(sql: "ALTER TABLE highlights_migrated RENAME TO highlights")
-            try database.execute(sql: createHighlightsBookIDIndexSQL)
-            try database.execute(sql: createHighlightsBookIDLastShownAtIndexSQL)
+            try createHighlightsIndexes(in: database)
         }
 
         migrator.registerMigration("createHighlightTombstones") { database in
             try database.execute(sql: createHighlightTombstonesTableSQL)
+        }
+
+        migrator.registerMigration("addHighlightSortIndexes") { database in
+            try database.execute(sql: createHighlightsBookTitleIndexSQL)
+            try database.execute(sql: createHighlightsAuthorIndexSQL)
+            try database.execute(sql: createHighlightsDateAddedIndexSQL)
         }
 
         return migrator
@@ -181,6 +200,14 @@ enum DatabaseManager {
 
     private static func initializeSchema(in databaseQueue: DatabaseQueue) throws {
         try migrator.migrate(databaseQueue)
+    }
+
+    private static func createHighlightsIndexes(in database: Database) throws {
+        try database.execute(sql: createHighlightsBookIDIndexSQL)
+        try database.execute(sql: createHighlightsBookIDLastShownAtIndexSQL)
+        try database.execute(sql: createHighlightsBookTitleIndexSQL)
+        try database.execute(sql: createHighlightsAuthorIndexSQL)
+        try database.execute(sql: createHighlightsDateAddedIndexSQL)
     }
 
     private static func tableColumnNames(in tableName: String, database: Database) throws -> Set<String> {
@@ -605,7 +632,7 @@ enum DatabaseManager {
         }
     }
 
-    static func fetchAllHighlights() -> [Highlight] {
+    static func fetchAllHighlights(sortedBy sortMode: QuotesListSortMode = .mostRecentlyAdded) -> [Highlight] {
         do {
             return try shared.read { database in
                 let rows = try Row.fetchAll(
@@ -613,12 +640,7 @@ enum DatabaseManager {
                     sql: """
                     SELECT id, bookId, quoteText, bookTitle, author, location, dateAdded, lastShownAt, isEnabled
                     FROM highlights
-                    ORDER BY
-                        CASE WHEN dateAdded IS NULL THEN 1 ELSE 0 END ASC,
-                        dateAdded DESC,
-                        bookTitle COLLATE NOCASE ASC,
-                        author COLLATE NOCASE ASC,
-                        quoteText COLLATE NOCASE ASC
+                    ORDER BY \(highlightsOrderClause(sortedBy: sortMode))
                     """
                 )
 
@@ -694,6 +716,26 @@ enum DatabaseManager {
         }
         return iso8601Formatter.string(from: date)
     }
+
+    private static func highlightsOrderClause(sortedBy sortMode: QuotesListSortMode) -> String {
+        switch sortMode {
+        case .mostRecentlyAdded:
+            return """
+            CASE WHEN dateAdded IS NULL THEN 1 ELSE 0 END ASC,
+            dateAdded DESC,
+            \(alphabeticalHighlightsOrderClause)
+            """
+        case .alphabeticalByBook:
+            return alphabeticalHighlightsOrderClause
+        }
+    }
+
+    private static let alphabeticalHighlightsOrderClause = """
+    bookTitle COLLATE NOCASE ASC,
+    author COLLATE NOCASE ASC,
+    quoteText COLLATE NOCASE ASC,
+    id ASC
+    """
 
     private static func insertHighlightTombstones(
         quoteIdentityKeys: [String],

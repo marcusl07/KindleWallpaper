@@ -160,7 +160,7 @@ final class AppState: ObservableObject {
     typealias SetAllBooksEnabled = (Bool) -> Void
     typealias SetHighlightEnabled = (UUID, Bool) -> Void
     typealias FetchAllBooks = () -> [Book]
-    typealias FetchAllHighlights = () -> [Highlight]
+    typealias FetchAllHighlights = (QuotesListSortMode) -> [Highlight]
     typealias FetchTotalHighlightCount = () -> Int
     typealias LoadBackgroundPreviewState = () -> BackgroundPreviewState
     typealias SaveBackgroundImageSelection = (URL) throws -> Void
@@ -261,7 +261,7 @@ final class AppState: ObservableObject {
         setAllBooksEnabled: @escaping SetAllBooksEnabled = { _ in },
         setHighlightEnabled: @escaping SetHighlightEnabled = { _, _ in },
         fetchAllBooks: @escaping FetchAllBooks = { [] },
-        fetchAllHighlights: @escaping FetchAllHighlights = { [] },
+        fetchAllHighlights: @escaping FetchAllHighlights = { _ in [] },
         fetchTotalHighlightCount: @escaping FetchTotalHighlightCount = { 0 },
         loadBackgroundPreviewState: LoadBackgroundPreviewState? = nil,
         saveBackgroundImageSelection: @escaping SaveBackgroundImageSelection = { _ in },
@@ -805,8 +805,8 @@ final class AppState: ObservableObject {
         )
     }
 
-    func loadAllHighlights() -> [Highlight] {
-        fetchAllHighlights()
+    func loadAllHighlights(sortedBy sortMode: QuotesListSortMode = .mostRecentlyAdded) -> [Highlight] {
+        fetchAllHighlights(sortMode)
     }
 
     func addManualQuote(_ request: QuoteEditSaveRequest) {

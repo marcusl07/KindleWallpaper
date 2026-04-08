@@ -118,7 +118,7 @@ private func testLoadAllHighlightsRemainsInjectedBoundary() {
         generateWallpaper: { _, _ in URL(fileURLWithPath: "/tmp/unused.png") },
         setWallpaper: { _ in },
         markHighlightShown: { _ in },
-        fetchAllHighlights: {
+        fetchAllHighlights: { _ in
             fetchHighlightsCallCount += 1
             return [expectedHighlight]
         }

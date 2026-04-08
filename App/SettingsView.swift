@@ -913,6 +913,9 @@ private struct QuotesListView: View {
             .frame(minWidth: 520, minHeight: 460)
         }
         .onAppear(perform: refreshHighlights)
+        .onChange(of: sortMode) { _ in
+            refreshHighlights()
+        }
         .onReceive(appState.$totalHighlightCount) { _ in
             refreshHighlights()
         }
@@ -1088,7 +1091,7 @@ private struct QuotesListView: View {
     }
 
     private func refreshHighlights() {
-        highlights = appState.loadAllHighlights()
+        highlights = appState.loadAllHighlights(sortedBy: sortMode)
         reconcileFilters()
         reconcileSelectedHighlights()
     }
