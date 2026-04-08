@@ -821,6 +821,8 @@ private struct QuotesListView: View {
     @State private var sortMode: QuotesListSortMode = .mostRecentlyAdded
     @State private var filters = QuotesListFilters()
     @State private var highlights: [Highlight] = []
+    @State private var selectedHighlightIDs: Set<UUID> = []
+    @State private var isEditingHighlights = false
     @State private var isPresentingAddQuote = false
 
     var body: some View {
@@ -843,14 +845,24 @@ private struct QuotesListView: View {
                         description: "Try a different search term or adjust the filters."
                     )
                 } else {
-                    List(displayedHighlights) { highlight in
-                        NavigationLink {
-                            QuoteDetailView(highlight: highlight, onHighlightUpdated: updateStoredHighlight)
-                        } label: {
-                            quoteRow(highlight)
+                    if isEditingHighlights {
+                        List(selection: $selectedHighlightIDs) {
+                            ForEach(displayedHighlights) { highlight in
+                                quoteRow(highlight)
+                                    .tag(highlight.id)
+                            }
                         }
+                        .listStyle(.inset)
+                    } else {
+                        List(displayedHighlights) { highlight in
+                            NavigationLink {
+                                QuoteDetailView(highlight: highlight, onHighlightUpdated: updateStoredHighlight)
+                            } label: {
+                                quoteRow(highlight)
+                            }
+                        }
+                        .listStyle(.inset)
                     }
-                    .listStyle(.inset)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -859,13 +871,27 @@ private struct QuotesListView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .searchable(text: $searchText, prompt: "Search quotes, books, or authors")
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button(role: .destructive, action: deleteSelectedHighlights) {
+                    Label("Delete Selected", systemImage: "trash")
+                }
+                .disabled(QuotesBulkSelectionPresentationModel.bulkDeleteButtonDisabled(
+                    isEditing: isEditingHighlights,
+                    selectedHighlightIDs: selectedHighlightIDs
+                ))
+                .help(deleteSelectedHelpText)
+
+                Button(isEditingHighlights ? "Done" : "Edit") {
+                    toggleHighlightsEditMode()
+                }
+
                 Button {
                     isPresentingAddQuote = true
                 } label: {
                     Image(systemName: "plus")
                 }
                 .help("Add Quote")
+                .disabled(isEditingHighlights)
             }
         }
         .sheet(isPresented: $isPresentingAddQuote) {
@@ -971,18 +997,13 @@ private struct QuotesListView: View {
     }
 
     private var resultCountSummary: String {
-        if highlights.isEmpty {
-            return "0 quotes"
-        }
-
-        let displayedCount = displayedHighlights.count
-        let noun = displayedCount == 1 ? "quote" : "quotes"
-
-        if !hasActiveQuery {
-            return "\(displayedCount) \(noun)"
-        }
-
-        return "\(displayedCount) of \(highlights.count) \(highlights.count == 1 ? "quote" : "quotes")"
+        QuotesBulkSelectionPresentationModel.resultCountSummary(
+            displayedCount: displayedHighlights.count,
+            totalCount: highlights.count,
+            hasActiveQuery: hasActiveQuery,
+            isEditing: isEditingHighlights,
+            selectedCount: selectedHighlightIDs.count
+        )
     }
 
     private var availableBookTitles: [String] {
@@ -999,6 +1020,18 @@ private struct QuotesListView: View {
 
     private var hasActiveQuery: Bool {
         !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || filters.isActive
+    }
+
+    private var deleteSelectedHelpText: String {
+        if !isEditingHighlights {
+            return "Enter Edit Mode to Delete Quotes"
+        }
+
+        if selectedHighlightIDs.isEmpty {
+            return "Select Quotes to Delete"
+        }
+
+        return "Delete Selected Quotes"
     }
 
     private func quoteRow(_ highlight: Highlight) -> some View {
@@ -1026,6 +1059,7 @@ private struct QuotesListView: View {
     private func refreshHighlights() {
         highlights = appState.loadAllHighlights()
         reconcileFilters()
+        reconcileSelectedHighlights()
     }
 
     private func updateStoredHighlight(_ updatedHighlight: Highlight) {
@@ -1047,6 +1081,96 @@ private struct QuotesListView: View {
            !availableAuthors.contains(selectedAuthor) {
             filters.selectedAuthor = nil
         }
+    }
+
+    private func reconcileSelectedHighlights() {
+        selectedHighlightIDs = QuotesBulkSelectionPresentationModel.reconciledSelection(
+            selectedHighlightIDs,
+            validHighlightIDs: highlights.map(\.id)
+        )
+    }
+
+    private func toggleHighlightsEditMode() {
+        isEditingHighlights.toggle()
+
+        if !isEditingHighlights {
+            selectedHighlightIDs.removeAll()
+        }
+    }
+
+    private func deleteSelectedHighlights() {
+        let highlightIDsToDelete = QuotesBulkSelectionPresentationModel.bulkDeleteHighlightIDs(
+            from: highlights,
+            selectedHighlightIDs: selectedHighlightIDs
+        )
+        guard !highlightIDsToDelete.isEmpty else {
+            return
+        }
+
+        appState.deleteHighlights(ids: highlightIDsToDelete)
+        selectedHighlightIDs.removeAll()
+    }
+}
+
+private enum QuotesBulkSelectionPresentationModel {
+    static func reconciledSelection(
+        _ selectedHighlightIDs: Set<UUID>,
+        validHighlightIDs: [UUID]
+    ) -> Set<UUID> {
+        let validHighlightIDSet = Set(validHighlightIDs)
+        return selectedHighlightIDs.intersection(validHighlightIDSet)
+    }
+
+    static func bulkDeleteHighlightIDs(
+        from highlights: [Highlight],
+        selectedHighlightIDs: Set<UUID>
+    ) -> [UUID] {
+        highlights.map(\.id).filter(selectedHighlightIDs.contains)
+    }
+
+    static func bulkDeleteButtonDisabled(
+        isEditing: Bool,
+        selectedHighlightIDs: Set<UUID>
+    ) -> Bool {
+        !isEditing || selectedHighlightIDs.isEmpty
+    }
+
+    static func resultCountSummary(
+        displayedCount: Int,
+        totalCount: Int,
+        hasActiveQuery: Bool,
+        isEditing: Bool,
+        selectedCount: Int
+    ) -> String {
+        let displayedSummary = displayedSummaryText(
+            displayedCount: displayedCount,
+            totalCount: totalCount,
+            hasActiveQuery: hasActiveQuery
+        )
+
+        guard isEditing else {
+            return displayedSummary
+        }
+
+        return "\(displayedSummary) • \(selectedCount) selected"
+    }
+
+    private static func displayedSummaryText(
+        displayedCount: Int,
+        totalCount: Int,
+        hasActiveQuery: Bool
+    ) -> String {
+        if totalCount == 0 {
+            return "0 quotes"
+        }
+
+        let noun = displayedCount == 1 ? "quote" : "quotes"
+
+        if !hasActiveQuery {
+            return "\(displayedCount) \(noun)"
+        }
+
+        return "\(displayedCount) of \(totalCount) \(totalCount == 1 ? "quote" : "quotes")"
     }
 }
 
@@ -1415,6 +1539,52 @@ enum QuotesListViewTestProbe {
 
     static func availableAuthors(from highlights: [Highlight]) -> [String] {
         QuotesListPresentationModel.availableAuthors(from: highlights)
+    }
+
+    static func reconciledSelection(
+        _ selectedHighlightIDs: Set<UUID>,
+        validHighlightIDs: [UUID]
+    ) -> Set<UUID> {
+        QuotesBulkSelectionPresentationModel.reconciledSelection(
+            selectedHighlightIDs,
+            validHighlightIDs: validHighlightIDs
+        )
+    }
+
+    static func bulkDeleteHighlightIDs(
+        from highlights: [Highlight],
+        selectedHighlightIDs: Set<UUID>
+    ) -> [UUID] {
+        QuotesBulkSelectionPresentationModel.bulkDeleteHighlightIDs(
+            from: highlights,
+            selectedHighlightIDs: selectedHighlightIDs
+        )
+    }
+
+    static func bulkDeleteButtonDisabled(
+        isEditing: Bool,
+        selectedHighlightIDs: Set<UUID>
+    ) -> Bool {
+        QuotesBulkSelectionPresentationModel.bulkDeleteButtonDisabled(
+            isEditing: isEditing,
+            selectedHighlightIDs: selectedHighlightIDs
+        )
+    }
+
+    static func resultCountSummary(
+        displayedCount: Int,
+        totalCount: Int,
+        hasActiveQuery: Bool,
+        isEditing: Bool,
+        selectedCount: Int
+    ) -> String {
+        QuotesBulkSelectionPresentationModel.resultCountSummary(
+            displayedCount: displayedCount,
+            totalCount: totalCount,
+            hasActiveQuery: hasActiveQuery,
+            isEditing: isEditing,
+            selectedCount: selectedCount
+        )
     }
 }
 
