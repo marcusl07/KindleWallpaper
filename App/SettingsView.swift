@@ -1675,6 +1675,14 @@ enum BooksListViewTestProbe {
             selectedBookIDs: selectedBookIDs
         )
     }
+
+    static func bulkDeleteConfirmationTitle(plan: BulkBookDeletionPlan) -> String {
+        BooksBulkSelectionPresentationModel.bulkDeleteConfirmationTitle(plan: plan)
+    }
+
+    static func bulkDeleteConfirmationMessage(plan: BulkBookDeletionPlan) -> String {
+        BooksBulkSelectionPresentationModel.bulkDeleteConfirmationMessage(plan: plan)
+    }
 }
 
 enum QuoteEditViewTestProbe {
@@ -1854,6 +1862,7 @@ extension Notification.Name {
 struct BooksListView: View {
     @EnvironmentObject private var appState: AppState
     @State private var selectedBookIDs: Set<UUID> = []
+    @State private var pendingBulkBookDeletionPlan: BulkBookDeletionPlan? = nil
     @State private var isEditingBooks = false
 
     var body: some View {
@@ -1939,6 +1948,25 @@ struct BooksListView: View {
         .onReceive(appState.$books) { _ in
             reconcileSelectedBooks()
         }
+        .alert(
+            BooksBulkSelectionPresentationModel.bulkDeleteConfirmationTitle(
+                plan: pendingBulkBookDeletionPlanValue
+            ),
+            isPresented: bulkDeleteConfirmationPresentedBinding
+        ) {
+            Button("Delete", role: .destructive) {
+                confirmBulkDeleteBooks()
+            }
+            Button("Cancel", role: .cancel) {
+                pendingBulkBookDeletionPlan = nil
+            }
+        } message: {
+            Text(
+                BooksBulkSelectionPresentationModel.bulkDeleteConfirmationMessage(
+                    plan: pendingBulkBookDeletionPlanValue
+                )
+            )
+        }
     }
 
     private var allBooksDeselectedWarningVisible: Bool {
@@ -1955,6 +1983,21 @@ struct BooksListView: View {
         }
 
         return "Delete Selected Books"
+    }
+
+    private var pendingBulkBookDeletionPlanValue: BulkBookDeletionPlan {
+        pendingBulkBookDeletionPlan ?? BulkBookDeletionPlan(bookIDs: [], linkedHighlights: [])
+    }
+
+    private var bulkDeleteConfirmationPresentedBinding: Binding<Bool> {
+        Binding(
+            get: { pendingBulkBookDeletionPlan != nil },
+            set: { isPresented in
+                if !isPresented {
+                    pendingBulkBookDeletionPlan = nil
+                }
+            }
+        )
     }
 
     private func bookToggleRow(_ book: Book) -> some View {
@@ -2009,7 +2052,16 @@ struct BooksListView: View {
         }
 
         let plan = appState.prepareBulkBookDeletion(bookIDs: bookIDsToDelete)
+        pendingBulkBookDeletionPlan = plan
+    }
+
+    private func confirmBulkDeleteBooks() {
+        guard let plan = pendingBulkBookDeletionPlan else {
+            return
+        }
+
         appState.deleteBooks(using: plan)
+        pendingBulkBookDeletionPlan = nil
         selectedBookIDs.removeAll()
     }
 
@@ -2050,6 +2102,16 @@ private enum BooksBulkSelectionPresentationModel {
         selectedBookIDs: Set<UUID>
     ) -> Bool {
         !isEditing || selectedBookIDs.isEmpty
+    }
+
+    static func bulkDeleteConfirmationTitle(plan: BulkBookDeletionPlan) -> String {
+        "Delete \(plan.bookCount) \(plan.bookCount == 1 ? "Book" : "Books")?"
+    }
+
+    static func bulkDeleteConfirmationMessage(plan: BulkBookDeletionPlan) -> String {
+        let bookText = "\(plan.bookCount) selected \(plan.bookCount == 1 ? "book" : "books")"
+        let quoteText = "\(plan.linkedHighlightCount) linked \(plan.linkedHighlightCount == 1 ? "quote" : "quotes")"
+        return "This will permanently remove \(bookText) and delete \(quoteText) from your library."
     }
 }
 
