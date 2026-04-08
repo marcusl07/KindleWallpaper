@@ -579,3 +579,8 @@ Define a shared import-stable quote identity key that uses normalized `bookTitle
 Update import so parsed highlights are skipped when their import-stable quote identity matches a tombstone. Treat pre-feature deletions as a known limitation: only quotes deleted after this change gain re-import suppression.
 
 
+
+**T98-a — Make single and bulk quote delete transactional**
+Add database and app-state APIs for deleting one or many quotes in a single transaction that records tombstones and then removes the captured live quote rows. Refresh library state afterward so total quote count and per-book highlight counts stay in sync.
+
+

@@ -153,6 +153,7 @@ final class AppState: ObservableObject {
     typealias InsertHighlight = (Highlight) -> Void
     typealias UpdateHighlight = (Highlight) -> Void
     typealias DeleteHighlight = (UUID) -> Void
+    typealias DeleteHighlights = ([UUID]) -> Void
     typealias SetBookEnabled = (UUID, Bool) -> Void
     typealias SetAllBooksEnabled = (Bool) -> Void
     typealias SetHighlightEnabled = (UUID, Bool) -> Void
@@ -194,7 +195,7 @@ final class AppState: ObservableObject {
     private let markHighlightShown: MarkHighlightShown
     private let insertHighlightAction: InsertHighlight
     private let updateHighlightAction: UpdateHighlight
-    private let deleteHighlightAction: DeleteHighlight
+    private let deleteHighlightsAction: DeleteHighlights
     private let setBookEnabledAction: SetBookEnabled
     private let setAllBooksEnabledAction: SetAllBooksEnabled
     private let setHighlightEnabledAction: SetHighlightEnabled
@@ -247,6 +248,7 @@ final class AppState: ObservableObject {
         insertHighlight: @escaping InsertHighlight = { _ in },
         updateHighlight: @escaping UpdateHighlight = { _ in },
         deleteHighlight: @escaping DeleteHighlight = { _ in },
+        deleteHighlights: DeleteHighlights? = nil,
         setBookEnabled: @escaping SetBookEnabled = { _, _ in },
         setAllBooksEnabled: @escaping SetAllBooksEnabled = { _ in },
         setHighlightEnabled: @escaping SetHighlightEnabled = { _, _ in },
@@ -347,7 +349,13 @@ final class AppState: ObservableObject {
         self.markHighlightShown = markHighlightShown
         self.insertHighlightAction = insertHighlight
         self.updateHighlightAction = updateHighlight
-        self.deleteHighlightAction = deleteHighlight
+        if let deleteHighlights {
+            self.deleteHighlightsAction = deleteHighlights
+        } else {
+            self.deleteHighlightsAction = { ids in
+                ids.forEach(deleteHighlight)
+            }
+        }
         self.setBookEnabledAction = setBookEnabled
         self.setAllBooksEnabledAction = setAllBooksEnabled
         self.setHighlightEnabledAction = setHighlightEnabled
@@ -810,7 +818,11 @@ final class AppState: ObservableObject {
     }
 
     func deleteHighlight(id: UUID) {
-        deleteHighlightAction(id)
+        deleteHighlights(ids: [id])
+    }
+
+    func deleteHighlights(ids: [UUID]) {
+        deleteHighlightsAction(ids)
         refreshLibraryState()
     }
 
@@ -1061,7 +1073,7 @@ extension AppState {
             markHighlightShown: DatabaseManager.markHighlightShown(id:),
             insertHighlight: DatabaseManager.insertHighlightIfNew(_:),
             updateHighlight: DatabaseManager.updateHighlight(_:),
-            deleteHighlight: DatabaseManager.deleteHighlight(id:),
+            deleteHighlights: DatabaseManager.deleteHighlights(ids:),
             setBookEnabled: DatabaseManager.setBookEnabled(id:enabled:),
             setAllBooksEnabled: DatabaseManager.setAllBooksEnabled(enabled:),
             setHighlightEnabled: DatabaseManager.setHighlightEnabled(id:enabled:),

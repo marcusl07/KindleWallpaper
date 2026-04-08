@@ -22,9 +22,6 @@ Spec out the horizontal overflow issue in the filter row where the controls requ
 
 ## Bulk Delete
 
-**T98-a — Make single and bulk quote delete transactional**
-Add database and app-state APIs for deleting one or many quotes in a single transaction that records tombstones and then removes the captured live quote rows. Refresh library state afterward so total quote count and per-book highlight counts stay in sync.
-
 **T99-a — Implement transactional bulk book delete with exact affected-quote capture**
 Add database and app-state APIs for deleting multiple selected books by first capturing the exact currently live linked quote IDs, then in one transaction inserting tombstones for that captured set, deleting those quote rows, and deleting the selected book rows. The operation should use the captured set so the affected-quote count shown in confirmation matches the rows actually deleted.
 

@@ -491,19 +491,19 @@ enum DatabaseManager {
     }
 
     static func deleteHighlight(id: UUID) {
+        deleteHighlights(ids: [id])
+    }
+
+    static func deleteHighlights(ids: [UUID]) {
         do {
             try shared.write { database in
-                if let row = try Row.fetchOne(
-                    database,
-                    sql: """
-                    SELECT id, bookId, quoteText, bookTitle, author, location, dateAdded, lastShownAt, isEnabled
-                    FROM highlights
-                    WHERE id = ?
-                    LIMIT 1
-                    """,
-                    arguments: [id.uuidString]
-                ) {
-                    let highlight = highlight(from: row)
+                let capturedLiveHighlights = try fetchLiveHighlights(matchingIDs: ids, database: database)
+                guard !capturedLiveHighlights.isEmpty else {
+                    return
+                }
+
+                let deletedAt = iso8601Formatter.string(from: Date())
+                for highlight in capturedLiveHighlights {
                     let quoteIdentityKey = computeImportStableQuoteIdentity(
                         bookTitle: highlight.bookTitle,
                         author: highlight.author,
@@ -516,20 +516,21 @@ enum DatabaseManager {
                         INSERT OR IGNORE INTO highlight_tombstones (quoteIdentityKey, deletedAt)
                         VALUES (?, ?)
                         """,
-                        arguments: [quoteIdentityKey, iso8601Formatter.string(from: Date())]
+                        arguments: [quoteIdentityKey, deletedAt]
                     )
                 }
 
+                let capturedHighlightIDs = capturedLiveHighlights.map(\.id.uuidString)
                 try database.execute(
                     sql: """
                     DELETE FROM highlights
-                    WHERE id = ?
+                    WHERE id IN (\(sqlPlaceholders(count: capturedHighlightIDs.count)))
                     """,
-                    arguments: [id.uuidString]
+                    arguments: StatementArguments(capturedHighlightIDs)
                 )
             }
         } catch {
-            fatalError("Failed to delete highlight: \(error)")
+            fatalError("Failed to delete highlights: \(error)")
         }
     }
 
@@ -677,6 +678,39 @@ enum DatabaseManager {
             return nil
         }
         return iso8601Formatter.string(from: date)
+    }
+
+    private static func fetchLiveHighlights(matchingIDs ids: [UUID], database: Database) throws -> [Highlight] {
+        let uniqueHighlightIDs = uniqueUUIDStrings(from: ids)
+        guard !uniqueHighlightIDs.isEmpty else {
+            return []
+        }
+
+        let rows = try Row.fetchAll(
+            database,
+            sql: """
+            SELECT id, bookId, quoteText, bookTitle, author, location, dateAdded, lastShownAt, isEnabled
+            FROM highlights
+            WHERE id IN (\(sqlPlaceholders(count: uniqueHighlightIDs.count)))
+            """,
+            arguments: StatementArguments(uniqueHighlightIDs)
+        )
+
+        return rows.map(highlight(from:))
+    }
+
+    private static func uniqueUUIDStrings(from ids: [UUID]) -> [String] {
+        var seen = Set<UUID>()
+        return ids.compactMap { id in
+            guard seen.insert(id).inserted else {
+                return nil
+            }
+            return id.uuidString
+        }
+    }
+
+    private static func sqlPlaceholders(count: Int) -> String {
+        Array(repeating: "?", count: count).joined(separator: ", ")
     }
 
     private static func highlight(from row: Row) -> Highlight {
