@@ -822,6 +822,7 @@ private struct QuotesListView: View {
     @State private var filters = QuotesListFilters()
     @State private var highlights: [Highlight] = []
     @State private var selectedHighlightIDs: Set<UUID> = []
+    @State private var pendingBulkDeleteHighlightIDs: [UUID] = []
     @State private var isEditingHighlights = false
     @State private var isPresentingAddQuote = false
 
@@ -914,6 +915,25 @@ private struct QuotesListView: View {
         .onAppear(perform: refreshHighlights)
         .onReceive(appState.$totalHighlightCount) { _ in
             refreshHighlights()
+        }
+        .alert(
+            QuotesBulkSelectionPresentationModel.bulkDeleteConfirmationTitle(
+                selectedCount: pendingBulkDeleteHighlightIDs.count
+            ),
+            isPresented: bulkDeleteConfirmationPresentedBinding
+        ) {
+            Button("Delete", role: .destructive) {
+                confirmBulkDeleteHighlights()
+            }
+            Button("Cancel", role: .cancel) {
+                pendingBulkDeleteHighlightIDs.removeAll()
+            }
+        } message: {
+            Text(
+                QuotesBulkSelectionPresentationModel.bulkDeleteConfirmationMessage(
+                    selectedCount: pendingBulkDeleteHighlightIDs.count
+                )
+            )
         }
     }
 
@@ -1034,6 +1054,17 @@ private struct QuotesListView: View {
         return "Delete Selected Quotes"
     }
 
+    private var bulkDeleteConfirmationPresentedBinding: Binding<Bool> {
+        Binding(
+            get: { !pendingBulkDeleteHighlightIDs.isEmpty },
+            set: { isPresented in
+                if !isPresented {
+                    pendingBulkDeleteHighlightIDs.removeAll()
+                }
+            }
+        )
+    }
+
     private func quoteRow(_ highlight: Highlight) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(QuotesListPresentationModel.previewText(for: highlight.quoteText))
@@ -1107,7 +1138,17 @@ private struct QuotesListView: View {
             return
         }
 
+        pendingBulkDeleteHighlightIDs = highlightIDsToDelete
+    }
+
+    private func confirmBulkDeleteHighlights() {
+        guard !pendingBulkDeleteHighlightIDs.isEmpty else {
+            return
+        }
+
+        let highlightIDsToDelete = pendingBulkDeleteHighlightIDs
         appState.deleteHighlights(ids: highlightIDsToDelete)
+        pendingBulkDeleteHighlightIDs.removeAll()
         selectedHighlightIDs.removeAll()
     }
 }
@@ -1133,6 +1174,14 @@ private enum QuotesBulkSelectionPresentationModel {
         selectedHighlightIDs: Set<UUID>
     ) -> Bool {
         !isEditing || selectedHighlightIDs.isEmpty
+    }
+
+    static func bulkDeleteConfirmationTitle(selectedCount: Int) -> String {
+        "Delete \(selectedCount) \(selectedCount == 1 ? "Quote" : "Quotes")?"
+    }
+
+    static func bulkDeleteConfirmationMessage(selectedCount: Int) -> String {
+        "This will permanently remove \(selectedCount) selected \(selectedCount == 1 ? "quote" : "quotes") from your library."
     }
 
     static func resultCountSummary(
@@ -1569,6 +1618,14 @@ enum QuotesListViewTestProbe {
             isEditing: isEditing,
             selectedHighlightIDs: selectedHighlightIDs
         )
+    }
+
+    static func bulkDeleteConfirmationTitle(selectedCount: Int) -> String {
+        QuotesBulkSelectionPresentationModel.bulkDeleteConfirmationTitle(selectedCount: selectedCount)
+    }
+
+    static func bulkDeleteConfirmationMessage(selectedCount: Int) -> String {
+        QuotesBulkSelectionPresentationModel.bulkDeleteConfirmationMessage(selectedCount: selectedCount)
     }
 
     static func resultCountSummary(
