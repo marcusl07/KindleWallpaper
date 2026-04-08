@@ -7,6 +7,7 @@ Usage: scripts/archive_task.sh <TASK_ID>
 
 Examples:
   scripts/archive_task.sh T40
+  scripts/archive_task.sh T94-a
   scripts/archive_task.sh H2
 
 Moves one task/bug section from tasks-active.txt to tasks-archive.txt.
@@ -40,15 +41,16 @@ fi
 
 case "$task_id" in
   T[0-9]*)
+    task_id_regex='T[0-9]+(-[a-z]+)?'
     start_regex="^\\*\\*$task_id[[:space:]]+—"
-    next_regex='^\*\*T[0-9]+[[:space:]]+—'
+    next_regex="^\\*\\*$task_id_regex[[:space:]]+—"
     ;;
   H[0-9]*)
     start_regex="^### (✅ )?$task_id[[:space:]]+—"
     next_regex='^### (✅ )?H[0-9]+[[:space:]]+—'
     ;;
   *)
-    echo "Invalid task id '$task_id'. Use formats like T40 or H2." >&2
+    echo "Invalid task id '$task_id'. Use formats like T40, T94-a, or H2." >&2
     exit 1
     ;;
 esac
