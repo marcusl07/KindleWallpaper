@@ -1588,6 +1588,38 @@ enum QuotesListViewTestProbe {
     }
 }
 
+enum BooksListViewTestProbe {
+    static func reconciledSelection(
+        _ selectedBookIDs: Set<UUID>,
+        validBookIDs: [UUID]
+    ) -> Set<UUID> {
+        BooksBulkSelectionPresentationModel.reconciledSelection(
+            selectedBookIDs,
+            validBookIDs: validBookIDs
+        )
+    }
+
+    static func bulkDeleteBookIDs(
+        from books: [Book],
+        selectedBookIDs: Set<UUID>
+    ) -> [UUID] {
+        BooksBulkSelectionPresentationModel.bulkDeleteBookIDs(
+            from: books,
+            selectedBookIDs: selectedBookIDs
+        )
+    }
+
+    static func bulkDeleteButtonDisabled(
+        isEditing: Bool,
+        selectedBookIDs: Set<UUID>
+    ) -> Bool {
+        BooksBulkSelectionPresentationModel.bulkDeleteButtonDisabled(
+            isEditing: isEditing,
+            selectedBookIDs: selectedBookIDs
+        )
+    }
+}
+
 enum QuoteEditViewTestProbe {
     struct DraftSnapshot {
         let quoteText: String
@@ -1764,6 +1796,8 @@ extension Notification.Name {
 
 struct BooksListView: View {
     @EnvironmentObject private var appState: AppState
+    @State private var selectedBookIDs: Set<UUID> = []
+    @State private var isEditingBooks = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1785,20 +1819,40 @@ struct BooksListView: View {
                     appState.books.isEmpty ||
                     appState.books.allSatisfy { !$0.isEnabled }
                 )
+
+                Spacer(minLength: 12)
             }
 
-            List {
-                if appState.books.isEmpty {
-                    Text("No books imported yet.")
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else {
-                    ForEach(appState.books) { book in
-                        bookRow(book)
+            Group {
+                if isEditingBooks {
+                    List(selection: $selectedBookIDs) {
+                        if appState.books.isEmpty {
+                            Text("No books imported yet.")
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        } else {
+                            ForEach(appState.books) { book in
+                                bookSelectionRow(book)
+                                    .tag(book.id)
+                            }
+                        }
                     }
+                    .listStyle(.inset)
+                } else {
+                    List {
+                        if appState.books.isEmpty {
+                            Text("No books imported yet.")
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        } else {
+                            ForEach(appState.books) { book in
+                                bookToggleRow(book)
+                            }
+                        }
+                    }
+                    .listStyle(.inset)
                 }
             }
-            .listStyle(.inset)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             if allBooksDeselectedWarningVisible {
@@ -1809,27 +1863,97 @@ struct BooksListView: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button(role: .destructive, action: deleteSelectedBooks) {
+                    Label("Delete Selected", systemImage: "trash")
+                }
+                .disabled(BooksBulkSelectionPresentationModel.bulkDeleteButtonDisabled(
+                    isEditing: isEditingBooks,
+                    selectedBookIDs: selectedBookIDs
+                ))
+                .help(deleteSelectedHelpText)
+
+                Button(isEditingBooks ? "Done" : "Edit") {
+                    toggleBooksEditMode()
+                }
+            }
+        }
+        .onReceive(appState.$books) { _ in
+            reconcileSelectedBooks()
+        }
     }
 
     private var allBooksDeselectedWarningVisible: Bool {
         !appState.books.isEmpty && appState.books.allSatisfy { !$0.isEnabled }
     }
 
-    private func bookRow(_ book: Book) -> some View {
+    private var deleteSelectedHelpText: String {
+        if !isEditingBooks {
+            return "Enter Edit Mode to Delete Books"
+        }
+
+        if selectedBookIDs.isEmpty {
+            return "Select Books to Delete"
+        }
+
+        return "Delete Selected Books"
+    }
+
+    private func bookToggleRow(_ book: Book) -> some View {
         Toggle(isOn: bindingForBook(book)) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(book.title)
-                    .font(.body.weight(.medium))
-                Text(book.author)
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 8)
-                Text("\(book.highlightCount) \(book.highlightCount == 1 ? "highlight" : "highlights")")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
+            bookRowContent(book)
         }
         .toggleStyle(.checkbox)
         .disabled(appState.isBookMutationInFlight)
+    }
+
+    private func bookSelectionRow(_ book: Book) -> some View {
+        bookRowContent(book)
+            .padding(.vertical, 4)
+    }
+
+    private func bookRowContent(_ book: Book) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(book.title)
+                .font(.body.weight(.medium))
+            Text(book.author)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 8)
+            Text("\(book.highlightCount) \(book.highlightCount == 1 ? "highlight" : "highlights")")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func reconcileSelectedBooks() {
+        selectedBookIDs = BooksBulkSelectionPresentationModel.reconciledSelection(
+            selectedBookIDs,
+            validBookIDs: appState.books.map(\.id)
+        )
+    }
+
+    private func toggleBooksEditMode() {
+        isEditingBooks.toggle()
+
+        if !isEditingBooks {
+            selectedBookIDs.removeAll()
+        }
+    }
+
+    private func deleteSelectedBooks() {
+        let bookIDsToDelete = BooksBulkSelectionPresentationModel.bulkDeleteBookIDs(
+            from: appState.books,
+            selectedBookIDs: selectedBookIDs
+        )
+        guard !bookIDsToDelete.isEmpty else {
+            return
+        }
+
+        let plan = appState.prepareBulkBookDeletion(bookIDs: bookIDsToDelete)
+        appState.deleteBooks(using: plan)
+        selectedBookIDs.removeAll()
     }
 
     private func bindingForBook(_ book: Book) -> Binding<Bool> {
@@ -1845,6 +1969,30 @@ struct BooksListView: View {
                 appState.setBookEnabled(id: book.id, enabled: enabled)
             }
         )
+    }
+}
+
+private enum BooksBulkSelectionPresentationModel {
+    static func reconciledSelection(
+        _ selectedBookIDs: Set<UUID>,
+        validBookIDs: [UUID]
+    ) -> Set<UUID> {
+        let validBookIDSet = Set(validBookIDs)
+        return selectedBookIDs.intersection(validBookIDSet)
+    }
+
+    static func bulkDeleteBookIDs(
+        from books: [Book],
+        selectedBookIDs: Set<UUID>
+    ) -> [UUID] {
+        books.map(\.id).filter(selectedBookIDs.contains)
+    }
+
+    static func bulkDeleteButtonDisabled(
+        isEditing: Bool,
+        selectedBookIDs: Set<UUID>
+    ) -> Bool {
+        !isEditing || selectedBookIDs.isEmpty
     }
 }
 
