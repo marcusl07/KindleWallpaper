@@ -37,6 +37,7 @@ cp "$ROOT_DIR/App/BackgroundImageStore.swift" "$TMP_DIR/BackgroundImageStore.swi
 cp "$ROOT_DIR/App/BackgroundImageLoader.swift" "$TMP_DIR/BackgroundImageLoader.swift"
 cp "$ROOT_DIR/App/SettingsView.swift" "$TMP_DIR/SettingsView.swift"
 cp "$ROOT_DIR/Models/Book.swift" "$TMP_DIR/Book.swift"
+cp "$ROOT_DIR/Models/BulkBookDeletionPlan.swift" "$TMP_DIR/BulkBookDeletionPlan.swift"
 cp "$ROOT_DIR/Models/Highlight.swift" "$TMP_DIR/Highlight.swift"
 
 swiftc \
@@ -50,6 +51,7 @@ swiftc \
   "$TMP_DIR/BackgroundImageLoader.swift" \
   "$TMP_DIR/SettingsView.swift" \
   "$TMP_DIR/Book.swift" \
+  "$TMP_DIR/BulkBookDeletionPlan.swift" \
   "$TMP_DIR/Highlight.swift" \
   -o "$TMP_DIR/verify_t98_main"
 
