@@ -654,21 +654,26 @@ private enum QuotesListPresentationModel {
     static func displayedHighlights(
         from highlights: [Highlight],
         searchText: String,
-        sortMode: QuotesListSortMode,
         filters: QuotesListFilters,
         bookEnabledByID: [UUID: Bool]
     ) -> [Highlight] {
         highlights
             .filter { matchesFilters($0, filters: filters, bookEnabledByID: bookEnabledByID) }
             .filter { matchesSearch($0, searchText: searchText) }
-            .sorted { lhs, rhs in
-                switch sortMode {
-                case .mostRecentlyAdded:
-                    return compareByMostRecent(lhs, rhs)
-                case .alphabeticalByBook:
-                    return compareAlphabetically(lhs, rhs)
-                }
+    }
+
+    static func sortedHighlights(
+        _ highlights: [Highlight],
+        sortMode: QuotesListSortMode
+    ) -> [Highlight] {
+        highlights.sorted { lhs, rhs in
+            switch sortMode {
+            case .mostRecentlyAdded:
+                return compareByMostRecent(lhs, rhs)
+            case .alphabeticalByBook:
+                return compareAlphabetically(lhs, rhs)
             }
+        }
     }
 
     static func availableBookTitles(from highlights: [Highlight]) -> [String] {
@@ -827,10 +832,17 @@ private struct QuotesListView: View {
     @State private var isPresentingAddQuote = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        let displayedHighlights = QuotesListPresentationModel.displayedHighlights(
+            from: highlights,
+            searchText: searchText,
+            filters: filters,
+            bookEnabledByID: bookEnabledByID
+        )
+
+        return VStack(alignment: .leading, spacing: 16) {
             QuotesImportHeaderView()
 
-            controlsRow
+            controlsRow(displayedCount: displayedHighlights.count)
 
             Group {
                 if highlights.isEmpty {
@@ -940,17 +952,7 @@ private struct QuotesListView: View {
         }
     }
 
-    private var displayedHighlights: [Highlight] {
-        QuotesListPresentationModel.displayedHighlights(
-            from: highlights,
-            searchText: searchText,
-            sortMode: sortMode,
-            filters: filters,
-            bookEnabledByID: bookEnabledByID
-        )
-    }
-
-    private var controlsRow: some View {
+    private func controlsRow(displayedCount: Int) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .center, spacing: 12) {
                 Picker("Sort", selection: $sortMode) {
@@ -964,7 +966,7 @@ private struct QuotesListView: View {
 
                 Spacer(minLength: 12)
 
-                Text(resultCountSummary)
+                Text(resultCountSummary(displayedCount: displayedCount))
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -1019,9 +1021,9 @@ private struct QuotesListView: View {
         }
     }
 
-    private var resultCountSummary: String {
+    private func resultCountSummary(displayedCount: Int) -> String {
         QuotesBulkSelectionPresentationModel.resultCountSummary(
-            displayedCount: displayedHighlights.count,
+            displayedCount: displayedCount,
             totalCount: highlights.count,
             hasActiveQuery: hasActiveQuery,
             isEditing: isEditingHighlights,
@@ -1096,13 +1098,8 @@ private struct QuotesListView: View {
         reconcileSelectedHighlights()
     }
 
-    private func updateStoredHighlight(_ updatedHighlight: Highlight) {
-        guard let index = highlights.firstIndex(where: { $0.id == updatedHighlight.id }) else {
-            return
-        }
-
-        highlights[index] = updatedHighlight
-        reconcileFilters()
+    private func updateStoredHighlight(_: Highlight) {
+        refreshHighlights()
     }
 
     private func reconcileFilters() {
@@ -1559,10 +1556,36 @@ enum QuotesListViewTestProbe {
         bookStatus: QuotesListBookStatusFilterMode = .allBooks,
         source: QuotesListSourceFilterMode = .allQuotes
     ) -> [UUID] {
+        let sortedHighlights = QuotesListPresentationModel.sortedHighlights(
+            highlights,
+            sortMode: sortMode
+        )
+
+        return QuotesListPresentationModel.displayedHighlights(
+            from: sortedHighlights,
+            searchText: searchText,
+            filters: QuotesListFilters(
+                selectedBookTitle: selectedBookTitle,
+                selectedAuthor: selectedAuthor,
+                bookStatus: bookStatus,
+                source: source
+            ),
+            bookEnabledByID: Dictionary(uniqueKeysWithValues: books.map { ($0.id, $0.isEnabled) })
+        ).map(\.id)
+    }
+
+    static func filteredHighlightIDs(
+        from highlights: [Highlight],
+        searchText: String,
+        books: [Book] = [],
+        selectedBookTitle: String? = nil,
+        selectedAuthor: String? = nil,
+        bookStatus: QuotesListBookStatusFilterMode = .allBooks,
+        source: QuotesListSourceFilterMode = .allQuotes
+    ) -> [UUID] {
         QuotesListPresentationModel.displayedHighlights(
             from: highlights,
             searchText: searchText,
-            sortMode: sortMode,
             filters: QuotesListFilters(
                 selectedBookTitle: selectedBookTitle,
                 selectedAuthor: selectedAuthor,
