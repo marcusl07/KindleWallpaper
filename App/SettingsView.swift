@@ -903,10 +903,88 @@ private struct QuotesListRenderCompletionObserver: NSViewRepresentable {
     }
 }
 
-private struct QuotesListView: View {
-    private static let pageSize = 100
-    private static let loadMoreThreshold = 20
+private enum QuotesListPagingConstants {
+    static let pageSize = 100
+    static let loadMoreThreshold = 20
+}
 
+private struct QuotesListRefreshResetState {
+    let nextQueryGeneration: Int
+    let isLoadingHighlights: Bool
+    let isLoadingNextPage: Bool
+    let hasMoreHighlights: Bool
+    let highlights: [Highlight]
+    let totalMatchingHighlightCount: Int
+    let availableBookTitles: [String]
+    let availableAuthors: [String]
+}
+
+private struct QuotesListAppendPageResult {
+    let highlights: [Highlight]
+    let hasMoreHighlights: Bool
+}
+
+private enum QuotesListPagingPresentationModel {
+    static func refreshResetState(after currentQueryGeneration: Int) -> QuotesListRefreshResetState {
+        QuotesListRefreshResetState(
+            nextQueryGeneration: currentQueryGeneration + 1,
+            isLoadingHighlights: true,
+            isLoadingNextPage: false,
+            hasMoreHighlights: false,
+            highlights: [],
+            totalMatchingHighlightCount: 0,
+            availableBookTitles: [],
+            availableAuthors: []
+        )
+    }
+
+    static func hasMoreHighlights(
+        loadedCount: Int,
+        totalMatchingHighlightCount: Int
+    ) -> Bool {
+        loadedCount < totalMatchingHighlightCount
+    }
+
+    static func shouldLoadMore(
+        highlights: [Highlight],
+        currentHighlightID: UUID,
+        hasMoreHighlights: Bool,
+        isLoadingHighlights: Bool,
+        isLoadingNextPage: Bool,
+        hasLoadMoreTask: Bool,
+        loadMoreThreshold: Int = QuotesListPagingConstants.loadMoreThreshold
+    ) -> Bool {
+        guard
+            hasMoreHighlights,
+            !isLoadingHighlights,
+            !isLoadingNextPage,
+            !hasLoadMoreTask,
+            let currentIndex = highlights.firstIndex(where: { $0.id == currentHighlightID })
+        else {
+            return false
+        }
+
+        let thresholdIndex = max(highlights.count - loadMoreThreshold, 0)
+        return currentIndex >= thresholdIndex
+    }
+
+    static func appendPage(
+        existingHighlights: [Highlight],
+        nextPage: [Highlight],
+        totalMatchingHighlightCount: Int
+    ) -> QuotesListAppendPageResult {
+        let existingHighlightIDs = Set(existingHighlights.map(\.id))
+        let uniqueNextPage = nextPage.filter { !existingHighlightIDs.contains($0.id) }
+        let mergedHighlights = existingHighlights + uniqueNextPage
+
+        return QuotesListAppendPageResult(
+            highlights: mergedHighlights,
+            hasMoreHighlights: mergedHighlights.count < totalMatchingHighlightCount && !uniqueNextPage.isEmpty
+        )
+    }
+}
+
+private struct QuotesListView: View {
     @EnvironmentObject private var appState: AppState
     @State private var searchText = ""
     @State private var sortMode: QuotesListSortMode = .mostRecentlyAdded
@@ -1234,15 +1312,16 @@ private struct QuotesListView: View {
         cancelActiveQuotesTasks()
         cancelPendingMeasurements()
 
-        let currentGeneration = queryGeneration + 1
+        let resetState = QuotesListPagingPresentationModel.refreshResetState(after: queryGeneration)
+        let currentGeneration = resetState.nextQueryGeneration
         queryGeneration = currentGeneration
-        isLoadingHighlights = true
-        isLoadingNextPage = false
-        hasMoreHighlights = false
-        highlights.removeAll()
-        totalMatchingHighlightCount = 0
-        availableBookTitles.removeAll()
-        availableAuthors.removeAll()
+        isLoadingHighlights = resetState.isLoadingHighlights
+        isLoadingNextPage = resetState.isLoadingNextPage
+        hasMoreHighlights = resetState.hasMoreHighlights
+        highlights = resetState.highlights
+        totalMatchingHighlightCount = resetState.totalMatchingHighlightCount
+        availableBookTitles = resetState.availableBookTitles
+        availableAuthors = resetState.availableAuthors
         reconcileSelectedHighlights()
 
         pendingRefreshSignpostState = QuotesListPerformanceSignposts.beginRefresh(
@@ -1258,7 +1337,7 @@ private struct QuotesListView: View {
                 searchText: currentSearchText,
                 filters: currentFilters,
                 sortedBy: currentSortMode,
-                limit: Self.pageSize,
+                limit: QuotesListPagingConstants.pageSize,
                 offset: 0
             )
             async let loadedCount = appState.loadHighlightsCount(
@@ -1293,7 +1372,10 @@ private struct QuotesListView: View {
 
             highlights = initialHighlights
             totalMatchingHighlightCount = matchingHighlightCount
-            hasMoreHighlights = initialHighlights.count < matchingHighlightCount
+            hasMoreHighlights = QuotesListPagingPresentationModel.hasMoreHighlights(
+                loadedCount: initialHighlights.count,
+                totalMatchingHighlightCount: matchingHighlightCount
+            )
             isLoadingHighlights = false
             refreshTask = nil
             reconcileSelectedHighlights()
@@ -1393,18 +1475,14 @@ private struct QuotesListView: View {
     }
 
     private func loadMoreIfNeeded(currentHighlight: Highlight) {
-        guard
-            hasMoreHighlights,
-            !isLoadingHighlights,
-            !isLoadingNextPage,
-            loadMoreTask == nil,
-            let currentIndex = highlights.firstIndex(where: { $0.id == currentHighlight.id })
-        else {
-            return
-        }
-
-        let thresholdIndex = max(highlights.count - Self.loadMoreThreshold, 0)
-        guard currentIndex >= thresholdIndex else {
+        guard QuotesListPagingPresentationModel.shouldLoadMore(
+            highlights: highlights,
+            currentHighlightID: currentHighlight.id,
+            hasMoreHighlights: hasMoreHighlights,
+            isLoadingHighlights: isLoadingHighlights,
+            isLoadingNextPage: isLoadingNextPage,
+            hasLoadMoreTask: loadMoreTask != nil
+        ) else {
             return
         }
 
@@ -1420,7 +1498,7 @@ private struct QuotesListView: View {
                 searchText: currentSearchText,
                 filters: currentFilters,
                 sortedBy: currentSortMode,
-                limit: Self.pageSize,
+                limit: QuotesListPagingConstants.pageSize,
                 offset: currentOffset
             )
 
@@ -1428,10 +1506,13 @@ private struct QuotesListView: View {
                 return
             }
 
-            let existingHighlightIDs = Set(highlights.map(\.id))
-            let uniqueNextPage = nextPage.filter { !existingHighlightIDs.contains($0.id) }
-            highlights.append(contentsOf: uniqueNextPage)
-            hasMoreHighlights = highlights.count < totalMatchingHighlightCount && !uniqueNextPage.isEmpty
+            let appendResult = QuotesListPagingPresentationModel.appendPage(
+                existingHighlights: highlights,
+                nextPage: nextPage,
+                totalMatchingHighlightCount: totalMatchingHighlightCount
+            )
+            highlights = appendResult.highlights
+            hasMoreHighlights = appendResult.hasMoreHighlights
             isLoadingNextPage = false
             loadMoreTask = nil
             reconcileSelectedHighlights()
@@ -1869,6 +1950,73 @@ enum QuoteDetailViewTestProbe {
 }
 
 enum QuotesListViewTestProbe {
+    static func refreshResetState(after currentQueryGeneration: Int) -> (
+        nextQueryGeneration: Int,
+        isLoadingHighlights: Bool,
+        isLoadingNextPage: Bool,
+        hasMoreHighlights: Bool,
+        highlightCount: Int,
+        totalMatchingHighlightCount: Int,
+        availableBookTitles: [String],
+        availableAuthors: [String]
+    ) {
+        let state = QuotesListPagingPresentationModel.refreshResetState(after: currentQueryGeneration)
+        return (
+            nextQueryGeneration: state.nextQueryGeneration,
+            isLoadingHighlights: state.isLoadingHighlights,
+            isLoadingNextPage: state.isLoadingNextPage,
+            hasMoreHighlights: state.hasMoreHighlights,
+            highlightCount: state.highlights.count,
+            totalMatchingHighlightCount: state.totalMatchingHighlightCount,
+            availableBookTitles: state.availableBookTitles,
+            availableAuthors: state.availableAuthors
+        )
+    }
+
+    static func hasMoreHighlights(
+        loadedCount: Int,
+        totalMatchingHighlightCount: Int
+    ) -> Bool {
+        QuotesListPagingPresentationModel.hasMoreHighlights(
+            loadedCount: loadedCount,
+            totalMatchingHighlightCount: totalMatchingHighlightCount
+        )
+    }
+
+    static func shouldLoadMore(
+        highlights: [Highlight],
+        currentHighlightID: UUID,
+        hasMoreHighlights: Bool,
+        isLoadingHighlights: Bool,
+        isLoadingNextPage: Bool,
+        hasLoadMoreTask: Bool
+    ) -> Bool {
+        QuotesListPagingPresentationModel.shouldLoadMore(
+            highlights: highlights,
+            currentHighlightID: currentHighlightID,
+            hasMoreHighlights: hasMoreHighlights,
+            isLoadingHighlights: isLoadingHighlights,
+            isLoadingNextPage: isLoadingNextPage,
+            hasLoadMoreTask: hasLoadMoreTask
+        )
+    }
+
+    static func appendPage(
+        existingHighlights: [Highlight],
+        nextPage: [Highlight],
+        totalMatchingHighlightCount: Int
+    ) -> (highlightIDs: [UUID], hasMoreHighlights: Bool) {
+        let result = QuotesListPagingPresentationModel.appendPage(
+            existingHighlights: existingHighlights,
+            nextPage: nextPage,
+            totalMatchingHighlightCount: totalMatchingHighlightCount
+        )
+        return (
+            highlightIDs: result.highlights.map(\.id),
+            hasMoreHighlights: result.hasMoreHighlights
+        )
+    }
+
     static func displayedHighlightIDs(
         from highlights: [Highlight],
         searchText: String,
