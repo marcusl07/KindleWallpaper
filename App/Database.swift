@@ -97,6 +97,18 @@ enum DatabaseManager {
     );
     """
 
+    private static let createHighlightsMostRecentNonNullSortIndexSQL = """
+    CREATE INDEX IF NOT EXISTS idx_highlights_most_recent_non_null_sort
+    ON highlights(
+        dateAdded DESC,
+        bookTitle COLLATE NOCASE,
+        author COLLATE NOCASE,
+        quoteText COLLATE NOCASE,
+        id
+    )
+    WHERE dateAdded IS NOT NULL;
+    """
+
     private static let createHighlightTombstonesTableSQL = """
     CREATE TABLE IF NOT EXISTS highlight_tombstones (
         quoteIdentityKey TEXT PRIMARY KEY,
@@ -230,6 +242,10 @@ enum DatabaseManager {
             try createHighlightsPageIndexes(in: database)
         }
 
+        migrator.registerMigration("addHighlightMostRecentNonNullSortIndex") { database in
+            try database.execute(sql: createHighlightsMostRecentNonNullSortIndexSQL)
+        }
+
         return migrator
     }()
 
@@ -258,6 +274,7 @@ enum DatabaseManager {
     private static func createHighlightsPageIndexes(in database: Database) throws {
         try database.execute(sql: createHighlightsAlphabeticalSortIndexSQL)
         try database.execute(sql: createHighlightsMostRecentSortIndexSQL)
+        try database.execute(sql: createHighlightsMostRecentNonNullSortIndexSQL)
     }
 
     private static func tableColumnNames(in tableName: String, database: Database) throws -> Set<String> {
@@ -736,19 +753,29 @@ enum DatabaseManager {
 
         do {
             let highlights = try shared.read { database in
-                let query = quotesPageQuery(
-                    searchText: searchText,
-                    filters: filters,
-                    sortedBy: sortMode,
-                    limit: limit,
-                    offset: offset
-                )
-                let rows = try Row.fetchAll(
-                    database,
-                    sql: query.sql,
-                    arguments: query.arguments
-                )
-                return rows.map(highlight(from:))
+                switch sortMode {
+                case .mostRecentlyAdded:
+                    return try fetchMostRecentHighlightsPage(
+                        searchText: searchText,
+                        filters: filters,
+                        limit: limit,
+                        offset: offset,
+                        database: database
+                    )
+                case .alphabeticalByBook:
+                    let query = quotesAlphabeticalPageQuery(
+                        searchText: searchText,
+                        filters: filters,
+                        limit: limit,
+                        offset: offset
+                    )
+                    let rows = try Row.fetchAll(
+                        database,
+                        sql: query.sql,
+                        arguments: query.arguments
+                    )
+                    return rows.map(highlight(from:))
+                }
             }
 
             quotesPerformanceSignposter.endInterval(
@@ -895,10 +922,9 @@ enum DatabaseManager {
         case author
     }
 
-    private static func quotesPageQuery(
+    private static func quotesAlphabeticalPageQuery(
         searchText: String,
         filters: QuotesListFilters,
-        sortedBy sortMode: QuotesListSortMode,
         limit: Int,
         offset: Int
     ) -> (sql: String, arguments: StatementArguments) {
@@ -909,12 +935,120 @@ enum DatabaseManager {
         query.sql = """
         SELECT id, bookId, quoteText, bookTitle, author, location, dateAdded, lastShownAt, isEnabled
         FROM highlights\(query.sql)
-        
-        ORDER BY \(highlightsOrderClause(sortedBy: sortMode))
+
+        ORDER BY \(alphabeticalHighlightsOrderClause)
         LIMIT ? OFFSET ?
         """
         query.arguments += [limit, offset]
         return query
+    }
+
+    private static func fetchMostRecentHighlightsPage(
+        searchText: String,
+        filters: QuotesListFilters,
+        limit: Int,
+        offset: Int,
+        database: Database
+    ) throws -> [Highlight] {
+        let nonNullDateCount = try fetchHighlightsCount(
+            searchText: searchText,
+            filters: filters,
+            additionalConditions: ["dateAdded IS NOT NULL"],
+            database: database
+        )
+
+        if offset >= nonNullDateCount {
+            return try fetchMostRecentHighlightsSegment(
+                searchText: searchText,
+                filters: filters,
+                dateAddedCondition: "dateAdded IS NULL",
+                orderClause: alphabeticalHighlightsOrderClause,
+                limit: limit,
+                offset: offset - nonNullDateCount,
+                database: database
+            )
+        }
+
+        var highlights = try fetchMostRecentHighlightsSegment(
+            searchText: searchText,
+            filters: filters,
+            dateAddedCondition: "dateAdded IS NOT NULL",
+            orderClause: """
+            dateAdded DESC,
+            \(alphabeticalHighlightsOrderClause)
+            """,
+            limit: limit,
+            offset: offset,
+            database: database
+        )
+
+        if highlights.count < limit {
+            let remainingLimit = limit - highlights.count
+            let nullDateHighlights = try fetchMostRecentHighlightsSegment(
+                searchText: searchText,
+                filters: filters,
+                dateAddedCondition: "dateAdded IS NULL",
+                orderClause: alphabeticalHighlightsOrderClause,
+                limit: remainingLimit,
+                offset: 0,
+                database: database
+            )
+            highlights.append(contentsOf: nullDateHighlights)
+        }
+
+        return highlights
+    }
+
+    private static func fetchHighlightsCount(
+        searchText: String,
+        filters: QuotesListFilters,
+        additionalConditions: [String] = [],
+        database: Database
+    ) throws -> Int {
+        let query = quotesListWhereClause(
+            searchText: searchText,
+            filters: filters,
+            additionalConditions: additionalConditions
+        )
+        return try Int.fetchOne(
+            database,
+            sql: """
+            SELECT COUNT(*)
+            FROM highlights\(query.sql)
+            """,
+            arguments: query.arguments
+        ) ?? 0
+    }
+
+    private static func fetchMostRecentHighlightsSegment(
+        searchText: String,
+        filters: QuotesListFilters,
+        dateAddedCondition: String,
+        orderClause: String,
+        limit: Int,
+        offset: Int,
+        database: Database
+    ) throws -> [Highlight] {
+        var query = quotesListWhereClause(
+            searchText: searchText,
+            filters: filters,
+            additionalConditions: [dateAddedCondition]
+        )
+        query.sql = """
+        SELECT id, bookId, quoteText, bookTitle, author, location, dateAdded, lastShownAt, isEnabled
+        FROM highlights\(query.sql)
+
+        ORDER BY \(orderClause)
+        LIMIT ? OFFSET ?
+        """
+        query.arguments += [limit, offset]
+
+        let rows = try Row.fetchAll(
+            database,
+            sql: query.sql,
+            arguments: query.arguments
+        )
+        return rows.map(highlight(from:))
     }
 
     private static func quotesFilterOptionsQuery(
@@ -952,9 +1086,10 @@ enum DatabaseManager {
     private static func quotesListWhereClause(
         searchText: String,
         filters: QuotesListFilters,
-        excluding excludedField: QuotesFilterOptionField? = nil
+        excluding excludedField: QuotesFilterOptionField? = nil,
+        additionalConditions: [String] = []
     ) -> (sql: String, arguments: StatementArguments) {
-        var conditions: [String] = []
+        var conditions = additionalConditions
         var arguments: StatementArguments = []
 
         if excludedField != .bookTitle,
