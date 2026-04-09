@@ -528,7 +528,7 @@ enum QuotesListSourceFilterMode: String, CaseIterable, Identifiable {
     }
 }
 
-private struct QuotesListFilters {
+struct QuotesListFilters {
     var selectedBookTitle: String?
     var selectedAuthor: String?
     var bookStatus: QuotesListBookStatusFilterMode = .allBooks

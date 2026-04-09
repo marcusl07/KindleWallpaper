@@ -76,6 +76,27 @@ enum DatabaseManager {
     ON highlights(dateAdded);
     """
 
+    private static let createHighlightsAlphabeticalSortIndexSQL = """
+    CREATE INDEX IF NOT EXISTS idx_highlights_alphabetical_sort
+    ON highlights(
+        bookTitle COLLATE NOCASE,
+        author COLLATE NOCASE,
+        quoteText COLLATE NOCASE,
+        id
+    );
+    """
+
+    private static let createHighlightsMostRecentSortIndexSQL = """
+    CREATE INDEX IF NOT EXISTS idx_highlights_most_recent_sort
+    ON highlights(
+        dateAdded DESC,
+        bookTitle COLLATE NOCASE,
+        author COLLATE NOCASE,
+        quoteText COLLATE NOCASE,
+        id
+    );
+    """
+
     private static let createHighlightTombstonesTableSQL = """
     CREATE TABLE IF NOT EXISTS highlight_tombstones (
         quoteIdentityKey TEXT PRIMARY KEY,
@@ -86,6 +107,20 @@ enum DatabaseManager {
     private static let activeHighlightsPredicateSQL = """
     (bookId IS NULL OR bookId IN (SELECT id FROM books WHERE isEnabled = 1))
       AND isEnabled = 1
+    """
+
+    private static let normalizedBookTitleExpressionSQL = """
+    CASE
+        WHEN TRIM(bookTitle) = '' THEN 'Unknown Book'
+        ELSE TRIM(bookTitle)
+    END
+    """
+
+    private static let normalizedAuthorExpressionSQL = """
+    CASE
+        WHEN TRIM(author) = '' THEN 'Unknown Author'
+        ELSE TRIM(author)
+    END
     """
 
     private static let iso8601Formatter: ISO8601DateFormatter = {
@@ -191,6 +226,10 @@ enum DatabaseManager {
             try database.execute(sql: createHighlightsDateAddedIndexSQL)
         }
 
+        migrator.registerMigration("addHighlightPagingIndexes") { database in
+            try createHighlightsPageIndexes(in: database)
+        }
+
         return migrator
     }()
 
@@ -213,6 +252,12 @@ enum DatabaseManager {
         try database.execute(sql: createHighlightsBookTitleIndexSQL)
         try database.execute(sql: createHighlightsAuthorIndexSQL)
         try database.execute(sql: createHighlightsDateAddedIndexSQL)
+        try createHighlightsPageIndexes(in: database)
+    }
+
+    private static func createHighlightsPageIndexes(in database: Database) throws {
+        try database.execute(sql: createHighlightsAlphabeticalSortIndexSQL)
+        try database.execute(sql: createHighlightsMostRecentSortIndexSQL)
     }
 
     private static func tableColumnNames(in tableName: String, database: Database) throws -> Set<String> {
@@ -673,6 +718,99 @@ enum DatabaseManager {
         }
     }
 
+    static func fetchHighlightsPage(
+        searchText: String = "",
+        filters: QuotesListFilters = QuotesListFilters(),
+        sortedBy sortMode: QuotesListSortMode = .mostRecentlyAdded,
+        limit: Int,
+        offset: Int
+    ) -> [Highlight] {
+        guard limit > 0, offset >= 0 else {
+            return []
+        }
+
+        let signpostState = quotesPerformanceSignposter.beginInterval(
+            "QuotesDBPageFetch",
+            "sortMode=\(sortMode.rawValue, privacy: .public) limit=\(limit) offset=\(offset)"
+        )
+
+        do {
+            let highlights = try shared.read { database in
+                let query = quotesPageQuery(
+                    searchText: searchText,
+                    filters: filters,
+                    sortedBy: sortMode,
+                    limit: limit,
+                    offset: offset
+                )
+                let rows = try Row.fetchAll(
+                    database,
+                    sql: query.sql,
+                    arguments: query.arguments
+                )
+                return rows.map(highlight(from:))
+            }
+
+            quotesPerformanceSignposter.endInterval(
+                "QuotesDBPageFetch",
+                signpostState,
+                "rows=\(highlights.count)"
+            )
+            return highlights
+        } catch {
+            quotesPerformanceSignposter.endInterval(
+                "QuotesDBPageFetch",
+                signpostState,
+                "failed=1"
+            )
+            fatalError("Failed to fetch highlight page: \(error)")
+        }
+    }
+
+    static func fetchAvailableHighlightBookTitles(
+        searchText: String = "",
+        filters: QuotesListFilters = QuotesListFilters()
+    ) -> [String] {
+        do {
+            return try shared.read { database in
+                let query = quotesFilterOptionsQuery(
+                    field: .bookTitle,
+                    searchText: searchText,
+                    filters: filters
+                )
+                return try String.fetchAll(
+                    database,
+                    sql: query.sql,
+                    arguments: query.arguments
+                )
+            }
+        } catch {
+            fatalError("Failed to fetch quote book title filters: \(error)")
+        }
+    }
+
+    static func fetchAvailableHighlightAuthors(
+        searchText: String = "",
+        filters: QuotesListFilters = QuotesListFilters()
+    ) -> [String] {
+        do {
+            return try shared.read { database in
+                let query = quotesFilterOptionsQuery(
+                    field: .author,
+                    searchText: searchText,
+                    filters: filters
+                )
+                return try String.fetchAll(
+                    database,
+                    sql: query.sql,
+                    arguments: query.arguments
+                )
+            }
+        } catch {
+            fatalError("Failed to fetch quote author filters: \(error)")
+        }
+    }
+
     static func totalHighlightCount() -> Int {
         do {
             return try shared.read { database in
@@ -750,6 +888,146 @@ enum DatabaseManager {
         case .alphabeticalByBook:
             return alphabeticalHighlightsOrderClause
         }
+    }
+
+    private enum QuotesFilterOptionField {
+        case bookTitle
+        case author
+    }
+
+    private static func quotesPageQuery(
+        searchText: String,
+        filters: QuotesListFilters,
+        sortedBy sortMode: QuotesListSortMode,
+        limit: Int,
+        offset: Int
+    ) -> (sql: String, arguments: StatementArguments) {
+        var query = quotesListWhereClause(
+            searchText: searchText,
+            filters: filters
+        )
+        query.sql = """
+        SELECT id, bookId, quoteText, bookTitle, author, location, dateAdded, lastShownAt, isEnabled
+        FROM highlights\(query.sql)
+        
+        ORDER BY \(highlightsOrderClause(sortedBy: sortMode))
+        LIMIT ? OFFSET ?
+        """
+        query.arguments += [limit, offset]
+        return query
+    }
+
+    private static func quotesFilterOptionsQuery(
+        field: QuotesFilterOptionField,
+        searchText: String,
+        filters: QuotesListFilters
+    ) -> (sql: String, arguments: StatementArguments) {
+        let fieldExpression: String
+        let excludedField: QuotesFilterOptionField
+
+        switch field {
+        case .bookTitle:
+            fieldExpression = normalizedBookTitleExpressionSQL
+            excludedField = .bookTitle
+        case .author:
+            fieldExpression = normalizedAuthorExpressionSQL
+            excludedField = .author
+        }
+
+        let query = quotesListWhereClause(
+            searchText: searchText,
+            filters: filters,
+            excluding: excludedField
+        )
+        return (
+            """
+        SELECT DISTINCT \(fieldExpression) AS value
+        FROM highlights\(query.sql)
+        ORDER BY value COLLATE NOCASE ASC
+        """,
+            query.arguments
+        )
+    }
+
+    private static func quotesListWhereClause(
+        searchText: String,
+        filters: QuotesListFilters,
+        excluding excludedField: QuotesFilterOptionField? = nil
+    ) -> (sql: String, arguments: StatementArguments) {
+        var conditions: [String] = []
+        var arguments: StatementArguments = []
+
+        if excludedField != .bookTitle,
+           let selectedBookTitle = normalizedFilterSelectionValue(filters.selectedBookTitle) {
+            conditions.append("\(normalizedBookTitleExpressionSQL) = ?")
+            arguments += [selectedBookTitle]
+        }
+
+        if excludedField != .author,
+           let selectedAuthor = normalizedFilterSelectionValue(filters.selectedAuthor) {
+            conditions.append("\(normalizedAuthorExpressionSQL) = ?")
+            arguments += [selectedAuthor]
+        }
+
+        switch filters.source {
+        case .allQuotes:
+            break
+        case .manualOnly:
+            conditions.append("bookId IS NULL")
+        }
+
+        switch filters.bookStatus {
+        case .allBooks:
+            break
+        case .enabledBooksOnly:
+            conditions.append("bookId IS NOT NULL")
+            conditions.append("bookId IN (SELECT id FROM books WHERE isEnabled = 1)")
+        case .disabledBooksOnly:
+            conditions.append("bookId IS NOT NULL")
+            conditions.append("bookId IN (SELECT id FROM books WHERE isEnabled = 0)")
+        }
+
+        if let searchPattern = normalizedSearchPattern(for: searchText) {
+            conditions.append(
+                """
+                (
+                    quoteText LIKE ? COLLATE NOCASE
+                    OR bookTitle LIKE ? COLLATE NOCASE
+                    OR author LIKE ? COLLATE NOCASE
+                )
+                """
+            )
+            arguments += [searchPattern, searchPattern, searchPattern]
+        }
+
+        let whereClause: String
+        if conditions.isEmpty {
+            whereClause = ""
+        } else {
+            whereClause = """
+
+            WHERE \(conditions.joined(separator: "\n  AND "))
+            """
+        }
+
+        return (whereClause, arguments)
+    }
+
+    private static func normalizedFilterSelectionValue(_ rawValue: String?) -> String? {
+        guard let rawValue else {
+            return nil
+        }
+
+        let trimmedValue = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedValue.isEmpty ? nil : trimmedValue
+    }
+
+    private static func normalizedSearchPattern(for rawValue: String) -> String? {
+        let trimmedValue = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedValue.isEmpty else {
+            return nil
+        }
+        return "%\(trimmedValue)%"
     }
 
     private static let alphabeticalHighlightsOrderClause = """
