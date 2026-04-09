@@ -10,6 +10,11 @@ private let wallpaperRotationQueue = DispatchQueue(
     qos: .userInitiated
 )
 
+private let quotesQueryQueue = DispatchQueue(
+    label: "KindleWall.AppState.QuotesQuery",
+    qos: .userInitiated
+)
+
 @MainActor
 final class AppState: ObservableObject {
     struct WallpaperTarget: Equatable {
@@ -161,6 +166,10 @@ final class AppState: ObservableObject {
     typealias SetHighlightEnabled = (UUID, Bool) -> Void
     typealias FetchAllBooks = () -> [Book]
     typealias FetchAllHighlights = (QuotesListSortMode) -> [Highlight]
+    typealias FetchHighlightsPage = (String, QuotesListFilters, QuotesListSortMode, Int, Int) -> [Highlight]
+    typealias CountHighlights = (String, QuotesListFilters) -> Int
+    typealias FetchAvailableHighlightBookTitles = (String, QuotesListFilters) -> [String]
+    typealias FetchAvailableHighlightAuthors = (String, QuotesListFilters) -> [String]
     typealias FetchTotalHighlightCount = () -> Int
     typealias LoadBackgroundPreviewState = () -> BackgroundPreviewState
     typealias SaveBackgroundImageSelection = (URL) throws -> Void
@@ -205,6 +214,10 @@ final class AppState: ObservableObject {
     private let setHighlightEnabledAction: SetHighlightEnabled
     private let fetchAllBooks: FetchAllBooks
     private let fetchAllHighlights: FetchAllHighlights
+    private let fetchHighlightsPage: FetchHighlightsPage
+    private let countHighlights: CountHighlights
+    private let fetchAvailableHighlightBookTitles: FetchAvailableHighlightBookTitles
+    private let fetchAvailableHighlightAuthors: FetchAvailableHighlightAuthors
     private let fetchTotalHighlightCount: FetchTotalHighlightCount
     private let loadBackgroundPreviewStateAction: LoadBackgroundPreviewState
     private let saveBackgroundImageSelectionAction: SaveBackgroundImageSelection
@@ -226,6 +239,17 @@ final class AppState: ObservableObject {
     nonisolated private static func deliverRotationResultOnMain(_ work: @escaping () -> Void) {
         let workItem = DispatchWorkItem(block: work)
         DispatchQueue.main.async(execute: workItem)
+    }
+
+    nonisolated private static func executeQuotesQuery<T>(
+        _ work: @escaping () -> T
+    ) async -> T {
+        await withCheckedContinuation { continuation in
+            let workItem = DispatchWorkItem {
+                continuation.resume(returning: work())
+            }
+            quotesQueryQueue.async(execute: workItem)
+        }
     }
 
     init(
@@ -262,6 +286,10 @@ final class AppState: ObservableObject {
         setHighlightEnabled: @escaping SetHighlightEnabled = { _, _ in },
         fetchAllBooks: @escaping FetchAllBooks = { [] },
         fetchAllHighlights: @escaping FetchAllHighlights = { _ in [] },
+        fetchHighlightsPage: @escaping FetchHighlightsPage = { _, _, _, _, _ in [] },
+        countHighlights: @escaping CountHighlights = { _, _ in 0 },
+        fetchAvailableHighlightBookTitles: @escaping FetchAvailableHighlightBookTitles = { _, _ in [] },
+        fetchAvailableHighlightAuthors: @escaping FetchAvailableHighlightAuthors = { _, _ in [] },
         fetchTotalHighlightCount: @escaping FetchTotalHighlightCount = { 0 },
         loadBackgroundPreviewState: LoadBackgroundPreviewState? = nil,
         saveBackgroundImageSelection: @escaping SaveBackgroundImageSelection = { _ in },
@@ -384,6 +412,10 @@ final class AppState: ObservableObject {
         self.setHighlightEnabledAction = setHighlightEnabled
         self.fetchAllBooks = fetchAllBooks
         self.fetchAllHighlights = fetchAllHighlights
+        self.fetchHighlightsPage = fetchHighlightsPage
+        self.countHighlights = countHighlights
+        self.fetchAvailableHighlightBookTitles = fetchAvailableHighlightBookTitles
+        self.fetchAvailableHighlightAuthors = fetchAvailableHighlightAuthors
         self.fetchTotalHighlightCount = fetchTotalHighlightCount
         self.loadBackgroundPreviewStateAction = resolvedLoadBackgroundPreviewState
         self.saveBackgroundImageSelectionAction = saveBackgroundImageSelection
@@ -809,6 +841,49 @@ final class AppState: ObservableObject {
         fetchAllHighlights(sortMode)
     }
 
+    func loadHighlightsPage(
+        searchText: String = "",
+        filters: QuotesListFilters = QuotesListFilters(),
+        sortedBy sortMode: QuotesListSortMode = .mostRecentlyAdded,
+        limit: Int,
+        offset: Int
+    ) async -> [Highlight] {
+        let fetchHighlightsPage = self.fetchHighlightsPage
+        return await AppState.executeQuotesQuery {
+            fetchHighlightsPage(searchText, filters, sortMode, limit, offset)
+        }
+    }
+
+    func loadHighlightsCount(
+        searchText: String = "",
+        filters: QuotesListFilters = QuotesListFilters()
+    ) async -> Int {
+        let countHighlights = self.countHighlights
+        return await AppState.executeQuotesQuery {
+            countHighlights(searchText, filters)
+        }
+    }
+
+    func loadAvailableHighlightBookTitles(
+        searchText: String = "",
+        filters: QuotesListFilters = QuotesListFilters()
+    ) async -> [String] {
+        let fetchAvailableHighlightBookTitles = self.fetchAvailableHighlightBookTitles
+        return await AppState.executeQuotesQuery {
+            fetchAvailableHighlightBookTitles(searchText, filters)
+        }
+    }
+
+    func loadAvailableHighlightAuthors(
+        searchText: String = "",
+        filters: QuotesListFilters = QuotesListFilters()
+    ) async -> [String] {
+        let fetchAvailableHighlightAuthors = self.fetchAvailableHighlightAuthors
+        return await AppState.executeQuotesQuery {
+            fetchAvailableHighlightAuthors(searchText, filters)
+        }
+    }
+
     func addManualQuote(_ request: QuoteEditSaveRequest) {
         insertHighlightAction(
             Highlight(
@@ -1141,6 +1216,10 @@ extension AppState {
             setHighlightEnabled: DatabaseManager.setHighlightEnabled(id:enabled:),
             fetchAllBooks: DatabaseManager.fetchAllBooks,
             fetchAllHighlights: DatabaseManager.fetchAllHighlights,
+            fetchHighlightsPage: DatabaseManager.fetchHighlightsPage(searchText:filters:sortedBy:limit:offset:),
+            countHighlights: DatabaseManager.countHighlights(searchText:filters:),
+            fetchAvailableHighlightBookTitles: DatabaseManager.fetchAvailableHighlightBookTitles(searchText:filters:),
+            fetchAvailableHighlightAuthors: DatabaseManager.fetchAvailableHighlightAuthors(searchText:filters:),
             fetchTotalHighlightCount: DatabaseManager.totalHighlightCount,
             loadBackgroundPreviewState: {
                 let result = backgroundStore.loadBackgroundImageCollection()

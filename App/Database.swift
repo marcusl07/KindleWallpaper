@@ -838,6 +838,23 @@ enum DatabaseManager {
         }
     }
 
+    static func countHighlights(
+        searchText: String = "",
+        filters: QuotesListFilters = QuotesListFilters()
+    ) -> Int {
+        do {
+            return try shared.read { database in
+                try fetchHighlightsCount(
+                    searchText: searchText,
+                    filters: filters,
+                    database: database
+                )
+            }
+        } catch {
+            fatalError("Failed to count quote results: \(error)")
+        }
+    }
+
     static func totalHighlightCount() -> Int {
         do {
             return try shared.read { database in

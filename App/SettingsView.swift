@@ -528,7 +528,7 @@ enum QuotesListSourceFilterMode: String, CaseIterable, Identifiable {
     }
 }
 
-struct QuotesListFilters {
+struct QuotesListFilters: Equatable {
     var selectedBookTitle: String?
     var selectedAuthor: String?
     var bookStatus: QuotesListBookStatusFilterMode = .allBooks
@@ -842,6 +842,14 @@ private enum QuotesListPerformanceSignposts {
         )
     }
 
+    static func cancelRefresh(_ state: OSSignpostIntervalState) {
+        signposter.endInterval(
+            "QuotesListRefresh",
+            state,
+            "cancelled=1"
+        )
+    }
+
     static func beginRender(reason: String, sortMode: QuotesListSortMode, totalCount: Int) -> OSSignpostIntervalState {
         signposter.beginInterval(
             "QuotesListRender",
@@ -896,25 +904,33 @@ private struct QuotesListRenderCompletionObserver: NSViewRepresentable {
 }
 
 private struct QuotesListView: View {
+    private static let pageSize = 100
+    private static let loadMoreThreshold = 20
+
     @EnvironmentObject private var appState: AppState
     @State private var searchText = ""
     @State private var sortMode: QuotesListSortMode = .mostRecentlyAdded
     @State private var filters = QuotesListFilters()
     @State private var highlights: [Highlight] = []
+    @State private var totalMatchingHighlightCount = 0
+    @State private var availableBookTitles: [String] = []
+    @State private var availableAuthors: [String] = []
     @State private var selectedHighlightIDs: Set<UUID> = []
     @State private var pendingBulkDeleteHighlightIDs: [UUID] = []
     @State private var isEditingHighlights = false
     @State private var isPresentingAddQuote = false
+    @State private var isLoadingHighlights = false
+    @State private var isLoadingNextPage = false
+    @State private var hasMoreHighlights = false
+    @State private var queryGeneration = 0
+    @State private var pendingRefreshSignpostState: OSSignpostIntervalState? = nil
     @State private var pendingRenderSignpostState: OSSignpostIntervalState? = nil
     @State private var renderObservationToken = UUID()
+    @State private var refreshTask: Task<Void, Never>? = nil
+    @State private var loadMoreTask: Task<Void, Never>? = nil
 
     var body: some View {
-        let displayedHighlights = QuotesListPresentationModel.displayedHighlights(
-            from: highlights,
-            searchText: searchText,
-            filters: filters,
-            bookEnabledByID: bookEnabledByID
-        )
+        let displayedHighlights = highlights
 
         return VStack(alignment: .leading, spacing: 16) {
             QuotesImportHeaderView()
@@ -922,7 +938,10 @@ private struct QuotesListView: View {
             controlsRow(displayedCount: displayedHighlights.count)
 
             Group {
-                if highlights.isEmpty {
+                if isLoadingHighlights {
+                    ProgressView("Loading Quotes…")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if appState.totalHighlightCount == 0 {
                     QuotesEmptyStateView(
                         title: "No Quotes Yet",
                         systemImage: "quote.opening",
@@ -934,25 +953,39 @@ private struct QuotesListView: View {
                         systemImage: "magnifyingglass",
                         description: "Try a different search term or adjust the filters."
                     )
-                } else {
-                    if isEditingHighlights {
-                        List(selection: $selectedHighlightIDs) {
-                            ForEach(displayedHighlights) { highlight in
-                                quoteRow(highlight)
-                                    .tag(highlight.id)
-                            }
+                } else if isEditingHighlights {
+                    List(selection: $selectedHighlightIDs) {
+                        ForEach(displayedHighlights) { highlight in
+                            quoteRow(highlight)
+                                .tag(highlight.id)
+                                .onAppear {
+                                    loadMoreIfNeeded(currentHighlight: highlight)
+                                }
                         }
-                        .listStyle(.inset)
-                    } else {
-                        List(displayedHighlights) { highlight in
+
+                        if isLoadingNextPage {
+                            loadingMoreRow
+                        }
+                    }
+                    .listStyle(.inset)
+                } else {
+                    List {
+                        ForEach(displayedHighlights) { highlight in
                             NavigationLink {
                                 QuoteDetailView(highlight: highlight, onHighlightUpdated: updateStoredHighlight)
                             } label: {
                                 quoteRow(highlight)
                             }
+                            .onAppear {
+                                loadMoreIfNeeded(currentHighlight: highlight)
+                            }
                         }
-                        .listStyle(.inset)
+
+                        if isLoadingNextPage {
+                            loadingMoreRow
+                        }
                     }
+                    .listStyle(.inset)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1002,7 +1035,6 @@ private struct QuotesListView: View {
                     },
                     onSave: { request in
                         appState.addManualQuote(request)
-                        refreshHighlights(reason: "manualQuoteAdded")
                         isPresentingAddQuote = false
                     }
                 )
@@ -1015,10 +1047,25 @@ private struct QuotesListView: View {
         .onChange(of: sortMode) { _ in
             refreshHighlights(reason: "sortChanged")
         }
+        .onChange(of: searchText) { _ in
+            refreshHighlights(reason: "searchChanged")
+        }
+        .onChange(of: filters.selectedBookTitle) { _ in
+            refreshHighlights(reason: "bookFilterChanged")
+        }
+        .onChange(of: filters.selectedAuthor) { _ in
+            refreshHighlights(reason: "authorFilterChanged")
+        }
+        .onChange(of: filters.bookStatus) { _ in
+            refreshHighlights(reason: "bookStatusChanged")
+        }
+        .onChange(of: filters.source) { _ in
+            refreshHighlights(reason: "sourceFilterChanged")
+        }
         .onReceive(appState.$totalHighlightCount) { _ in
             refreshHighlights(reason: "libraryChanged")
         }
-        .onDisappear(perform: cancelPendingRenderMeasurement)
+        .onDisappear(perform: cancelQuotesLoading)
         .alert(
             QuotesBulkSelectionPresentationModel.bulkDeleteConfirmationTitle(
                 selectedCount: pendingBulkDeleteHighlightIDs.count
@@ -1112,23 +1159,11 @@ private struct QuotesListView: View {
     private func resultCountSummary(displayedCount: Int) -> String {
         QuotesBulkSelectionPresentationModel.resultCountSummary(
             displayedCount: displayedCount,
-            totalCount: highlights.count,
+            totalCount: totalMatchingHighlightCount,
             hasActiveQuery: hasActiveQuery,
             isEditing: isEditingHighlights,
             selectedCount: selectedHighlightIDs.count
         )
-    }
-
-    private var availableBookTitles: [String] {
-        QuotesListPresentationModel.availableBookTitles(from: highlights)
-    }
-
-    private var availableAuthors: [String] {
-        QuotesListPresentationModel.availableAuthors(from: highlights)
-    }
-
-    private var bookEnabledByID: [UUID: Bool] {
-        Dictionary(uniqueKeysWithValues: appState.books.map { ($0.id, $0.isEnabled) })
     }
 
     private var hasActiveQuery: Bool {
@@ -1158,6 +1193,17 @@ private struct QuotesListView: View {
         )
     }
 
+    private var loadingMoreRow: some View {
+        HStack {
+            Spacer()
+            ProgressView()
+            Spacer()
+        }
+        .padding(.vertical, 8)
+        .listRowSeparator(.hidden)
+        .allowsHitTesting(false)
+    }
+
     private func quoteRow(_ highlight: Highlight) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(QuotesListPresentationModel.previewText(for: highlight.quoteText))
@@ -1185,25 +1231,81 @@ private struct QuotesListView: View {
     }
 
     private func refreshHighlights(reason: String) {
-        cancelPendingRenderMeasurement()
+        cancelActiveQuotesTasks()
+        cancelPendingMeasurements()
 
-        let refreshSignpost = QuotesListPerformanceSignposts.beginRefresh(
+        let currentGeneration = queryGeneration + 1
+        queryGeneration = currentGeneration
+        isLoadingHighlights = true
+        isLoadingNextPage = false
+        hasMoreHighlights = false
+        highlights.removeAll()
+        totalMatchingHighlightCount = 0
+        availableBookTitles.removeAll()
+        availableAuthors.removeAll()
+        reconcileSelectedHighlights()
+
+        pendingRefreshSignpostState = QuotesListPerformanceSignposts.beginRefresh(
             reason: reason,
             sortMode: sortMode
         )
 
-        let loadedHighlights = appState.loadAllHighlights(sortedBy: sortMode)
-        highlights = loadedHighlights
-        reconcileFilters()
-        reconcileSelectedHighlights()
-        QuotesListPerformanceSignposts.endRefresh(refreshSignpost, loadedCount: loadedHighlights.count)
+        let currentSearchText = searchText
+        let currentFilters = filters
+        let currentSortMode = sortMode
+        refreshTask = Task {
+            async let loadedHighlights = appState.loadHighlightsPage(
+                searchText: currentSearchText,
+                filters: currentFilters,
+                sortedBy: currentSortMode,
+                limit: Self.pageSize,
+                offset: 0
+            )
+            async let loadedCount = appState.loadHighlightsCount(
+                searchText: currentSearchText,
+                filters: currentFilters
+            )
+            async let loadedBookTitles = appState.loadAvailableHighlightBookTitles(
+                searchText: currentSearchText,
+                filters: currentFilters
+            )
+            async let loadedAuthors = appState.loadAvailableHighlightAuthors(
+                searchText: currentSearchText,
+                filters: currentFilters
+            )
 
-        pendingRenderSignpostState = QuotesListPerformanceSignposts.beginRender(
-            reason: reason,
-            sortMode: sortMode,
-            totalCount: loadedHighlights.count
-        )
-        renderObservationToken = UUID()
+            let initialHighlights = await loadedHighlights
+            let matchingHighlightCount = await loadedCount
+            let nextAvailableBookTitles = await loadedBookTitles
+            let nextAvailableAuthors = await loadedAuthors
+
+            guard !Task.isCancelled, currentGeneration == queryGeneration else {
+                return
+            }
+
+            availableBookTitles = nextAvailableBookTitles
+            availableAuthors = nextAvailableAuthors
+
+            guard reconcileFilters() == false else {
+                refreshTask = nil
+                return
+            }
+
+            highlights = initialHighlights
+            totalMatchingHighlightCount = matchingHighlightCount
+            hasMoreHighlights = initialHighlights.count < matchingHighlightCount
+            isLoadingHighlights = false
+            refreshTask = nil
+            reconcileSelectedHighlights()
+            completeRefreshMeasurement(loadedCount: initialHighlights.count)
+
+            pendingRenderSignpostState = QuotesListPerformanceSignposts.beginRender(
+                reason: reason,
+                sortMode: currentSortMode,
+                totalCount: initialHighlights.count
+            )
+            renderObservationToken = UUID()
+        }
     }
 
     private func updateStoredHighlight(_: Highlight) {
@@ -1222,6 +1324,20 @@ private struct QuotesListView: View {
         self.pendingRenderSignpostState = nil
     }
 
+    private func cancelPendingMeasurements() {
+        cancelPendingRefreshMeasurement()
+        cancelPendingRenderMeasurement()
+    }
+
+    private func cancelPendingRefreshMeasurement() {
+        guard let pendingRefreshSignpostState else {
+            return
+        }
+
+        QuotesListPerformanceSignposts.cancelRefresh(pendingRefreshSignpostState)
+        self.pendingRefreshSignpostState = nil
+    }
+
     private func cancelPendingRenderMeasurement() {
         guard let pendingRenderSignpostState else {
             return
@@ -1231,16 +1347,34 @@ private struct QuotesListView: View {
         self.pendingRenderSignpostState = nil
     }
 
-    private func reconcileFilters() {
+    private func completeRefreshMeasurement(loadedCount: Int) {
+        guard let pendingRefreshSignpostState else {
+            return
+        }
+
+        QuotesListPerformanceSignposts.endRefresh(
+            pendingRefreshSignpostState,
+            loadedCount: loadedCount
+        )
+        self.pendingRefreshSignpostState = nil
+    }
+
+    private func reconcileFilters() -> Bool {
+        var didChange = false
+
         if let selectedBookTitle = filters.selectedBookTitle,
            !availableBookTitles.contains(selectedBookTitle) {
             filters.selectedBookTitle = nil
+            didChange = true
         }
 
         if let selectedAuthor = filters.selectedAuthor,
            !availableAuthors.contains(selectedAuthor) {
             filters.selectedAuthor = nil
+            didChange = true
         }
+
+        return didChange
     }
 
     private func reconcileSelectedHighlights() {
@@ -1256,6 +1390,66 @@ private struct QuotesListView: View {
         if !isEditingHighlights {
             selectedHighlightIDs.removeAll()
         }
+    }
+
+    private func loadMoreIfNeeded(currentHighlight: Highlight) {
+        guard
+            hasMoreHighlights,
+            !isLoadingHighlights,
+            !isLoadingNextPage,
+            loadMoreTask == nil,
+            let currentIndex = highlights.firstIndex(where: { $0.id == currentHighlight.id })
+        else {
+            return
+        }
+
+        let thresholdIndex = max(highlights.count - Self.loadMoreThreshold, 0)
+        guard currentIndex >= thresholdIndex else {
+            return
+        }
+
+        isLoadingNextPage = true
+        let currentGeneration = queryGeneration
+        let currentSearchText = searchText
+        let currentFilters = filters
+        let currentSortMode = sortMode
+        let currentOffset = highlights.count
+
+        loadMoreTask = Task {
+            let nextPage = await appState.loadHighlightsPage(
+                searchText: currentSearchText,
+                filters: currentFilters,
+                sortedBy: currentSortMode,
+                limit: Self.pageSize,
+                offset: currentOffset
+            )
+
+            guard !Task.isCancelled, currentGeneration == queryGeneration else {
+                return
+            }
+
+            let existingHighlightIDs = Set(highlights.map(\.id))
+            let uniqueNextPage = nextPage.filter { !existingHighlightIDs.contains($0.id) }
+            highlights.append(contentsOf: uniqueNextPage)
+            hasMoreHighlights = highlights.count < totalMatchingHighlightCount && !uniqueNextPage.isEmpty
+            isLoadingNextPage = false
+            loadMoreTask = nil
+            reconcileSelectedHighlights()
+        }
+    }
+
+    private func cancelActiveQuotesTasks() {
+        refreshTask?.cancel()
+        refreshTask = nil
+        loadMoreTask?.cancel()
+        loadMoreTask = nil
+        isLoadingHighlights = false
+        isLoadingNextPage = false
+    }
+
+    private func cancelQuotesLoading() {
+        cancelActiveQuotesTasks()
+        cancelPendingMeasurements()
     }
 
     private func deleteSelectedHighlights() {
