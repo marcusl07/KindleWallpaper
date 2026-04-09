@@ -1,8 +1,13 @@
 import Foundation
 import GRDB
+import OSLog
 
 enum DatabaseManager {
     private static let tombstoneInsertBatchRowLimit = 400
+    private static let quotesPerformanceSignposter = OSSignposter(
+        subsystem: Bundle.main.bundleIdentifier ?? "com.marcuslo.KindleWall",
+        category: "QuotesPerformance"
+    )
 
     static let shared: DatabaseQueue = {
         do {
@@ -633,8 +638,13 @@ enum DatabaseManager {
     }
 
     static func fetchAllHighlights(sortedBy sortMode: QuotesListSortMode = .mostRecentlyAdded) -> [Highlight] {
+        let signpostState = quotesPerformanceSignposter.beginInterval(
+            "QuotesDBFetch",
+            "sortMode=\(sortMode.rawValue, privacy: .public)"
+        )
+
         do {
-            return try shared.read { database in
+            let highlights = try shared.read { database in
                 let rows = try Row.fetchAll(
                     database,
                     sql: """
@@ -646,7 +656,19 @@ enum DatabaseManager {
 
                 return rows.map(highlight(from:))
             }
+
+            quotesPerformanceSignposter.endInterval(
+                "QuotesDBFetch",
+                signpostState,
+                "rows=\(highlights.count)"
+            )
+            return highlights
         } catch {
+            quotesPerformanceSignposter.endInterval(
+                "QuotesDBFetch",
+                signpostState,
+                "failed=1"
+            )
             fatalError("Failed to fetch all highlights: \(error)")
         }
     }

@@ -1,3 +1,4 @@
+import OSLog
 import SwiftUI
 #if canImport(AppKit)
 import AppKit
@@ -820,6 +821,80 @@ private enum QuotesListPresentationModel {
     }
 }
 
+private enum QuotesListPerformanceSignposts {
+    private static let signposter = OSSignposter(
+        subsystem: Bundle.main.bundleIdentifier ?? "com.marcuslo.KindleWall",
+        category: "QuotesPerformance"
+    )
+
+    static func beginRefresh(reason: String, sortMode: QuotesListSortMode) -> OSSignpostIntervalState {
+        signposter.beginInterval(
+            "QuotesListRefresh",
+            "reason=\(reason, privacy: .public) sortMode=\(sortMode.rawValue, privacy: .public)"
+        )
+    }
+
+    static func endRefresh(_ state: OSSignpostIntervalState, loadedCount: Int) {
+        signposter.endInterval(
+            "QuotesListRefresh",
+            state,
+            "rows=\(loadedCount)"
+        )
+    }
+
+    static func beginRender(reason: String, sortMode: QuotesListSortMode, totalCount: Int) -> OSSignpostIntervalState {
+        signposter.beginInterval(
+            "QuotesListRender",
+            "reason=\(reason, privacy: .public) sortMode=\(sortMode.rawValue, privacy: .public) total=\(totalCount)"
+        )
+    }
+
+    static func endRender(_ state: OSSignpostIntervalState, displayedCount: Int) {
+        signposter.endInterval(
+            "QuotesListRender",
+            state,
+            "displayed=\(displayedCount)"
+        )
+    }
+
+    static func cancelRender(_ state: OSSignpostIntervalState) {
+        signposter.endInterval(
+            "QuotesListRender",
+            state,
+            "cancelled=1"
+        )
+    }
+}
+
+private struct QuotesListRenderCompletionObserver: NSViewRepresentable {
+    let token: UUID
+    let displayedCount: Int
+    let onRendered: (UUID, Int) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        NSView(frame: .zero)
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        guard context.coordinator.lastToken != token else {
+            return
+        }
+
+        context.coordinator.lastToken = token
+        DispatchQueue.main.async {
+            onRendered(token, displayedCount)
+        }
+    }
+
+    final class Coordinator {
+        var lastToken: UUID?
+    }
+}
+
 private struct QuotesListView: View {
     @EnvironmentObject private var appState: AppState
     @State private var searchText = ""
@@ -830,6 +905,8 @@ private struct QuotesListView: View {
     @State private var pendingBulkDeleteHighlightIDs: [UUID] = []
     @State private var isEditingHighlights = false
     @State private var isPresentingAddQuote = false
+    @State private var pendingRenderSignpostState: OSSignpostIntervalState? = nil
+    @State private var renderObservationToken = UUID()
 
     var body: some View {
         let displayedHighlights = QuotesListPresentationModel.displayedHighlights(
@@ -881,6 +958,14 @@ private struct QuotesListView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .padding(20)
+        .background(
+            QuotesListRenderCompletionObserver(
+                token: renderObservationToken,
+                displayedCount: displayedHighlights.count,
+                onRendered: completeRenderMeasurement
+            )
+            .frame(width: 0, height: 0)
+        )
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .searchable(text: $searchText, prompt: "Search quotes, books, or authors")
         .toolbar {
@@ -917,20 +1002,23 @@ private struct QuotesListView: View {
                     },
                     onSave: { request in
                         appState.addManualQuote(request)
-                        refreshHighlights()
+                        refreshHighlights(reason: "manualQuoteAdded")
                         isPresentingAddQuote = false
                     }
                 )
             }
             .frame(minWidth: 520, minHeight: 460)
         }
-        .onAppear(perform: refreshHighlights)
+        .onAppear {
+            refreshHighlights(reason: "appear")
+        }
         .onChange(of: sortMode) { _ in
-            refreshHighlights()
+            refreshHighlights(reason: "sortChanged")
         }
         .onReceive(appState.$totalHighlightCount) { _ in
-            refreshHighlights()
+            refreshHighlights(reason: "libraryChanged")
         }
+        .onDisappear(perform: cancelPendingRenderMeasurement)
         .alert(
             QuotesBulkSelectionPresentationModel.bulkDeleteConfirmationTitle(
                 selectedCount: pendingBulkDeleteHighlightIDs.count
@@ -1093,13 +1181,54 @@ private struct QuotesListView: View {
     }
 
     private func refreshHighlights() {
-        highlights = appState.loadAllHighlights(sortedBy: sortMode)
+        refreshHighlights(reason: "refresh")
+    }
+
+    private func refreshHighlights(reason: String) {
+        cancelPendingRenderMeasurement()
+
+        let refreshSignpost = QuotesListPerformanceSignposts.beginRefresh(
+            reason: reason,
+            sortMode: sortMode
+        )
+
+        let loadedHighlights = appState.loadAllHighlights(sortedBy: sortMode)
+        highlights = loadedHighlights
         reconcileFilters()
         reconcileSelectedHighlights()
+        QuotesListPerformanceSignposts.endRefresh(refreshSignpost, loadedCount: loadedHighlights.count)
+
+        pendingRenderSignpostState = QuotesListPerformanceSignposts.beginRender(
+            reason: reason,
+            sortMode: sortMode,
+            totalCount: loadedHighlights.count
+        )
+        renderObservationToken = UUID()
     }
 
     private func updateStoredHighlight(_: Highlight) {
         refreshHighlights()
+    }
+
+    private func completeRenderMeasurement(token: UUID, displayedCount: Int) {
+        guard token == renderObservationToken, let pendingRenderSignpostState else {
+            return
+        }
+
+        QuotesListPerformanceSignposts.endRender(
+            pendingRenderSignpostState,
+            displayedCount: displayedCount
+        )
+        self.pendingRenderSignpostState = nil
+    }
+
+    private func cancelPendingRenderMeasurement() {
+        guard let pendingRenderSignpostState else {
+            return
+        }
+
+        QuotesListPerformanceSignposts.cancelRender(pendingRenderSignpostState)
+        self.pendingRenderSignpostState = nil
     }
 
     private func reconcileFilters() {
