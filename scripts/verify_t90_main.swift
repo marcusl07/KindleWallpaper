@@ -125,11 +125,10 @@ func testInvalidDateShowsWarningDetail() {
 
     assertEqual(result.parseWarningCount, 1, "Invalid Added on fields should increment parse warning count")
     assertEqual(result.warningMessages.count, 1, "Invalid Added on fields should produce one warning detail")
-    assertContains(
-        result.warningMessages[0],
-        "Could not parse Added on date in entry: \"Date Book (Author) - Your Highlight on page 1 | Location 1-2 | Added on definitely-not-a-kindle-date\"",
-        "Date-parse warnings should include an entry snippet"
-    )
+    assertContains(result.warningMessages[0], "Could not parse Added on date in entry:", "Date-parse warnings should include a human-readable prefix")
+    let snippet = extractQuotedSnippet(from: result.warningMessages[0])
+    assertTrue(snippet.count <= 80, "Date-parse warning snippets should cap at 80 characters")
+    assertTrue(snippet.hasSuffix("..."), "Overlong date-parse warning snippets should end in an ellipsis")
     assertEqual(status.warningDetails, result.warningMessages, "Status should preserve parse warning detail text")
 }
 
@@ -213,6 +212,19 @@ func assertContains(_ string: String, _ substring: String, _ message: String) {
         fputs("Assertion failed: \(message)\nExpected substring: \(substring)\nActual: \(string)\n", stderr)
         exit(1)
     }
+}
+
+func extractQuotedSnippet(from warningMessage: String) -> String {
+    guard
+        let firstQuote = warningMessage.firstIndex(of: "\""),
+        let lastQuote = warningMessage.lastIndex(of: "\""),
+        firstQuote < lastQuote
+    else {
+        fail("Expected warning message to contain a quoted snippet: \(warningMessage)")
+    }
+
+    let start = warningMessage.index(after: firstQuote)
+    return String(warningMessage[start..<lastQuote])
 }
 
 func fail(_ message: String) -> Never {

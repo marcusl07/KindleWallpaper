@@ -226,6 +226,39 @@ final class AppState: ObservableObject {
         let warningMessage: String?
     }
 
+    struct ImportStatus: Equatable {
+        let message: String
+        let isError: Bool
+        let warningDetails: [String]
+
+        init(
+            message: String = "",
+            isError: Bool = false,
+            warningDetails: [String] = []
+        ) {
+            let normalizedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedWarningDetails = warningDetails
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+
+            self.message = normalizedMessage
+            self.isError = isError
+            self.warningDetails = normalizedWarningDetails
+        }
+
+        var statusMessage: String {
+            isError ? "" : message
+        }
+
+        var errorMessage: String? {
+            guard isError else {
+                return nil
+            }
+
+            return message.isEmpty ? "Import failed: unknown error." : message
+        }
+    }
+
     enum WallpaperApplyFailureReason: Equatable {
         case noTargets
         case generatedTargetMismatch
@@ -307,9 +340,7 @@ final class AppState: ObservableObject {
     typealias Now = () -> Date
 
     @Published private(set) var currentQuotePreview: String
-    @Published private(set) var importStatus: String
-    @Published private(set) var importError: String?
-    @Published private(set) var importWarningDetails: [String]
+    @Published private(set) var latestImportStatus: ImportStatus
     @Published private(set) var totalHighlightCount: Int
     @Published private(set) var books: [Book]
     @Published private(set) var isBookMutationInFlight: Bool
@@ -353,6 +384,18 @@ final class AppState: ObservableObject {
     private var isRotationInProgress = false
     private let bookMutationLock = NSLock()
 
+    var importStatus: String {
+        latestImportStatus.statusMessage
+    }
+
+    var importError: String? {
+        latestImportStatus.errorMessage
+    }
+
+    var importWarningDetails: [String] {
+        latestImportStatus.warningDetails
+    }
+
     nonisolated private static func enqueueRotationWork(_ work: @escaping () -> Void) {
         let workItem = DispatchWorkItem(block: work)
         wallpaperRotationQueue.async(execute: workItem)
@@ -366,9 +409,7 @@ final class AppState: ObservableObject {
     init(
         userDefaults: UserDefaults = .standard,
         currentQuotePreview: String = "",
-        importStatus: String = "",
-        importError: String? = nil,
-        importWarningDetails: [String] = [],
+        importStatus: ImportStatus = ImportStatus(),
         totalHighlightCount: Int? = nil,
         books: [Book]? = nil,
         activeScheduleMode: RotationScheduleMode? = nil,
@@ -487,9 +528,7 @@ final class AppState: ObservableObject {
 
         self.userDefaults = userDefaults
         self.currentQuotePreview = currentQuotePreview
-        self.importStatus = importStatus
-        self.importError = importError
-        self.importWarningDetails = importWarningDetails
+        self.latestImportStatus = importStatus
         self.totalHighlightCount = totalHighlightCount ?? fetchTotalHighlightCount()
         self.books = books ?? fetchAllBooks()
         self.isBookMutationInFlight = false
@@ -932,21 +971,18 @@ final class AppState: ObservableObject {
         self.lastChangedAt = lastChangedAt
     }
 
-    func setImportStatus(_ message: String, isError: Bool, warningDetails: [String] = []) {
-        let normalizedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedWarningDetails = warningDetails
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        if isError {
-            importStatus = ""
-            importError = normalizedMessage.isEmpty ? "Import failed: unknown error." : normalizedMessage
-            importWarningDetails = normalizedWarningDetails
-            return
-        }
+    func setImportStatus(_ status: ImportStatus) {
+        latestImportStatus = status
+    }
 
-        importStatus = normalizedMessage
-        importError = nil
-        importWarningDetails = normalizedWarningDetails
+    func setImportStatus(_ message: String, isError: Bool, warningDetails: [String] = []) {
+        setImportStatus(
+            ImportStatus(
+                message: message,
+                isError: isError,
+                warningDetails: warningDetails
+            )
+        )
     }
 
     func refreshLibraryState() {

@@ -390,7 +390,7 @@ enum ClippingsParser {
         .malformed(snippet: warningSnippet(from: chunk))
     }
 
-    private static func warningSnippet(from text: String, maximumLength: Int = 120) -> String {
+    private static func warningSnippet(from text: String, maximumLength: Int = 80) -> String {
         let collapsed = collapseWhitespace(in: text).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !collapsed.isEmpty else {
             return "entry text unavailable"

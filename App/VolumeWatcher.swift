@@ -128,13 +128,30 @@ enum VolumeWatcher {
 #if canImport(AppKit)
 extension VolumeWatcher {
     private static let maxImportFileSizeBytes: Int64 = 20 * 1024 * 1024
+    private static let maxImportWarningDetailCount = 20
 
     struct ImportPayload: Equatable {
         let newHighlightCount: Int
         let error: String?
-        let parseWarningCount: Int
         let skippedEntryCount: Int
         let warningMessages: [String]
+
+        init(
+            newHighlightCount: Int,
+            error: String?,
+            parseWarningCount _: Int? = nil,
+            skippedEntryCount: Int,
+            warningMessages: [String]
+        ) {
+            self.newHighlightCount = newHighlightCount
+            self.error = error
+            self.skippedEntryCount = skippedEntryCount
+            self.warningMessages = warningMessages
+        }
+
+        var parseWarningCount: Int {
+            warningMessages.count
+        }
     }
 
     struct ImportStatus: Equatable {
@@ -259,48 +276,49 @@ extension VolumeWatcher {
     }
 
     static func makeImportStatus(from result: ImportPayload, now: Date) -> ImportStatus {
+        let warningDetails = cappedWarningDetails(from: result.warningMessages)
         if let error = result.error, !error.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return ImportStatus(
                 message: normalizedImportFailureMessage(error),
                 isError: true,
-                warningDetails: result.warningMessages
+                warningDetails: warningDetails
             )
         }
 
         guard result.newHighlightCount > 0 else {
             if result.skippedEntryCount > 0 {
-                let warningSuffix = parseWarningSuffix(for: result.parseWarningCount)
+                let warningSuffix = parseWarningSuffix(for: result.warningMessages)
                 return ImportStatus(
                     message: "Last synced: \(importStatusDateFormatter.string(from: now)) - Import completed with warnings: 0 new highlights added, \(result.skippedEntryCount) \(skippedEntryNoun(for: result.skippedEntryCount)) skipped\(warningSuffix)",
                     isError: false,
-                    warningDetails: result.warningMessages
+                    warningDetails: warningDetails
                 )
             }
 
-            let warningSuffix = parseWarningSuffix(for: result.parseWarningCount)
+            let warningSuffix = parseWarningSuffix(for: result.warningMessages)
             return ImportStatus(
                 message: "Library up to date\(warningSuffix)",
                 isError: false,
-                warningDetails: result.warningMessages
+                warningDetails: warningDetails
             )
         }
 
         let timestamp = importStatusDateFormatter.string(from: now)
         let highlightNoun = result.newHighlightCount == 1 ? "highlight" : "highlights"
         if result.skippedEntryCount > 0 {
-            let warningSuffix = parseWarningSuffix(for: result.parseWarningCount)
+            let warningSuffix = parseWarningSuffix(for: result.warningMessages)
             return ImportStatus(
                 message: "Last synced: \(timestamp) - Import completed with warnings: \(result.newHighlightCount) new \(highlightNoun) added, \(result.skippedEntryCount) \(skippedEntryNoun(for: result.skippedEntryCount)) skipped\(warningSuffix)",
                 isError: false,
-                warningDetails: result.warningMessages
+                warningDetails: warningDetails
             )
         }
 
-        let warningSuffix = parseWarningSuffix(for: result.parseWarningCount)
+        let warningSuffix = parseWarningSuffix(for: result.warningMessages)
         return ImportStatus(
             message: "Last synced: \(timestamp) - \(result.newHighlightCount) new \(highlightNoun) added\(warningSuffix)",
             isError: false,
-            warningDetails: result.warningMessages
+            warningDetails: warningDetails
         )
     }
 
@@ -325,12 +343,26 @@ extension VolumeWatcher {
         return "Import failed: \(trimmedError)"
     }
 
-    private static func parseWarningSuffix(for parseWarningCount: Int) -> String {
+    private static func parseWarningSuffix(for warningMessages: [String]) -> String {
+        let parseWarningCount = warningMessages.count
         guard parseWarningCount > 0 else {
             return ""
         }
         let noun = parseWarningCount == 1 ? "parse warning" : "parse warnings"
         return " (\(parseWarningCount) \(noun))"
+    }
+
+    private static func cappedWarningDetails(from warningMessages: [String]) -> [String] {
+        let normalizedMessages = warningMessages
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard normalizedMessages.count > maxImportWarningDetailCount else {
+            return normalizedMessages
+        }
+
+        let visibleWarningCount = maxImportWarningDetailCount - 1
+        let hiddenWarningCount = normalizedMessages.count - visibleWarningCount
+        return Array(normalizedMessages.prefix(visibleWarningCount)) + ["… and \(hiddenWarningCount) more"]
     }
 
     private static func skippedEntryNoun(for skippedEntryCount: Int) -> String {
@@ -373,7 +405,6 @@ extension VolumeWatcher.MountListener {
                 return VolumeWatcher.ImportPayload(
                     newHighlightCount: result.newHighlightCount,
                     error: result.error,
-                    parseWarningCount: result.parseWarningCount,
                     skippedEntryCount: result.skippedEntryCount,
                     warningMessages: result.warningMessages
                 )

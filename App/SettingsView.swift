@@ -2344,16 +2344,17 @@ private func importClippingsFile(at fileURL: URL, for appState: AppState) {
         from: VolumeWatcher.ImportPayload(
             newHighlightCount: result.newHighlightCount,
             error: result.error,
-            parseWarningCount: result.parseWarningCount,
             skippedEntryCount: result.skippedEntryCount,
             warningMessages: result.warningMessages
         ),
         now: Date()
     )
     appState.setImportStatus(
-        status.message,
-        isError: status.isError,
-        warningDetails: status.warningDetails
+        AppState.ImportStatus(
+            message: status.message,
+            isError: status.isError,
+            warningDetails: status.warningDetails
+        )
     )
     if let librarySnapshot = result.librarySnapshot {
         appState.applyLibrarySnapshot(librarySnapshot)

@@ -7,10 +7,13 @@ import GRDB
 struct ImportResult: Equatable {
     let newHighlightCount: Int
     let error: String?
-    let parseWarningCount: Int
     let skippedEntryCount: Int
     let warningMessages: [String]
     let librarySnapshot: LibrarySnapshot?
+
+    var parseWarningCount: Int {
+        warningMessages.count
+    }
 }
 
 struct ImportPersistenceResult: Equatable {
@@ -55,7 +58,6 @@ struct ImportCoordinator {
             return ImportResult(
                 newHighlightCount: 0,
                 error: "Import failed: URL is not a local file.",
-                parseWarningCount: 0,
                 skippedEntryCount: 0,
                 warningMessages: [],
                 librarySnapshot: nil
@@ -66,7 +68,6 @@ struct ImportCoordinator {
             return ImportResult(
                 newHighlightCount: 0,
                 error: "Import failed: file does not exist at \(url.path).",
-                parseWarningCount: 0,
                 skippedEntryCount: 0,
                 warningMessages: [],
                 librarySnapshot: nil
@@ -79,7 +80,6 @@ struct ImportCoordinator {
             return ImportResult(
                 newHighlightCount: 0,
                 error: error,
-                parseWarningCount: parsed.parseErrorCount,
                 skippedEntryCount: parsed.skippedEntryCount,
                 warningMessages: parsed.warningMessages,
                 librarySnapshot: nil
@@ -91,7 +91,6 @@ struct ImportCoordinator {
             return makeImportResult(
                 newHighlightCount: persistenceResult.newHighlightCount,
                 missingBookMappingCount: persistenceResult.missingBookMappingCount,
-                parseWarningCount: parsed.parseErrorCount,
                 skippedEntryCount: parsed.skippedEntryCount,
                 warningMessages: parsed.warningMessages,
                 librarySnapshot: persistenceResult.librarySnapshot
@@ -144,7 +143,6 @@ struct ImportCoordinator {
         return makeImportResult(
             newHighlightCount: newHighlightCount,
             missingBookMappingCount: missingBookMappingCount,
-            parseWarningCount: parsed.parseErrorCount,
             skippedEntryCount: parsed.skippedEntryCount,
             warningMessages: parsed.warningMessages,
             librarySnapshot: nil
@@ -154,7 +152,6 @@ struct ImportCoordinator {
     private func makeImportResult(
         newHighlightCount: Int,
         missingBookMappingCount: Int,
-        parseWarningCount: Int,
         skippedEntryCount: Int,
         warningMessages: [String],
         librarySnapshot: LibrarySnapshot?
@@ -169,7 +166,6 @@ struct ImportCoordinator {
         return ImportResult(
             newHighlightCount: newHighlightCount,
             error: error,
-            parseWarningCount: parseWarningCount,
             skippedEntryCount: skippedEntryCount,
             warningMessages: warningMessages,
             librarySnapshot: librarySnapshot

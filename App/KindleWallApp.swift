@@ -97,9 +97,11 @@ struct KindleWallApp: App {
         let publishImportStatusOnMain: VolumeWatcher.PublishImportStatus = { status in
             Task { @MainActor in
                 appState.setImportStatus(
-                    status.message,
-                    isError: status.isError,
-                    warningDetails: status.warningDetails
+                    AppState.ImportStatus(
+                        message: status.message,
+                        isError: status.isError,
+                        warningDetails: status.warningDetails
+                    )
                 )
             }
         }
@@ -119,7 +121,6 @@ struct KindleWallApp: App {
                 VolumeWatcher.ImportPayload(
                     newHighlightCount: 0,
                     error: nil,
-                    parseWarningCount: 0,
                     skippedEntryCount: 0,
                     warningMessages: []
                 )
