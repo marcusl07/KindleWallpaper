@@ -983,6 +983,7 @@ private struct QuotesListRefreshResetState {
     let totalMatchingHighlightCount: Int
     let availableBookTitles: [String]
     let availableAuthors: [String]
+    let selectedHighlightIDs: Set<UUID>
 }
 
 private struct QuotesListAppendPageResult {
@@ -992,15 +993,34 @@ private struct QuotesListAppendPageResult {
 
 private enum QuotesListPagingPresentationModel {
     static func refreshResetState(after currentQueryGeneration: Int) -> QuotesListRefreshResetState {
+        refreshResetState(
+            after: currentQueryGeneration,
+            preservingHighlights: [],
+            totalMatchingHighlightCount: 0,
+            availableBookTitles: [],
+            availableAuthors: [],
+            selectedHighlightIDs: []
+        )
+    }
+
+    static func refreshResetState(
+        after currentQueryGeneration: Int,
+        preservingHighlights: [Highlight],
+        totalMatchingHighlightCount: Int,
+        availableBookTitles: [String],
+        availableAuthors: [String],
+        selectedHighlightIDs: Set<UUID>
+    ) -> QuotesListRefreshResetState {
         QuotesListRefreshResetState(
             nextQueryGeneration: currentQueryGeneration + 1,
             isLoadingHighlights: true,
             isLoadingNextPage: false,
             hasMoreHighlights: false,
-            highlights: [],
-            totalMatchingHighlightCount: 0,
-            availableBookTitles: [],
-            availableAuthors: []
+            highlights: preservingHighlights,
+            totalMatchingHighlightCount: totalMatchingHighlightCount,
+            availableBookTitles: availableBookTitles,
+            availableAuthors: availableAuthors,
+            selectedHighlightIDs: selectedHighlightIDs
         )
     }
 
@@ -1357,7 +1377,14 @@ private struct QuotesListView: View {
         cancelActiveQuotesTasks()
         cancelPendingMeasurements()
 
-        let resetState = QuotesListPagingPresentationModel.refreshResetState(after: queryGeneration)
+        let resetState = QuotesListPagingPresentationModel.refreshResetState(
+            after: queryGeneration,
+            preservingHighlights: highlights,
+            totalMatchingHighlightCount: totalMatchingHighlightCount,
+            availableBookTitles: availableBookTitles,
+            availableAuthors: availableAuthors,
+            selectedHighlightIDs: selectedHighlightIDs
+        )
         let currentGeneration = resetState.nextQueryGeneration
         queryGeneration = currentGeneration
         isLoadingHighlights = resetState.isLoadingHighlights
@@ -1368,7 +1395,7 @@ private struct QuotesListView: View {
         totalMatchingHighlightCount = resetState.totalMatchingHighlightCount
         availableBookTitles = resetState.availableBookTitles
         availableAuthors = resetState.availableAuthors
-        reconcileSelectedHighlights()
+        selectedHighlightIDs = resetState.selectedHighlightIDs
 
         pendingRefreshSignpostState = QuotesListPerformanceSignposts.beginRefresh(
             reason: reason,
@@ -2030,6 +2057,45 @@ enum QuotesListViewTestProbe {
             totalMatchingHighlightCount: state.totalMatchingHighlightCount,
             availableBookTitles: state.availableBookTitles,
             availableAuthors: state.availableAuthors
+        )
+    }
+
+    static func refreshResetState(
+        after currentQueryGeneration: Int,
+        preservingHighlights: [Highlight],
+        totalMatchingHighlightCount: Int,
+        availableBookTitles: [String],
+        availableAuthors: [String],
+        selectedHighlightIDs: Set<UUID>
+    ) -> (
+        nextQueryGeneration: Int,
+        isLoadingHighlights: Bool,
+        isLoadingNextPage: Bool,
+        hasMoreHighlights: Bool,
+        highlightIDs: [UUID],
+        totalMatchingHighlightCount: Int,
+        availableBookTitles: [String],
+        availableAuthors: [String],
+        selectedHighlightIDs: Set<UUID>
+    ) {
+        let state = QuotesListPagingPresentationModel.refreshResetState(
+            after: currentQueryGeneration,
+            preservingHighlights: preservingHighlights,
+            totalMatchingHighlightCount: totalMatchingHighlightCount,
+            availableBookTitles: availableBookTitles,
+            availableAuthors: availableAuthors,
+            selectedHighlightIDs: selectedHighlightIDs
+        )
+        return (
+            nextQueryGeneration: state.nextQueryGeneration,
+            isLoadingHighlights: state.isLoadingHighlights,
+            isLoadingNextPage: state.isLoadingNextPage,
+            hasMoreHighlights: state.hasMoreHighlights,
+            highlightIDs: state.highlights.map(\.id),
+            totalMatchingHighlightCount: state.totalMatchingHighlightCount,
+            availableBookTitles: state.availableBookTitles,
+            availableAuthors: state.availableAuthors,
+            selectedHighlightIDs: state.selectedHighlightIDs
         )
     }
 
