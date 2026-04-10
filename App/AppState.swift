@@ -962,6 +962,10 @@ final class AppState: ObservableObject {
         fetchAllHighlights(sortMode)
     }
 
+    func loadHighlight(id: UUID) -> Highlight? {
+        fetchAllHighlights(.mostRecentlyAdded).first(where: { $0.id == id })
+    }
+
     func addManualQuote(_ request: QuoteEditSaveRequest) {
         insertHighlightAction(
             Highlight(
@@ -1042,6 +1046,7 @@ final class AppState: ObservableObject {
 
     func setHighlightEnabled(id: UUID, enabled: Bool) {
         setHighlightEnabledAction(id, enabled)
+        refreshLibraryState()
     }
 
     func refreshScheduleState() {

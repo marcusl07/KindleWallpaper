@@ -48,6 +48,18 @@ struct SettingsView: View {
                 case .backgrounds:
                     BackgroundsListView()
                         .navigationTitle("Backgrounds")
+                case .quoteDetail(let highlightID):
+                    if let highlight = appState.loadHighlight(id: highlightID) {
+                        QuoteDetailView(highlight: highlight)
+                            .navigationTitle("Quote")
+                    } else {
+                        QuotesEmptyStateView(
+                            title: "Quote Not Found",
+                            systemImage: "quote.opening",
+                            description: "This quote is no longer available."
+                        )
+                        .navigationTitle("Quote")
+                    }
                 }
             }
         }
@@ -364,6 +376,7 @@ enum SettingsDestination: Hashable {
     case quotes
     case books
     case backgrounds
+    case quoteDetail(UUID)
 }
 
 @MainActor
@@ -1049,9 +1062,7 @@ private struct QuotesListView: View {
                 } else {
                     List {
                         ForEach(displayedHighlights) { highlight in
-                            NavigationLink {
-                                QuoteDetailView(highlight: highlight, onHighlightUpdated: updateStoredHighlight)
-                            } label: {
+                            NavigationLink(value: SettingsDestination.quoteDetail(highlight.id)) {
                                 quoteRow(highlight)
                             }
                             .onAppear {
@@ -1373,10 +1384,6 @@ private struct QuotesListView: View {
         }
     }
 
-    private func updateStoredHighlight(_: Highlight) {
-        refreshHighlights()
-    }
-
     private func completeRenderMeasurement(token: UUID, displayedCount: Int) {
         guard token == renderObservationToken, let pendingRenderSignpostState else {
             return
@@ -1639,15 +1646,13 @@ private struct QuoteDetailView: View {
     @EnvironmentObject private var appState: AppState
 
     @State private var highlight: Highlight
-    private let onHighlightUpdated: (Highlight) -> Void
     @State private var isShowingDeleteConfirmation = false
     @State private var isPresentingEditQuote = false
     @State private var wallpaperRequestMessage: String?
     @State private var toggleMessage: String?
 
-    init(highlight: Highlight, onHighlightUpdated: @escaping (Highlight) -> Void = { _ in }) {
+    init(highlight: Highlight) {
         _highlight = State(initialValue: highlight)
-        self.onHighlightUpdated = onHighlightUpdated
     }
 
     var body: some View {
@@ -1733,7 +1738,6 @@ private struct QuoteDetailView: View {
                     onSave: { request in
                         let updatedHighlight = appState.updateQuote(highlight, with: request)
                         highlight = updatedHighlight
-                        onHighlightUpdated(updatedHighlight)
                         wallpaperRequestMessage = nil
                         toggleMessage = nil
                         isPresentingEditQuote = false
@@ -1788,7 +1792,6 @@ private struct QuoteDetailView: View {
 
         let updatedHighlight = Self.updatedHighlight(highlight, isEnabled: enabled)
         highlight = updatedHighlight
-        onHighlightUpdated(updatedHighlight)
         toggleMessage = Self.toggleStatusMessage(
             isEnabled: enabled,
             bookIsEnabled: linkedBookIsEnabled
