@@ -17,6 +17,16 @@ private func assertTrue(_ condition: @autoclosure () -> Bool, _ message: String)
     }
 }
 
+private func legacyPreviewText(for quoteText: String) -> String {
+    let collapsedWhitespace = quoteText.replacingOccurrences(
+        of: #"\s+"#,
+        with: " ",
+        options: .regularExpression
+    )
+    let trimmed = collapsedWhitespace.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? "Untitled quote" : trimmed
+}
+
 private func sleepBriefly() {
     Thread.sleep(forTimeInterval: 0.2)
 }
@@ -36,6 +46,24 @@ private func makeHighlight(
         lastShownAt: nil,
         isEnabled: true
     )
+}
+
+private func loadRealHighlightPreviewCorpus() -> [String] {
+    guard let rootDirectory = ProcessInfo.processInfo.environment["KINDLEWALL_ROOT_DIR"] else {
+        fail("Missing KINDLEWALL_ROOT_DIR environment variable")
+    }
+
+    let sampleClippingsURL = URL(fileURLWithPath: rootDirectory)
+        .appendingPathComponent("text-files/sample clippings.txt")
+    let parseResult = ClippingsParser.parseClippings(fileURL: sampleClippingsURL)
+
+    assertEqual(parseResult.error, nil, "Expected sample clippings to parse without a file-level error")
+    assertTrue(
+        parseResult.highlights.count >= 20,
+        "Expected sample clippings corpus to provide at least 20 real highlights"
+    )
+
+    return Array(parseResult.highlights.prefix(20).map(\.quoteText))
 }
 
 private func testLoadSnapshotFetchesAllInputsInParallel() async {
@@ -142,12 +170,49 @@ private func testAppStateRetainsInjectedQuotesQueryService() {
     assertTrue(appState.quotesQueryService === service, "Expected AppState to retain the injected quotes query service")
 }
 
+private func testPreviewTextMatchesLegacyNormalizationAcrossRealHighlightCorpus() {
+    let realHighlights = loadRealHighlightPreviewCorpus()
+
+    for (index, quoteText) in realHighlights.enumerated() {
+        assertEqual(
+            QuotesListViewTestProbe.previewText(for: quoteText),
+            legacyPreviewText(for: quoteText),
+            "Expected preview text normalization to stay unchanged for sample highlight \(index + 1)"
+        )
+    }
+}
+
+private func testPreviewTextMatchesLegacyNormalizationAcrossWhitespaceEdgeCases() {
+    let edgeCases = [
+        "",
+        "   ",
+        "\n\t  ",
+        "Single line quote",
+        "line one\nline two",
+        "line one\r\n\r\nline two",
+        "Tabs\tbetween\twords",
+        "  leading and trailing  ",
+        "multiple    spaces   inside",
+        "mix \n of\t whitespace\r\ncharacters"
+    ]
+
+    for quoteText in edgeCases {
+        assertEqual(
+            QuotesListViewTestProbe.previewText(for: quoteText),
+            legacyPreviewText(for: quoteText),
+            "Expected preview text normalization to match the legacy regex path"
+        )
+    }
+}
+
 @main
 struct VerifyT118AMain {
     static func main() async {
         await testLoadSnapshotFetchesAllInputsInParallel()
         await testLoadPagePassesPagingInputsThrough()
         testAppStateRetainsInjectedQuotesQueryService()
+        testPreviewTextMatchesLegacyNormalizationAcrossRealHighlightCorpus()
+        testPreviewTextMatchesLegacyNormalizationAcrossWhitespaceEdgeCases()
         print("verify_t118a_main passed")
     }
 }

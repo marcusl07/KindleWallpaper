@@ -699,13 +699,8 @@ private enum QuotesListPresentationModel {
     }
 
     static func previewText(for quoteText: String) -> String {
-        let collapsedWhitespace = quoteText.replacingOccurrences(
-            of: #"\s+"#,
-            with: " ",
-            options: .regularExpression
-        )
-        let trimmed = collapsedWhitespace.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "Untitled quote" : trimmed
+        let collapsedWhitespace = collapseWhitespace(in: quoteText)
+        return collapsedWhitespace.isEmpty ? "Untitled quote" : collapsedWhitespace
     }
 
     static func bookTitleText(for highlight: Highlight) -> String {
@@ -802,6 +797,10 @@ private enum QuotesListPresentationModel {
     private static func fallbackText(from rawValue: String, placeholder: String) -> String {
         let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? placeholder : trimmed
+    }
+
+    private static func collapseWhitespace(in string: String) -> String {
+        string.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
     }
 
     private static func uniqueSortedValues(from values: [String]) -> [String] {
@@ -916,6 +915,52 @@ private struct QuotesListRenderCompletionObserver: NSViewRepresentable {
     }
 }
 
+private struct QuotesListRowModel: Identifiable, Equatable {
+    let highlight: Highlight
+    let previewText: String
+    let bookTitleText: String
+    let authorText: String
+
+    var id: UUID { highlight.id }
+
+    init(highlight: Highlight) {
+        self.highlight = highlight
+        self.previewText = QuotesListPresentationModel.previewText(for: highlight.quoteText)
+        self.bookTitleText = QuotesListPresentationModel.bookTitleText(for: highlight)
+        self.authorText = QuotesListPresentationModel.authorText(for: highlight)
+    }
+}
+
+private struct QuotesListRowView: View, Equatable {
+    let row: QuotesListRowModel
+
+    static func == (lhs: QuotesListRowView, rhs: QuotesListRowView) -> Bool {
+        lhs.row == rhs.row
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(row.previewText)
+                .font(.body)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(row.bookTitleText)
+                    .font(.callout.weight(.medium))
+                Text("•")
+                    .foregroundStyle(.tertiary)
+                Text(row.authorText)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 4)
+    }
+}
+
 private enum QuotesListPagingConstants {
     static let pageSize = 100
     static let loadMoreThreshold = 20
@@ -1003,6 +1048,7 @@ private struct QuotesListView: View {
     @State private var sortMode: QuotesListSortMode = .mostRecentlyAdded
     @State private var filters = QuotesListFilters()
     @State private var highlights: [Highlight] = []
+    @State private var rowModels: [QuotesListRowModel] = []
     @State private var totalMatchingHighlightCount = 0
     @State private var availableBookTitles: [String] = []
     @State private var availableAuthors: [String] = []
@@ -1021,12 +1067,12 @@ private struct QuotesListView: View {
     @State private var loadMoreTask: Task<Void, Never>? = nil
 
     var body: some View {
-        let displayedHighlights = highlights
+        let displayedRows = rowModels
 
         return VStack(alignment: .leading, spacing: 16) {
             QuotesImportHeaderView()
 
-            controlsRow(displayedCount: displayedHighlights.count)
+            controlsRow(displayedCount: displayedRows.count)
 
             Group {
                 if isLoadingHighlights {
@@ -1038,7 +1084,7 @@ private struct QuotesListView: View {
                         systemImage: "quote.opening",
                         description: "Import `My Clippings.txt` to build your quote library."
                     )
-                } else if displayedHighlights.isEmpty {
+                } else if displayedRows.isEmpty {
                     QuotesEmptyStateView(
                         title: "No Matching Quotes",
                         systemImage: "magnifyingglass",
@@ -1046,11 +1092,12 @@ private struct QuotesListView: View {
                     )
                 } else if isEditingHighlights {
                     List(selection: $selectedHighlightIDs) {
-                        ForEach(displayedHighlights) { highlight in
-                            quoteRow(highlight)
-                                .tag(highlight.id)
+                        ForEach(displayedRows) { row in
+                            QuotesListRowView(row: row)
+                                .equatable()
+                                .tag(row.id)
                                 .onAppear {
-                                    loadMoreIfNeeded(currentHighlight: highlight)
+                                    loadMoreIfNeeded(currentHighlightID: row.id)
                                 }
                         }
 
@@ -1061,12 +1108,13 @@ private struct QuotesListView: View {
                     .listStyle(.inset)
                 } else {
                     List {
-                        ForEach(displayedHighlights) { highlight in
-                            NavigationLink(value: SettingsDestination.quoteDetail(highlight.id)) {
-                                quoteRow(highlight)
+                        ForEach(displayedRows) { row in
+                            NavigationLink(value: SettingsDestination.quoteDetail(row.id)) {
+                                QuotesListRowView(row: row)
+                                    .equatable()
                             }
                             .onAppear {
-                                loadMoreIfNeeded(currentHighlight: highlight)
+                                loadMoreIfNeeded(currentHighlightID: row.id)
                             }
                         }
 
@@ -1083,7 +1131,7 @@ private struct QuotesListView: View {
         .background(
             QuotesListRenderCompletionObserver(
                 token: renderObservationToken,
-                displayedCount: displayedHighlights.count,
+                displayedCount: displayedRows.count,
                 onRendered: completeRenderMeasurement
             )
             .frame(width: 0, height: 0)
@@ -1293,28 +1341,6 @@ private struct QuotesListView: View {
         .allowsHitTesting(false)
     }
 
-    private func quoteRow(_ highlight: Highlight) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(QuotesListPresentationModel.previewText(for: highlight.quoteText))
-                .font(.body)
-                .lineLimit(2)
-                .multilineTextAlignment(.leading)
-
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(QuotesListPresentationModel.bookTitleText(for: highlight))
-                    .font(.callout.weight(.medium))
-                Text("•")
-                    .foregroundStyle(.tertiary)
-                Text(QuotesListPresentationModel.authorText(for: highlight))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-            .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 4)
-    }
-
     private func refreshHighlights() {
         refreshHighlights(reason: "refresh")
     }
@@ -1330,6 +1356,7 @@ private struct QuotesListView: View {
         isLoadingNextPage = resetState.isLoadingNextPage
         hasMoreHighlights = resetState.hasMoreHighlights
         highlights = resetState.highlights
+        rowModels = makeRowModels(from: resetState.highlights)
         totalMatchingHighlightCount = resetState.totalMatchingHighlightCount
         availableBookTitles = resetState.availableBookTitles
         availableAuthors = resetState.availableAuthors
@@ -1365,6 +1392,7 @@ private struct QuotesListView: View {
             }
 
             highlights = snapshot.highlights
+            rowModels = makeRowModels(from: snapshot.highlights)
             totalMatchingHighlightCount = snapshot.totalMatchingHighlightCount
             hasMoreHighlights = QuotesListPagingPresentationModel.hasMoreHighlights(
                 loadedCount: snapshot.highlights.count,
@@ -1464,10 +1492,10 @@ private struct QuotesListView: View {
         }
     }
 
-    private func loadMoreIfNeeded(currentHighlight: Highlight) {
+    private func loadMoreIfNeeded(currentHighlightID: UUID) {
         guard QuotesListPagingPresentationModel.shouldLoadMore(
             highlights: highlights,
-            currentHighlightID: currentHighlight.id,
+            currentHighlightID: currentHighlightID,
             hasMoreHighlights: hasMoreHighlights,
             isLoadingHighlights: isLoadingHighlights,
             isLoadingNextPage: isLoadingNextPage,
@@ -1503,6 +1531,7 @@ private struct QuotesListView: View {
                 totalMatchingHighlightCount: totalMatchingHighlightCount
             )
             highlights = appendResult.highlights
+            rowModels = makeRowModels(from: appendResult.highlights)
             hasMoreHighlights = appendResult.hasMoreHighlights
             isLoadingNextPage = false
             loadMoreTask = nil
@@ -1545,6 +1574,10 @@ private struct QuotesListView: View {
         appState.deleteHighlights(ids: highlightIDsToDelete)
         pendingBulkDeleteHighlightIDs.removeAll()
         selectedHighlightIDs.removeAll()
+    }
+
+    private func makeRowModels(from highlights: [Highlight]) -> [QuotesListRowModel] {
+        highlights.map(QuotesListRowModel.init)
     }
 }
 

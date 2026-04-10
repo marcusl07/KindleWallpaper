@@ -27,6 +27,9 @@ require_pattern "$APP_STATE_FILE" 'async[[:space:]]+let[[:space:]]+loadedAuthors
 require_pattern "$APP_STATE_FILE" 'let[[:space:]]+quotesQueryService:[[:space:]]+QuotesQueryService' "app state service ownership"
 require_pattern "$SETTINGS_FILE" 'let[[:space:]]+snapshot[[:space:]]*=[[:space:]]*await[[:space:]]+quotesQueryService\.loadSnapshot' "quotes refresh service wiring"
 require_pattern "$SETTINGS_FILE" 'let[[:space:]]+nextPage[[:space:]]*=[[:space:]]*await[[:space:]]+quotesQueryService\.loadPage' "quotes pagination service wiring"
+require_pattern "$SETTINGS_FILE" 'struct[[:space:]]+QuotesListRowModel' "quotes row presentation model"
+require_pattern "$SETTINGS_FILE" 'struct[[:space:]]+QuotesListRowView:[[:space:]]+View,[[:space:]]+Equatable' "equatable quotes row view"
+require_pattern "$SETTINGS_FILE" 'split\(whereSeparator:[[:space:]]+\{[[:space:]]+\$0\.isWhitespace[[:space:]]+\}\)\.joined\(separator:[[:space:]]+" "\)' "non-regex preview whitespace collapse"
 
 cp "$ROOT_DIR/scripts/verify_t118a_main.swift" "$TMP_DIR/main.swift"
 
@@ -42,6 +45,6 @@ swiftc \
   "${TYPECHECK_FILES[@]/#/$ROOT_DIR/}" \
   -o "$TMP_DIR/verify_t118a_main"
 
-"$TMP_DIR/verify_t118a_main"
+KINDLEWALL_ROOT_DIR="$ROOT_DIR" "$TMP_DIR/verify_t118a_main"
 
 echo "T118-a verification passed"
