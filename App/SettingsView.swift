@@ -824,7 +824,7 @@ private enum QuotesListPresentationModel {
 private enum QuotesListPerformanceSignposts {
     private static let signposter = OSSignposter(
         subsystem: Bundle.main.bundleIdentifier ?? "com.marcuslo.KindleWall",
-        category: "QuotesPerformance"
+        category: .pointsOfInterest
     )
 
     static func beginRefresh(reason: String, sortMode: QuotesListSortMode) -> OSSignpostIntervalState {
