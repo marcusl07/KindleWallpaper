@@ -142,6 +142,24 @@ final class QuotesQueryService {
 
 @MainActor
 final class AppState: ObservableObject {
+    enum QuoteSaveError: Error, Equatable, LocalizedError {
+        case duplicateQuote
+
+        var errorDescription: String? {
+            switch self {
+            case .duplicateQuote:
+                return "A matching quote already exists in your library."
+            }
+        }
+
+        var recoverySuggestion: String? {
+            switch self {
+            case .duplicateQuote:
+                return "Edit the quote details or cancel to keep the original saved quote unchanged."
+            }
+        }
+    }
+
     struct WallpaperTarget: Equatable {
         let identifier: String
         let pixelWidth: Int
@@ -314,7 +332,7 @@ final class AppState: ObservableObject {
     typealias ReapplyCurrentWallpaperForTopology = () -> TopologyWallpaperReapplyOutcome
     typealias MarkHighlightShown = (UUID) -> Void
     typealias InsertHighlight = (Highlight) -> Void
-    typealias UpdateHighlight = (Highlight) -> Void
+    typealias UpdateHighlight = (Highlight) throws -> Void
     typealias DeleteHighlight = (UUID) -> Void
     typealias DeleteHighlights = ([UUID]) -> LibrarySnapshot
     typealias PrepareBulkBookDeletion = ([UUID]) -> BulkBookDeletionPlan
@@ -1020,7 +1038,7 @@ final class AppState: ObservableObject {
     }
 
     @discardableResult
-    func updateQuote(_ highlight: Highlight, with request: QuoteEditSaveRequest) -> Highlight {
+    func updateQuote(_ highlight: Highlight, with request: QuoteEditSaveRequest) throws -> Highlight {
         let updatedHighlight = Highlight(
             id: highlight.id,
             bookId: request.bookId,
@@ -1032,7 +1050,7 @@ final class AppState: ObservableObject {
             lastShownAt: highlight.lastShownAt,
             isEnabled: highlight.isEnabled
         )
-        updateHighlightAction(updatedHighlight)
+        try updateHighlightAction(updatedHighlight)
         refreshLibraryState()
         return updatedHighlight
     }
@@ -1326,7 +1344,13 @@ extension AppState {
             },
             markHighlightShown: DatabaseManager.markHighlightShown(id:),
             insertHighlight: DatabaseManager.insertHighlightIfNew(_:),
-            updateHighlight: DatabaseManager.updateHighlight(_:),
+            updateHighlight: { highlight in
+                do {
+                    try DatabaseManager.updateHighlight(highlight)
+                } catch DatabaseManager.HighlightUpdateError.duplicateDedupeKey {
+                    throw QuoteSaveError.duplicateQuote
+                }
+            },
             deleteHighlights: DatabaseManager.deleteHighlights(ids:),
             prepareBulkBookDeletion: DatabaseManager.makeBulkBookDeletionPlan(bookIDs:),
             deleteBooks: DatabaseManager.deleteBooks(using:),

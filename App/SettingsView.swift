@@ -594,6 +594,14 @@ private enum QuoteEditPresentationModel {
         highlight == nil ? "Add Quote" : "Edit Quote"
     }
 
+    static func errorMessage(for error: AppState.QuoteSaveError) -> String {
+        error.errorDescription ?? "Unable to save this quote."
+    }
+
+    static func errorRecoverySuggestion(for error: AppState.QuoteSaveError) -> String? {
+        error.recoverySuggestion
+    }
+
     static func canSave(quoteText: String) -> Bool {
         !trimmedValue(quoteText).isEmpty
     }
@@ -1769,7 +1777,7 @@ private struct QuoteDetailView: View {
                         isPresentingEditQuote = false
                     },
                     onSave: { request in
-                        let updatedHighlight = appState.updateQuote(highlight, with: request)
+                        let updatedHighlight = try appState.updateQuote(highlight, with: request)
                         highlight = updatedHighlight
                         wallpaperRequestMessage = nil
                         toggleMessage = nil
@@ -1876,15 +1884,16 @@ struct QuoteEditView: View {
     let highlight: Highlight?
     let books: [Book]
     let onCancel: () -> Void
-    let onSave: (QuoteEditSaveRequest) -> Void
+    let onSave: (QuoteEditSaveRequest) throws -> Void
 
     @State private var draft: QuoteEditDraft
+    @State private var saveError: AppState.QuoteSaveError?
 
     init(
         highlight: Highlight?,
         books: [Book],
         onCancel: @escaping () -> Void,
-        onSave: @escaping (QuoteEditSaveRequest) -> Void
+        onSave: @escaping (QuoteEditSaveRequest) throws -> Void
     ) {
         self.highlight = highlight
         self.books = books
@@ -1895,6 +1904,29 @@ struct QuoteEditView: View {
 
     var body: some View {
         Form {
+            if let saveError {
+                Section {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Unable to Save Quote", systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.red)
+
+                        Text(QuoteEditPresentationModel.errorMessage(for: saveError))
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        if let recoverySuggestion = QuoteEditPresentationModel.errorRecoverySuggestion(for: saveError) {
+                            Text(recoverySuggestion)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        Button("Dismiss") {
+                            self.saveError = nil
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+
             Section("Quote") {
                 TextEditor(text: $draft.quoteText)
                     .frame(minHeight: 180)
@@ -1926,7 +1958,15 @@ struct QuoteEditView: View {
 
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
-                    onSave(QuoteEditPresentationModel.saveRequest(draft: draft, books: books))
+                    saveError = nil
+
+                    do {
+                        try onSave(QuoteEditPresentationModel.saveRequest(draft: draft, books: books))
+                    } catch let error as AppState.QuoteSaveError {
+                        saveError = error
+                    } catch {
+                        assertionFailure("Unexpected quote save error: \(error)")
+                    }
                 }
                 .disabled(!canSave)
             }
@@ -2226,6 +2266,14 @@ enum QuoteEditViewTestProbe {
 
     static func canSave(quoteText: String) -> Bool {
         QuoteEditPresentationModel.canSave(quoteText: quoteText)
+    }
+
+    static func errorMessage(for error: AppState.QuoteSaveError) -> String {
+        QuoteEditPresentationModel.errorMessage(for: error)
+    }
+
+    static func errorRecoverySuggestion(for error: AppState.QuoteSaveError) -> String? {
+        QuoteEditPresentationModel.errorRecoverySuggestion(for: error)
     }
 
     static func matchedBookID(

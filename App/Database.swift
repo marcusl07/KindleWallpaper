@@ -3,6 +3,10 @@ import GRDB
 import OSLog
 
 enum DatabaseManager {
+    enum HighlightUpdateError: Error, Equatable {
+        case duplicateDedupeKey
+    }
+
     private static let tombstoneInsertBatchRowLimit = 400
     private static let quotesPerformanceSignposter = OSSignposter(
         subsystem: Bundle.main.bundleIdentifier ?? "com.marcuslo.KindleWall",
@@ -398,7 +402,7 @@ enum DatabaseManager {
         }
     }
 
-    static func updateHighlight(_ highlight: Highlight) {
+    static func updateHighlight(_ highlight: Highlight) throws {
         do {
             try shared.write { database in
                 try database.execute(
@@ -423,6 +427,8 @@ enum DatabaseManager {
                     ]
                 )
             }
+        } catch let error as DatabaseError where error.extendedResultCode == .SQLITE_CONSTRAINT_UNIQUE {
+            throw HighlightUpdateError.duplicateDedupeKey
         } catch {
             fatalError("Failed to update highlight: \(error)")
         }
