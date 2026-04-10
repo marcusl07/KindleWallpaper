@@ -1098,7 +1098,9 @@ private struct QuotesListView: View {
         let displayedRows = rowModels
 
         return VStack(alignment: .leading, spacing: 16) {
-            QuotesImportHeaderView()
+            if shouldShowImportHeader {
+                QuotesImportHeaderView()
+            }
 
             controlsRow(displayedCount: displayedRows.count)
 
@@ -1329,6 +1331,10 @@ private struct QuotesListView: View {
             isEditing: isEditingHighlights,
             selectedCount: selectedHighlightIDs.count
         )
+    }
+
+    private var shouldShowImportHeader: Bool {
+        isLoadingHighlights || appState.totalHighlightCount > 0 && !rowModels.isEmpty
     }
 
     private var hasActiveQuery: Bool {
