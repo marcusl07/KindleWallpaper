@@ -1332,59 +1332,42 @@ private struct QuotesListView: View {
         let currentSearchText = searchText
         let currentFilters = filters
         let currentSortMode = sortMode
+        let quotesQueryService = appState.quotesQueryService
         refreshTask = Task {
-            async let loadedHighlights = appState.loadHighlightsPage(
+            let snapshot = await quotesQueryService.loadSnapshot(
                 searchText: currentSearchText,
                 filters: currentFilters,
                 sortedBy: currentSortMode,
-                limit: QuotesListPagingConstants.pageSize,
-                offset: 0
+                pageSize: QuotesListPagingConstants.pageSize
             )
-            async let loadedCount = appState.loadHighlightsCount(
-                searchText: currentSearchText,
-                filters: currentFilters
-            )
-            async let loadedBookTitles = appState.loadAvailableHighlightBookTitles(
-                searchText: currentSearchText,
-                filters: currentFilters
-            )
-            async let loadedAuthors = appState.loadAvailableHighlightAuthors(
-                searchText: currentSearchText,
-                filters: currentFilters
-            )
-
-            let initialHighlights = await loadedHighlights
-            let matchingHighlightCount = await loadedCount
-            let nextAvailableBookTitles = await loadedBookTitles
-            let nextAvailableAuthors = await loadedAuthors
 
             guard !Task.isCancelled, currentGeneration == queryGeneration else {
                 return
             }
 
-            availableBookTitles = nextAvailableBookTitles
-            availableAuthors = nextAvailableAuthors
+            availableBookTitles = snapshot.availableBookTitles
+            availableAuthors = snapshot.availableAuthors
 
             guard reconcileFilters() == false else {
                 refreshTask = nil
                 return
             }
 
-            highlights = initialHighlights
-            totalMatchingHighlightCount = matchingHighlightCount
+            highlights = snapshot.highlights
+            totalMatchingHighlightCount = snapshot.totalMatchingHighlightCount
             hasMoreHighlights = QuotesListPagingPresentationModel.hasMoreHighlights(
-                loadedCount: initialHighlights.count,
-                totalMatchingHighlightCount: matchingHighlightCount
+                loadedCount: snapshot.highlights.count,
+                totalMatchingHighlightCount: snapshot.totalMatchingHighlightCount
             )
             isLoadingHighlights = false
             refreshTask = nil
             reconcileSelectedHighlights()
-            completeRefreshMeasurement(loadedCount: initialHighlights.count)
+            completeRefreshMeasurement(loadedCount: snapshot.highlights.count)
 
             pendingRenderSignpostState = QuotesListPerformanceSignposts.beginRender(
                 reason: reason,
                 sortMode: currentSortMode,
-                totalCount: initialHighlights.count
+                totalCount: snapshot.highlights.count
             )
             renderObservationToken = UUID()
         }
@@ -1492,9 +1475,10 @@ private struct QuotesListView: View {
         let currentFilters = filters
         let currentSortMode = sortMode
         let currentOffset = highlights.count
+        let quotesQueryService = appState.quotesQueryService
 
         loadMoreTask = Task {
-            let nextPage = await appState.loadHighlightsPage(
+            let nextPage = await quotesQueryService.loadPage(
                 searchText: currentSearchText,
                 filters: currentFilters,
                 sortedBy: currentSortMode,

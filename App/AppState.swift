@@ -10,10 +10,135 @@ private let wallpaperRotationQueue = DispatchQueue(
     qos: .userInitiated
 )
 
-private let quotesQueryQueue = DispatchQueue(
-    label: "KindleWall.AppState.QuotesQuery",
-    qos: .userInitiated
+private let quotesQueryWorkQueue = DispatchQueue(
+    label: "KindleWall.QuotesQueryService",
+    qos: .userInitiated,
+    attributes: .concurrent
 )
+
+struct QuotesQuerySnapshot: Equatable {
+    let highlights: [Highlight]
+    let totalMatchingHighlightCount: Int
+    let availableBookTitles: [String]
+    let availableAuthors: [String]
+}
+
+final class QuotesQueryService {
+    typealias FetchHighlightsPage = (String, QuotesListFilters, QuotesListSortMode, Int, Int) -> [Highlight]
+    typealias CountHighlights = (String, QuotesListFilters) -> Int
+    typealias FetchAvailableHighlightBookTitles = (String, QuotesListFilters) -> [String]
+    typealias FetchAvailableHighlightAuthors = (String, QuotesListFilters) -> [String]
+
+    private let fetchHighlightsPage: FetchHighlightsPage
+    private let countHighlights: CountHighlights
+    private let fetchAvailableHighlightBookTitles: FetchAvailableHighlightBookTitles
+    private let fetchAvailableHighlightAuthors: FetchAvailableHighlightAuthors
+
+    init(
+        fetchHighlightsPage: @escaping FetchHighlightsPage,
+        countHighlights: @escaping CountHighlights,
+        fetchAvailableHighlightBookTitles: @escaping FetchAvailableHighlightBookTitles,
+        fetchAvailableHighlightAuthors: @escaping FetchAvailableHighlightAuthors
+    ) {
+        self.fetchHighlightsPage = fetchHighlightsPage
+        self.countHighlights = countHighlights
+        self.fetchAvailableHighlightBookTitles = fetchAvailableHighlightBookTitles
+        self.fetchAvailableHighlightAuthors = fetchAvailableHighlightAuthors
+    }
+
+    func loadSnapshot(
+        searchText: String = "",
+        filters: QuotesListFilters = QuotesListFilters(),
+        sortedBy sortMode: QuotesListSortMode = .mostRecentlyAdded,
+        pageSize: Int
+    ) async -> QuotesQuerySnapshot {
+        async let loadedHighlights = loadPage(
+            searchText: searchText,
+            filters: filters,
+            sortedBy: sortMode,
+            limit: pageSize,
+            offset: 0
+        )
+        async let loadedCount = loadHighlightsCount(
+            searchText: searchText,
+            filters: filters
+        )
+        async let loadedBookTitles = loadAvailableHighlightBookTitles(
+            searchText: searchText,
+            filters: filters
+        )
+        async let loadedAuthors = loadAvailableHighlightAuthors(
+            searchText: searchText,
+            filters: filters
+        )
+
+        let highlights = await loadedHighlights
+        let totalMatchingHighlightCount = await loadedCount
+        let availableBookTitles = await loadedBookTitles
+        let availableAuthors = await loadedAuthors
+
+        return QuotesQuerySnapshot(
+            highlights: highlights,
+            totalMatchingHighlightCount: totalMatchingHighlightCount,
+            availableBookTitles: availableBookTitles,
+            availableAuthors: availableAuthors
+        )
+    }
+
+    func loadPage(
+        searchText: String = "",
+        filters: QuotesListFilters = QuotesListFilters(),
+        sortedBy sortMode: QuotesListSortMode = .mostRecentlyAdded,
+        limit: Int,
+        offset: Int
+    ) async -> [Highlight] {
+        let fetchHighlightsPage = self.fetchHighlightsPage
+        return await Self.executeQuery {
+            fetchHighlightsPage(searchText, filters, sortMode, limit, offset)
+        }
+    }
+
+    private func loadHighlightsCount(
+        searchText: String = "",
+        filters: QuotesListFilters = QuotesListFilters()
+    ) async -> Int {
+        let countHighlights = self.countHighlights
+        return await Self.executeQuery {
+            countHighlights(searchText, filters)
+        }
+    }
+
+    private func loadAvailableHighlightBookTitles(
+        searchText: String = "",
+        filters: QuotesListFilters = QuotesListFilters()
+    ) async -> [String] {
+        let fetchAvailableHighlightBookTitles = self.fetchAvailableHighlightBookTitles
+        return await Self.executeQuery {
+            fetchAvailableHighlightBookTitles(searchText, filters)
+        }
+    }
+
+    private func loadAvailableHighlightAuthors(
+        searchText: String = "",
+        filters: QuotesListFilters = QuotesListFilters()
+    ) async -> [String] {
+        let fetchAvailableHighlightAuthors = self.fetchAvailableHighlightAuthors
+        return await Self.executeQuery {
+            fetchAvailableHighlightAuthors(searchText, filters)
+        }
+    }
+
+    private static func executeQuery<T>(
+        _ work: @escaping () -> T
+    ) async -> T {
+        await withCheckedContinuation { continuation in
+            let workItem = DispatchWorkItem {
+                continuation.resume(returning: work())
+            }
+            quotesQueryWorkQueue.async(execute: workItem)
+        }
+    }
+}
 
 @MainActor
 final class AppState: ObservableObject {
@@ -191,6 +316,7 @@ final class AppState: ObservableObject {
     @Published private(set) var activeScheduleMode: RotationScheduleMode
     @Published private(set) var lastChangedAt: Date?
     @Published private(set) var capitalizeHighlightText: Bool
+    let quotesQueryService: QuotesQueryService
 
     private let userDefaults: UserDefaults
     private let pickNextHighlight: PickNextHighlight
@@ -214,10 +340,6 @@ final class AppState: ObservableObject {
     private let setHighlightEnabledAction: SetHighlightEnabled
     private let fetchAllBooks: FetchAllBooks
     private let fetchAllHighlights: FetchAllHighlights
-    private let fetchHighlightsPage: FetchHighlightsPage
-    private let countHighlights: CountHighlights
-    private let fetchAvailableHighlightBookTitles: FetchAvailableHighlightBookTitles
-    private let fetchAvailableHighlightAuthors: FetchAvailableHighlightAuthors
     private let fetchTotalHighlightCount: FetchTotalHighlightCount
     private let loadBackgroundPreviewStateAction: LoadBackgroundPreviewState
     private let saveBackgroundImageSelectionAction: SaveBackgroundImageSelection
@@ -239,17 +361,6 @@ final class AppState: ObservableObject {
     nonisolated private static func deliverRotationResultOnMain(_ work: @escaping () -> Void) {
         let workItem = DispatchWorkItem(block: work)
         DispatchQueue.main.async(execute: workItem)
-    }
-
-    nonisolated private static func executeQuotesQuery<T>(
-        _ work: @escaping () -> T
-    ) async -> T {
-        await withCheckedContinuation { continuation in
-            let workItem = DispatchWorkItem {
-                continuation.resume(returning: work())
-            }
-            quotesQueryQueue.async(execute: workItem)
-        }
     }
 
     init(
@@ -290,6 +401,7 @@ final class AppState: ObservableObject {
         countHighlights: @escaping CountHighlights = { _, _ in 0 },
         fetchAvailableHighlightBookTitles: @escaping FetchAvailableHighlightBookTitles = { _, _ in [] },
         fetchAvailableHighlightAuthors: @escaping FetchAvailableHighlightAuthors = { _, _ in [] },
+        quotesQueryService: QuotesQueryService? = nil,
         fetchTotalHighlightCount: @escaping FetchTotalHighlightCount = { 0 },
         loadBackgroundPreviewState: LoadBackgroundPreviewState? = nil,
         saveBackgroundImageSelection: @escaping SaveBackgroundImageSelection = { _ in },
@@ -361,6 +473,18 @@ final class AppState: ObservableObject {
             }
         }
 
+        let resolvedQuotesQueryService: QuotesQueryService
+        if let quotesQueryService {
+            resolvedQuotesQueryService = quotesQueryService
+        } else {
+            resolvedQuotesQueryService = QuotesQueryService(
+                fetchHighlightsPage: fetchHighlightsPage,
+                countHighlights: countHighlights,
+                fetchAvailableHighlightBookTitles: fetchAvailableHighlightBookTitles,
+                fetchAvailableHighlightAuthors: fetchAvailableHighlightAuthors
+            )
+        }
+
         self.userDefaults = userDefaults
         self.currentQuotePreview = currentQuotePreview
         self.importStatus = importStatus
@@ -372,6 +496,7 @@ final class AppState: ObservableObject {
         self.activeScheduleMode = activeScheduleMode ?? userDefaults.rotationScheduleMode
         self.lastChangedAt = userDefaults.lastChangedAt
         self.capitalizeHighlightText = userDefaults.capitalizeHighlightText
+        self.quotesQueryService = resolvedQuotesQueryService
         self.pickNextHighlight = pickNextHighlight
         self.loadBackgroundImageURLs = resolvedLoadBackgroundImageURLs
         self.selectBackgroundImageURL = resolvedSelectBackgroundImageURL
@@ -412,10 +537,6 @@ final class AppState: ObservableObject {
         self.setHighlightEnabledAction = setHighlightEnabled
         self.fetchAllBooks = fetchAllBooks
         self.fetchAllHighlights = fetchAllHighlights
-        self.fetchHighlightsPage = fetchHighlightsPage
-        self.countHighlights = countHighlights
-        self.fetchAvailableHighlightBookTitles = fetchAvailableHighlightBookTitles
-        self.fetchAvailableHighlightAuthors = fetchAvailableHighlightAuthors
         self.fetchTotalHighlightCount = fetchTotalHighlightCount
         self.loadBackgroundPreviewStateAction = resolvedLoadBackgroundPreviewState
         self.saveBackgroundImageSelectionAction = saveBackgroundImageSelection
@@ -839,49 +960,6 @@ final class AppState: ObservableObject {
 
     func loadAllHighlights(sortedBy sortMode: QuotesListSortMode = .mostRecentlyAdded) -> [Highlight] {
         fetchAllHighlights(sortMode)
-    }
-
-    func loadHighlightsPage(
-        searchText: String = "",
-        filters: QuotesListFilters = QuotesListFilters(),
-        sortedBy sortMode: QuotesListSortMode = .mostRecentlyAdded,
-        limit: Int,
-        offset: Int
-    ) async -> [Highlight] {
-        let fetchHighlightsPage = self.fetchHighlightsPage
-        return await AppState.executeQuotesQuery {
-            fetchHighlightsPage(searchText, filters, sortMode, limit, offset)
-        }
-    }
-
-    func loadHighlightsCount(
-        searchText: String = "",
-        filters: QuotesListFilters = QuotesListFilters()
-    ) async -> Int {
-        let countHighlights = self.countHighlights
-        return await AppState.executeQuotesQuery {
-            countHighlights(searchText, filters)
-        }
-    }
-
-    func loadAvailableHighlightBookTitles(
-        searchText: String = "",
-        filters: QuotesListFilters = QuotesListFilters()
-    ) async -> [String] {
-        let fetchAvailableHighlightBookTitles = self.fetchAvailableHighlightBookTitles
-        return await AppState.executeQuotesQuery {
-            fetchAvailableHighlightBookTitles(searchText, filters)
-        }
-    }
-
-    func loadAvailableHighlightAuthors(
-        searchText: String = "",
-        filters: QuotesListFilters = QuotesListFilters()
-    ) async -> [String] {
-        let fetchAvailableHighlightAuthors = self.fetchAvailableHighlightAuthors
-        return await AppState.executeQuotesQuery {
-            fetchAvailableHighlightAuthors(searchText, filters)
-        }
     }
 
     func addManualQuote(_ request: QuoteEditSaveRequest) {
