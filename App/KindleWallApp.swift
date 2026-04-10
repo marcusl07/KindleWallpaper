@@ -277,12 +277,12 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
     }
 
     private func restoreWindowVisibilityAfterAppDeactivation() {
-        restoreVisibilityIfNeeded(for: settingsWindowController?.window)
-        restoreVisibilityIfNeeded(for: backgroundsWindowController?.window)
+        restoreVisibilityIfNeeded(for: settingsWindowController)
+        restoreVisibilityIfNeeded(for: backgroundsWindowController)
     }
 
-    private func restoreVisibilityIfNeeded(for window: NSWindow?) {
-        guard let window else {
+    private func restoreVisibilityIfNeeded(for windowController: NSWindowController?) {
+        guard let windowController, let window = windowController.window else {
             return
         }
         guard !window.isVisible else {
@@ -293,7 +293,8 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
         }
 
         // Keep utility windows open after focus leaves this accessory app.
-        window.orderFront(nil)
+        windowController.showWindow(nil)
+        window.orderFrontRegardless()
     }
 
     func showWindow() {
@@ -388,6 +389,14 @@ private extension SettingsWindowCoordinator {
         settingsWindowController?.window?.close()
     }
 
+    func testRestoreWindowVisibilityAfterAppDeactivation() {
+        restoreWindowVisibilityAfterAppDeactivation()
+    }
+
+    func testOrderOutSettingsWindow() {
+        settingsWindowController?.window?.orderOut(nil)
+    }
+
     var testSettingsWindowControllerIdentifier: ObjectIdentifier? {
         settingsWindowController.map(ObjectIdentifier.init)
     }
@@ -398,6 +407,10 @@ private extension SettingsWindowCoordinator {
 
     var testIsSettingsWindowVisible: Bool {
         settingsWindowController?.window?.isVisible ?? false
+    }
+
+    var testIsSettingsWindowKey: Bool {
+        settingsWindowController?.window?.isKeyWindow ?? false
     }
 
     var testSettingsToolbarStyle: NSWindow.ToolbarStyle? {
@@ -442,6 +455,16 @@ struct SettingsWindowCoordinatorTestProbe {
         flushMainRunLoop()
     }
 
+    func orderOutSettingsWindow() {
+        coordinator.testOrderOutSettingsWindow()
+        flushMainRunLoop()
+    }
+
+    func restoreWindowVisibilityAfterAppDeactivation() {
+        coordinator.testRestoreWindowVisibilityAfterAppDeactivation()
+        flushMainRunLoop()
+    }
+
     var settingsWindowControllerIdentifier: ObjectIdentifier? {
         coordinator.testSettingsWindowControllerIdentifier
     }
@@ -452,6 +475,10 @@ struct SettingsWindowCoordinatorTestProbe {
 
     var isSettingsWindowVisible: Bool {
         coordinator.testIsSettingsWindowVisible
+    }
+
+    var isSettingsWindowKey: Bool {
+        coordinator.testIsSettingsWindowKey
     }
 
     var settingsToolbarStyle: NSWindow.ToolbarStyle? {

@@ -88,6 +88,7 @@ swiftc \
   "$ROOT_DIR/App/VolumeWatcher.swift" \
   "$ROOT_DIR/App/WallpaperHistoryPruner.swift" \
   "$ROOT_DIR/App/KindleWallApp.swift" \
+  "$ROOT_DIR/Models/BulkBookDeletionPlan.swift" \
   "$ROOT_DIR/Models/Book.swift" \
   "$ROOT_DIR/Models/Highlight.swift"
 
@@ -111,6 +112,7 @@ swiftc \
   "$ROOT_DIR/App/VolumeWatcher.swift" \
   "$ROOT_DIR/App/WallpaperHistoryPruner.swift" \
   "$ROOT_DIR/App/KindleWallApp.swift" \
+  "$ROOT_DIR/Models/BulkBookDeletionPlan.swift" \
   "$ROOT_DIR/Models/Book.swift" \
   "$ROOT_DIR/Models/Highlight.swift" \
   -o "$TMP_DIR/verify_t48_main"
