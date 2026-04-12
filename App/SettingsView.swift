@@ -1071,6 +1071,15 @@ private enum QuotesListPagingPresentationModel {
 }
 
 private struct QuotesListView: View {
+#if DEBUG
+    private enum DebugRenderPath: String, CaseIterable, Identifiable {
+        case listNavigation = "List + NavigationLink"
+        case scrollLazyStaticRows = "ScrollView + LazyVStack"
+
+        var id: Self { self }
+    }
+#endif
+
     @EnvironmentObject private var appState: AppState
     @State private var searchText = ""
     @State private var sortMode: QuotesListSortMode = .mostRecentlyAdded
@@ -1093,6 +1102,9 @@ private struct QuotesListView: View {
     @State private var renderObservationToken = UUID()
     @State private var refreshTask: Task<Void, Never>? = nil
     @State private var loadMoreTask: Task<Void, Never>? = nil
+#if DEBUG
+    @State private var debugRenderPath: DebugRenderPath = .listNavigation
+#endif
 
     var body: some View {
         let displayedRows = rowModels
@@ -1137,6 +1149,36 @@ private struct QuotesListView: View {
                     }
                     .listStyle(.inset)
                 } else {
+#if DEBUG
+                    if debugRenderPath == .scrollLazyStaticRows {
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 0) {
+                                ForEach(displayedRows) { row in
+                                    QuotesListRowView(row: row)
+                                        .equatable()
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            }
+                        }
+                    } else {
+                        List {
+                            ForEach(displayedRows) { row in
+                                NavigationLink(value: SettingsDestination.quoteDetail(row.id)) {
+                                    QuotesListRowView(row: row)
+                                        .equatable()
+                                }
+                                .onAppear {
+                                    loadMoreIfNeeded(currentHighlightID: row.id)
+                                }
+                            }
+
+                            if isLoadingNextPage {
+                                loadingMoreRow
+                            }
+                        }
+                        .listStyle(.inset)
+                    }
+#else
                     List {
                         ForEach(displayedRows) { row in
                             NavigationLink(value: SettingsDestination.quoteDetail(row.id)) {
@@ -1153,6 +1195,7 @@ private struct QuotesListView: View {
                         }
                     }
                     .listStyle(.inset)
+#endif
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1320,6 +1363,16 @@ private struct QuotesListView: View {
                     }
                 }
             }
+
+#if DEBUG
+            Picker("Render Path", selection: $debugRenderPath) {
+                ForEach(DebugRenderPath.allCases) { path in
+                    Text(path.rawValue)
+                        .tag(path)
+                }
+            }
+            .pickerStyle(.menu)
+#endif
         }
     }
 
