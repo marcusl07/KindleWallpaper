@@ -1071,6 +1071,8 @@ private enum QuotesListPagingPresentationModel {
 }
 
 private struct QuotesListView: View {
+    private static let searchRefreshDebounceInterval: TimeInterval = 0.3
+
     @EnvironmentObject private var appState: AppState
     @State private var searchText = ""
     @State private var sortMode: QuotesListSortMode = .mostRecentlyAdded
@@ -1093,6 +1095,18 @@ private struct QuotesListView: View {
     @State private var renderObservationToken = UUID()
     @State private var refreshTask: Task<Void, Never>? = nil
     @State private var loadMoreTask: Task<Void, Never>? = nil
+    @State private var pendingSearchRefreshTask: Task<Void, Never>? = nil
+
+    private let searchRefreshDebounceInterval: TimeInterval
+    private let searchRefreshDebounceScheduler: DebouncedTaskScheduler
+
+    init(
+        searchRefreshDebounceInterval: TimeInterval = QuotesListView.searchRefreshDebounceInterval,
+        searchRefreshDebounceScheduler: DebouncedTaskScheduler = DebouncedTaskScheduler()
+    ) {
+        self.searchRefreshDebounceInterval = searchRefreshDebounceInterval
+        self.searchRefreshDebounceScheduler = searchRefreshDebounceScheduler
+    }
 
     var body: some View {
         let displayedRows = rowModels
@@ -1215,7 +1229,7 @@ private struct QuotesListView: View {
             refreshHighlights(reason: "sortChanged")
         }
         .onChange(of: searchText) { _ in
-            refreshHighlights(reason: "searchChanged")
+            scheduleSearchRefresh()
         }
         .onChange(of: filters.selectedBookTitle) { _ in
             refreshHighlights(reason: "bookFilterChanged")
@@ -1380,6 +1394,7 @@ private struct QuotesListView: View {
     }
 
     private func refreshHighlights(reason: String) {
+        cancelPendingSearchRefresh()
         cancelActiveQuotesTasks()
         cancelPendingMeasurements()
 
@@ -1600,8 +1615,24 @@ private struct QuotesListView: View {
     }
 
     private func cancelQuotesLoading() {
+        cancelPendingSearchRefresh()
         cancelActiveQuotesTasks()
         cancelPendingMeasurements()
+    }
+
+    private func scheduleSearchRefresh() {
+        pendingSearchRefreshTask = searchRefreshDebounceScheduler.schedule(
+            after: searchRefreshDebounceInterval,
+            replacing: pendingSearchRefreshTask
+        ) {
+            pendingSearchRefreshTask = nil
+            refreshHighlights(reason: "searchChanged")
+        }
+    }
+
+    private func cancelPendingSearchRefresh() {
+        pendingSearchRefreshTask?.cancel()
+        pendingSearchRefreshTask = nil
     }
 
     private func deleteSelectedHighlights() {
