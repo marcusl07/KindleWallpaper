@@ -992,6 +992,11 @@ private enum QuotesListSearchPresentationModel {
         let shouldRefresh: Bool
     }
 
+    struct RefreshQueryState: Equatable {
+        let searchText: String
+        let shouldCancelPendingSearchRefresh: Bool
+    }
+
     static func hasActiveQuery(
         effectiveSearchText: String,
         filters: QuotesListFilters
@@ -1007,6 +1012,21 @@ private enum QuotesListSearchPresentationModel {
             effectiveSearchText: rawSearchText,
             shouldRefresh: rawSearchText != effectiveSearchText
         )
+    }
+
+    static func refreshQueryState(
+        reason: QuotesListRefreshReason,
+        effectiveSearchText: String,
+        searchTextOverride: String? = nil
+    ) -> RefreshQueryState {
+        RefreshQueryState(
+            searchText: searchTextOverride ?? effectiveSearchText,
+            shouldCancelPendingSearchRefresh: reason == .searchChanged
+        )
+    }
+
+    static func pagingSearchText(effectiveSearchText: String) -> String {
+        effectiveSearchText
     }
 }
 
@@ -1450,7 +1470,16 @@ private struct QuotesListView: View {
         reason: QuotesListRefreshReason,
         searchTextOverride: String? = nil
     ) {
-        cancelPendingSearchRefresh()
+        let refreshQueryState = QuotesListSearchPresentationModel.refreshQueryState(
+            reason: reason,
+            effectiveSearchText: effectiveSearchText,
+            searchTextOverride: searchTextOverride
+        )
+
+        if refreshQueryState.shouldCancelPendingSearchRefresh {
+            cancelPendingSearchRefresh()
+        }
+
         cancelActiveQuotesTasks()
         cancelPendingMeasurements()
 
@@ -1479,7 +1508,7 @@ private struct QuotesListView: View {
             sortMode: sortMode
         )
 
-        let currentSearchText = searchTextOverride ?? searchText
+        let currentSearchText = refreshQueryState.searchText
         let currentFilters = filters
         let currentSortMode = sortMode
         let quotesQueryService = appState.quotesQueryService
@@ -1642,7 +1671,9 @@ private struct QuotesListView: View {
 
         isLoadingNextPage = true
         let currentGeneration = queryGeneration
-        let currentSearchText = searchText
+        let currentSearchText = QuotesListSearchPresentationModel.pagingSearchText(
+            effectiveSearchText: effectiveSearchText
+        )
         let currentFilters = filters
         let currentSortMode = sortMode
         let currentOffset = highlights.count
@@ -2209,6 +2240,26 @@ enum QuotesListViewTestProbe {
         )
     }
 
+    static func refreshQueryState(
+        reason: String,
+        effectiveSearchText: String,
+        searchTextOverride: String? = nil
+    ) -> (searchText: String, shouldCancelPendingSearchRefresh: Bool)? {
+        guard let refreshReason = QuotesListRefreshReason(rawValue: reason) else {
+            return nil
+        }
+
+        let state = QuotesListSearchPresentationModel.refreshQueryState(
+            reason: refreshReason,
+            effectiveSearchText: effectiveSearchText,
+            searchTextOverride: searchTextOverride
+        )
+        return (
+            searchText: state.searchText,
+            shouldCancelPendingSearchRefresh: state.shouldCancelPendingSearchRefresh
+        )
+    }
+
     static func hasActiveQuery(
         effectiveSearchText: String,
         filters: QuotesListFilters
@@ -2216,6 +2267,12 @@ enum QuotesListViewTestProbe {
         QuotesListSearchPresentationModel.hasActiveQuery(
             effectiveSearchText: effectiveSearchText,
             filters: filters
+        )
+    }
+
+    static func pagingSearchText(effectiveSearchText: String) -> String {
+        QuotesListSearchPresentationModel.pagingSearchText(
+            effectiveSearchText: effectiveSearchText
         )
     }
 
