@@ -2123,6 +2123,16 @@ enum QuoteDetailViewTestProbe {
 }
 
 enum QuotesListViewTestProbe {
+    struct SimulatedRefreshResult {
+        let highlights: [Highlight]
+        let totalMatchingHighlightCount: Int
+        let availableBookTitles: [String]
+        let availableAuthors: [String]
+        let didAcceptPagePayload: Bool
+        let didRequestFilterOptions: Bool
+        let didAcceptFilterOptions: Bool
+    }
+
     static func reloadsFilterOptions(for reason: String) -> Bool {
         guard let refreshReason = QuotesListRefreshReason(rawValue: reason) else {
             return true
@@ -2138,6 +2148,110 @@ enum QuotesListViewTestProbe {
         QuotesListRefreshPresentationModel.shouldAcceptAsyncResult(
             capturedGeneration: capturedGeneration,
             activeQueryGeneration: activeQueryGeneration
+        )
+    }
+
+    static func simulateRefresh(
+        reason: String,
+        capturedGeneration: Int,
+        activeQueryGeneration: @escaping @Sendable () -> Int,
+        preservingHighlights: [Highlight],
+        totalMatchingHighlightCount: Int,
+        availableBookTitles: [String],
+        availableAuthors: [String],
+        searchText: String,
+        filters: QuotesListFilters,
+        sortMode: QuotesListSortMode,
+        quotesQueryService: QuotesQueryService
+    ) async -> SimulatedRefreshResult {
+        guard let refreshReason = QuotesListRefreshReason(rawValue: reason) else {
+            return SimulatedRefreshResult(
+                highlights: preservingHighlights,
+                totalMatchingHighlightCount: totalMatchingHighlightCount,
+                availableBookTitles: availableBookTitles,
+                availableAuthors: availableAuthors,
+                didAcceptPagePayload: false,
+                didRequestFilterOptions: false,
+                didAcceptFilterOptions: false
+            )
+        }
+
+        var acceptedHighlights = preservingHighlights
+        var acceptedTotalMatchingHighlightCount = totalMatchingHighlightCount
+        var acceptedBookTitles = availableBookTitles
+        var acceptedAuthors = availableAuthors
+
+        let pagePayload = await quotesQueryService.loadPagePayload(
+            searchText: searchText,
+            filters: filters,
+            sortedBy: sortMode,
+            pageSize: QuotesListPagingConstants.pageSize
+        )
+
+        let didAcceptPagePayload = QuotesListRefreshPresentationModel.shouldAcceptAsyncResult(
+            capturedGeneration: capturedGeneration,
+            activeQueryGeneration: activeQueryGeneration()
+        )
+        guard didAcceptPagePayload else {
+            return SimulatedRefreshResult(
+                highlights: acceptedHighlights,
+                totalMatchingHighlightCount: acceptedTotalMatchingHighlightCount,
+                availableBookTitles: acceptedBookTitles,
+                availableAuthors: acceptedAuthors,
+                didAcceptPagePayload: false,
+                didRequestFilterOptions: false,
+                didAcceptFilterOptions: false
+            )
+        }
+
+        acceptedHighlights = pagePayload.highlights
+        acceptedTotalMatchingHighlightCount = pagePayload.totalMatchingHighlightCount
+
+        let didRequestFilterOptions = QuotesListRefreshPresentationModel.reloadsFilterOptions(for: refreshReason)
+        guard didRequestFilterOptions else {
+            return SimulatedRefreshResult(
+                highlights: acceptedHighlights,
+                totalMatchingHighlightCount: acceptedTotalMatchingHighlightCount,
+                availableBookTitles: acceptedBookTitles,
+                availableAuthors: acceptedAuthors,
+                didAcceptPagePayload: true,
+                didRequestFilterOptions: false,
+                didAcceptFilterOptions: false
+            )
+        }
+
+        let filterOptions = await quotesQueryService.loadFilterOptions(
+            searchText: searchText,
+            filters: filters
+        )
+
+        let didAcceptFilterOptions = QuotesListRefreshPresentationModel.shouldAcceptAsyncResult(
+            capturedGeneration: capturedGeneration,
+            activeQueryGeneration: activeQueryGeneration()
+        )
+        guard didAcceptFilterOptions else {
+            return SimulatedRefreshResult(
+                highlights: acceptedHighlights,
+                totalMatchingHighlightCount: acceptedTotalMatchingHighlightCount,
+                availableBookTitles: acceptedBookTitles,
+                availableAuthors: acceptedAuthors,
+                didAcceptPagePayload: true,
+                didRequestFilterOptions: true,
+                didAcceptFilterOptions: false
+            )
+        }
+
+        acceptedBookTitles = filterOptions.availableBookTitles
+        acceptedAuthors = filterOptions.availableAuthors
+
+        return SimulatedRefreshResult(
+            highlights: acceptedHighlights,
+            totalMatchingHighlightCount: acceptedTotalMatchingHighlightCount,
+            availableBookTitles: acceptedBookTitles,
+            availableAuthors: acceptedAuthors,
+            didAcceptPagePayload: true,
+            didRequestFilterOptions: true,
+            didAcceptFilterOptions: true
         )
     }
 
