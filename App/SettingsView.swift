@@ -974,8 +974,33 @@ private enum QuotesListPagingConstants {
     static let loadMoreThreshold = 20
 }
 
+private enum QuotesListRefreshReason: String {
+    case appear
+    case refresh
+    case sortChanged
+    case searchChanged
+    case bookFilterChanged
+    case authorFilterChanged
+    case bookStatusChanged
+    case sourceFilterChanged
+    case libraryChanged
+}
+
+private enum QuotesListRefreshPresentationModel {
+    static func reloadsFilterOptions(for reason: QuotesListRefreshReason) -> Bool {
+        reason != .sortChanged
+    }
+
+    static func shouldAcceptAsyncResult(
+        capturedGeneration: Int,
+        activeQueryGeneration: Int
+    ) -> Bool {
+        capturedGeneration == activeQueryGeneration
+    }
+}
+
 private struct QuotesListRefreshResetState {
-    let nextQueryGeneration: Int
+    let queryGeneration: Int
     let isLoadingHighlights: Bool
     let isLoadingNextPage: Bool
     let hasMoreHighlights: Bool
@@ -992,9 +1017,9 @@ private struct QuotesListAppendPageResult {
 }
 
 private enum QuotesListPagingPresentationModel {
-    static func refreshResetState(after currentQueryGeneration: Int) -> QuotesListRefreshResetState {
+    static func refreshResetState(queryGeneration: Int) -> QuotesListRefreshResetState {
         refreshResetState(
-            after: currentQueryGeneration,
+            queryGeneration: queryGeneration,
             preservingHighlights: [],
             totalMatchingHighlightCount: 0,
             availableBookTitles: [],
@@ -1004,7 +1029,7 @@ private enum QuotesListPagingPresentationModel {
     }
 
     static func refreshResetState(
-        after currentQueryGeneration: Int,
+        queryGeneration: Int,
         preservingHighlights: [Highlight],
         totalMatchingHighlightCount: Int,
         availableBookTitles: [String],
@@ -1012,7 +1037,7 @@ private enum QuotesListPagingPresentationModel {
         selectedHighlightIDs: Set<UUID>
     ) -> QuotesListRefreshResetState {
         QuotesListRefreshResetState(
-            nextQueryGeneration: currentQueryGeneration + 1,
+            queryGeneration: queryGeneration,
             isLoadingHighlights: true,
             isLoadingNextPage: false,
             hasMoreHighlights: false,
@@ -1223,28 +1248,28 @@ private struct QuotesListView: View {
             .frame(minWidth: 520, minHeight: 460)
         }
         .onAppear {
-            refreshHighlights(reason: "appear")
+            refreshHighlights(reason: .appear)
         }
         .onChange(of: sortMode) { _ in
-            refreshHighlights(reason: "sortChanged")
+            refreshHighlights(reason: .sortChanged)
         }
         .onChange(of: searchText) { _ in
             scheduleSearchRefresh()
         }
         .onChange(of: filters.selectedBookTitle) { _ in
-            refreshHighlights(reason: "bookFilterChanged")
+            refreshHighlights(reason: .bookFilterChanged)
         }
         .onChange(of: filters.selectedAuthor) { _ in
-            refreshHighlights(reason: "authorFilterChanged")
+            refreshHighlights(reason: .authorFilterChanged)
         }
         .onChange(of: filters.bookStatus) { _ in
-            refreshHighlights(reason: "bookStatusChanged")
+            refreshHighlights(reason: .bookStatusChanged)
         }
         .onChange(of: filters.source) { _ in
-            refreshHighlights(reason: "sourceFilterChanged")
+            refreshHighlights(reason: .sourceFilterChanged)
         }
         .onReceive(appState.$totalHighlightCount) { _ in
-            refreshHighlights(reason: "libraryChanged")
+            refreshHighlights(reason: .libraryChanged)
         }
         .onDisappear(perform: cancelQuotesLoading)
         .alert(
@@ -1390,24 +1415,24 @@ private struct QuotesListView: View {
     }
 
     private func refreshHighlights() {
-        refreshHighlights(reason: "refresh")
+        refreshHighlights(reason: .refresh)
     }
 
-    private func refreshHighlights(reason: String) {
+    private func refreshHighlights(reason: QuotesListRefreshReason) {
         cancelPendingSearchRefresh()
         cancelActiveQuotesTasks()
         cancelPendingMeasurements()
 
+        let currentGeneration = queryGeneration + 1
+        queryGeneration = currentGeneration
         let resetState = QuotesListPagingPresentationModel.refreshResetState(
-            after: queryGeneration,
+            queryGeneration: currentGeneration,
             preservingHighlights: highlights,
             totalMatchingHighlightCount: totalMatchingHighlightCount,
             availableBookTitles: availableBookTitles,
             availableAuthors: availableAuthors,
             selectedHighlightIDs: selectedHighlightIDs
         )
-        let currentGeneration = resetState.nextQueryGeneration
-        queryGeneration = currentGeneration
         isLoadingHighlights = resetState.isLoadingHighlights
         isLoadingNextPage = resetState.isLoadingNextPage
         hasMoreHighlights = resetState.hasMoreHighlights
@@ -1419,7 +1444,7 @@ private struct QuotesListView: View {
         selectedHighlightIDs = resetState.selectedHighlightIDs
 
         pendingRefreshSignpostState = QuotesListPerformanceSignposts.beginRefresh(
-            reason: reason,
+            reason: reason.rawValue,
             sortMode: sortMode
         )
 
@@ -1427,6 +1452,7 @@ private struct QuotesListView: View {
         let currentFilters = filters
         let currentSortMode = sortMode
         let quotesQueryService = appState.quotesQueryService
+        let reloadsFilterOptions = QuotesListRefreshPresentationModel.reloadsFilterOptions(for: reason)
         refreshTask = Task {
             let pagePayload = await quotesQueryService.loadPagePayload(
                 searchText: currentSearchText,
@@ -1435,7 +1461,11 @@ private struct QuotesListView: View {
                 pageSize: QuotesListPagingConstants.pageSize
             )
 
-            guard !Task.isCancelled, currentGeneration == queryGeneration else {
+            guard !Task.isCancelled,
+                  QuotesListRefreshPresentationModel.shouldAcceptAsyncResult(
+                    capturedGeneration: currentGeneration,
+                    activeQueryGeneration: queryGeneration
+                  ) else {
                 return
             }
 
@@ -1451,18 +1481,27 @@ private struct QuotesListView: View {
             completeRefreshMeasurement(loadedCount: pagePayload.highlights.count)
 
             pendingRenderSignpostState = QuotesListPerformanceSignposts.beginRender(
-                reason: reason,
+                reason: reason.rawValue,
                 sortMode: currentSortMode,
                 totalCount: pagePayload.highlights.count
             )
             renderObservationToken = UUID()
+
+            guard reloadsFilterOptions else {
+                refreshTask = nil
+                return
+            }
 
             let filterOptions = await quotesQueryService.loadFilterOptions(
                 searchText: currentSearchText,
                 filters: currentFilters
             )
 
-            guard !Task.isCancelled, currentGeneration == queryGeneration else {
+            guard !Task.isCancelled,
+                  QuotesListRefreshPresentationModel.shouldAcceptAsyncResult(
+                    capturedGeneration: currentGeneration,
+                    activeQueryGeneration: queryGeneration
+                  ) else {
                 return
             }
 
@@ -1626,7 +1665,7 @@ private struct QuotesListView: View {
             replacing: pendingSearchRefreshTask
         ) {
             pendingSearchRefreshTask = nil
-            refreshHighlights(reason: "searchChanged")
+            refreshHighlights(reason: .searchChanged)
         }
     }
 
@@ -2084,6 +2123,24 @@ enum QuoteDetailViewTestProbe {
 }
 
 enum QuotesListViewTestProbe {
+    static func reloadsFilterOptions(for reason: String) -> Bool {
+        guard let refreshReason = QuotesListRefreshReason(rawValue: reason) else {
+            return true
+        }
+
+        return QuotesListRefreshPresentationModel.reloadsFilterOptions(for: refreshReason)
+    }
+
+    static func shouldAcceptAsyncResult(
+        capturedGeneration: Int,
+        activeQueryGeneration: Int
+    ) -> Bool {
+        QuotesListRefreshPresentationModel.shouldAcceptAsyncResult(
+            capturedGeneration: capturedGeneration,
+            activeQueryGeneration: activeQueryGeneration
+        )
+    }
+
     static func refreshResetState(after currentQueryGeneration: Int) -> (
         nextQueryGeneration: Int,
         isLoadingHighlights: Bool,
@@ -2094,9 +2151,11 @@ enum QuotesListViewTestProbe {
         availableBookTitles: [String],
         availableAuthors: [String]
     ) {
-        let state = QuotesListPagingPresentationModel.refreshResetState(after: currentQueryGeneration)
+        let state = QuotesListPagingPresentationModel.refreshResetState(
+            queryGeneration: currentQueryGeneration + 1
+        )
         return (
-            nextQueryGeneration: state.nextQueryGeneration,
+            nextQueryGeneration: state.queryGeneration,
             isLoadingHighlights: state.isLoadingHighlights,
             isLoadingNextPage: state.isLoadingNextPage,
             hasMoreHighlights: state.hasMoreHighlights,
@@ -2126,7 +2185,7 @@ enum QuotesListViewTestProbe {
         selectedHighlightIDs: Set<UUID>
     ) {
         let state = QuotesListPagingPresentationModel.refreshResetState(
-            after: currentQueryGeneration,
+            queryGeneration: currentQueryGeneration + 1,
             preservingHighlights: preservingHighlights,
             totalMatchingHighlightCount: totalMatchingHighlightCount,
             availableBookTitles: availableBookTitles,
@@ -2134,7 +2193,7 @@ enum QuotesListViewTestProbe {
             selectedHighlightIDs: selectedHighlightIDs
         )
         return (
-            nextQueryGeneration: state.nextQueryGeneration,
+            nextQueryGeneration: state.queryGeneration,
             isLoadingHighlights: state.isLoadingHighlights,
             isLoadingNextPage: state.isLoadingNextPage,
             hasMoreHighlights: state.hasMoreHighlights,

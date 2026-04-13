@@ -11,6 +11,7 @@
 		01B877DB1B634A3EBC1602FF /* BulkBookDeletionPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D30D48E2454492384CF3A9C /* BulkBookDeletionPlan.swift */; };
 		0F47113C8F5C5C3A9CDF9C42 /* KindleWallApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67306A31618FE6581F9F81F4 /* KindleWallApp.swift */; };
 		154FAA67B9134B920BB2E402 /* Database.swift in Sources */ = {isa = PBXBuildFile; fileRef = 126D2BED290D16D70E707B68 /* Database.swift */; };
+		1A2B3C4D5E6F708192A3B4C5 /* DebouncedTaskScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F708192A3B4C6 /* DebouncedTaskScheduler.swift */; };
 		28774E1A69A7CBA9EC0CEADB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9659821AC668F464106C9FC7 /* SettingsView.swift */; };
 		502DA8517C345512E26AA2A5 /* AppSupportPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC30AE2587D563491B3028B /* AppSupportPaths.swift */; };
 		5B8D8077D1544147A2C44872 /* DisplayTopologyCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21B8E3445F2F4E809A769813 /* DisplayTopologyCoordinator.swift */; };
@@ -34,6 +35,7 @@
 
 /* Begin PBXFileReference section */
 		126D2BED290D16D70E707B68 /* Database.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Database.swift; sourceTree = "<group>"; };
+		1A2B3C4D5E6F708192A3B4C6 /* DebouncedTaskScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebouncedTaskScheduler.swift; sourceTree = "<group>"; };
 		1D7702F347CAD3C65FDA7851 /* ClippingsParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClippingsParser.swift; sourceTree = "<group>"; };
 		21B8E3445F2F4E809A769813 /* DisplayTopologyCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTopologyCoordinator.swift; sourceTree = "<group>"; };
 		4D30D48E2454492384CF3A9C /* BulkBookDeletionPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BulkBookDeletionPlan.swift; sourceTree = "<group>"; };
@@ -97,6 +99,7 @@
 				A1B2C3D4E5F60718293A4B5C /* BackgroundImageLoader.swift */,
 				766BDB43991580ED0548AE8A /* BackgroundImageStore.swift */,
 				126D2BED290D16D70E707B68 /* Database.swift */,
+				1A2B3C4D5E6F708192A3B4C6 /* DebouncedTaskScheduler.swift */,
 				6B95F3F7592604E8603231A7 /* DisplayIdentityResolver.swift */,
 				21B8E3445F2F4E809A769813 /* DisplayTopologyCoordinator.swift */,
 				5DF13C66AA67590AFF96E390 /* ImportCoordinator.swift */,
@@ -204,6 +207,7 @@
 				01B877DB1B634A3EBC1602FF /* BulkBookDeletionPlan.swift in Sources */,
 				C06D7617B1725A8B722A3626 /* ClippingsParser.swift in Sources */,
 				154FAA67B9134B920BB2E402 /* Database.swift in Sources */,
+				1A2B3C4D5E6F708192A3B4C5 /* DebouncedTaskScheduler.swift in Sources */,
 				7E5D604A95B044E9BA3BC622 /* DisplayIdentityResolver.swift in Sources */,
 				5B8D8077D1544147A2C44872 /* DisplayTopologyCoordinator.swift in Sources */,
 				E3490F35A7ACB433674887C9 /* DedupeKeyBuilder.swift in Sources */,
