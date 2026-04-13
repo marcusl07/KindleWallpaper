@@ -1043,6 +1043,64 @@ private enum QuotesListRefreshPresentationModel {
     }
 }
 
+private enum QuotesListPrimaryContent: String {
+    case initialLoading
+    case libraryEmpty
+    case noMatchingResults
+    case list
+}
+
+private struct QuotesListContentPresentationState: Equatable {
+    let primaryContent: QuotesListPrimaryContent
+    let showsRefreshOverlay: Bool
+}
+
+private enum QuotesListContentPresentationModel {
+    static func resolvedPrimaryContent(
+        totalHighlightCount: Int,
+        displayedRowCount: Int
+    ) -> QuotesListPrimaryContent {
+        if totalHighlightCount == 0 {
+            return .libraryEmpty
+        }
+
+        if displayedRowCount == 0 {
+            return .noMatchingResults
+        }
+
+        return .list
+    }
+
+    static func presentationState(
+        isLoadingHighlights: Bool,
+        lastResolvedPrimaryContent: QuotesListPrimaryContent?,
+        totalHighlightCount: Int,
+        displayedRowCount: Int
+    ) -> QuotesListContentPresentationState {
+        if isLoadingHighlights {
+            if let lastResolvedPrimaryContent {
+                return QuotesListContentPresentationState(
+                    primaryContent: lastResolvedPrimaryContent,
+                    showsRefreshOverlay: true
+                )
+            }
+
+            return QuotesListContentPresentationState(
+                primaryContent: .initialLoading,
+                showsRefreshOverlay: false
+            )
+        }
+
+        return QuotesListContentPresentationState(
+            primaryContent: resolvedPrimaryContent(
+                totalHighlightCount: totalHighlightCount,
+                displayedRowCount: displayedRowCount
+            ),
+            showsRefreshOverlay: false
+        )
+    }
+}
+
 private struct QuotesListRefreshResetState {
     let queryGeneration: Int
     let isLoadingHighlights: Bool
@@ -1159,6 +1217,7 @@ private struct QuotesListView: View {
     @State private var isLoadingHighlights = false
     @State private var isLoadingNextPage = false
     @State private var hasMoreHighlights = false
+    @State private var lastResolvedPrimaryContent: QuotesListPrimaryContent? = nil
     @State private var queryGeneration = 0
     @State private var pendingRefreshSignpostState: OSSignpostIntervalState? = nil
     @State private var pendingRenderSignpostState: OSSignpostIntervalState? = nil
@@ -1180,6 +1239,12 @@ private struct QuotesListView: View {
 
     var body: some View {
         let displayedRows = rowModels
+        let contentPresentation = QuotesListContentPresentationModel.presentationState(
+            isLoadingHighlights: isLoadingHighlights,
+            lastResolvedPrimaryContent: lastResolvedPrimaryContent,
+            totalHighlightCount: appState.totalHighlightCount,
+            displayedRowCount: displayedRows.count
+        )
 
         return VStack(alignment: .leading, spacing: 16) {
             if shouldShowImportHeader {
@@ -1189,54 +1254,28 @@ private struct QuotesListView: View {
             controlsRow(displayedCount: displayedRows.count)
 
             Group {
-                if isLoadingHighlights {
+                if contentPresentation.primaryContent == .initialLoading {
                     ProgressView("Loading Quotes…")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if appState.totalHighlightCount == 0 {
+                } else if contentPresentation.primaryContent == .libraryEmpty {
                     QuotesEmptyStateView(
                         title: "No Quotes Yet",
                         systemImage: "quote.opening",
                         description: "Import `My Clippings.txt` to build your quote library."
                     )
-                } else if displayedRows.isEmpty {
+                } else if contentPresentation.primaryContent == .noMatchingResults {
                     QuotesEmptyStateView(
                         title: "No Matching Quotes",
                         systemImage: "magnifyingglass",
                         description: "Try a different search term or adjust the filters."
                     )
-                } else if isEditingHighlights {
-                    List(selection: $selectedHighlightIDs) {
-                        ForEach(displayedRows) { row in
-                            QuotesListRowView(row: row)
-                                .equatable()
-                                .tag(row.id)
-                                .onAppear {
-                                    loadMoreIfNeeded(currentHighlightID: row.id)
-                                }
-                        }
-
-                        if isLoadingNextPage {
-                            loadingMoreRow
-                        }
-                    }
-                    .listStyle(.inset)
                 } else {
-                    List {
-                        ForEach(displayedRows) { row in
-                            NavigationLink(value: SettingsDestination.quoteDetail(row.id)) {
-                                QuotesListRowView(row: row)
-                                    .equatable()
-                            }
-                            .onAppear {
-                                loadMoreIfNeeded(currentHighlightID: row.id)
-                            }
-                        }
-
-                        if isLoadingNextPage {
-                            loadingMoreRow
-                        }
-                    }
-                    .listStyle(.inset)
+                    quotesList(displayedRows: displayedRows)
+                }
+            }
+            .overlay {
+                if contentPresentation.showsRefreshOverlay {
+                    refreshOverlay
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1336,6 +1375,58 @@ private struct QuotesListView: View {
                 )
             )
         }
+    }
+
+    @ViewBuilder
+    private func quotesList(displayedRows: [QuotesListRowModel]) -> some View {
+        if isEditingHighlights {
+            List(selection: $selectedHighlightIDs) {
+                ForEach(displayedRows) { row in
+                    QuotesListRowView(row: row)
+                        .equatable()
+                        .tag(row.id)
+                        .onAppear {
+                            loadMoreIfNeeded(currentHighlightID: row.id)
+                        }
+                }
+
+                if isLoadingNextPage {
+                    loadingMoreRow
+                }
+            }
+            .listStyle(.inset)
+        } else {
+            List {
+                ForEach(displayedRows) { row in
+                    NavigationLink(value: SettingsDestination.quoteDetail(row.id)) {
+                        QuotesListRowView(row: row)
+                            .equatable()
+                    }
+                    .onAppear {
+                        loadMoreIfNeeded(currentHighlightID: row.id)
+                    }
+                }
+
+                if isLoadingNextPage {
+                    loadingMoreRow
+                }
+            }
+            .listStyle(.inset)
+        }
+    }
+
+    private var refreshOverlay: some View {
+        ZStack {
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .opacity(0.7)
+
+            ProgressView("Loading Quotes…")
+                .padding(.horizontal, 18)
+                .padding(.vertical, 14)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        }
+        .transition(.opacity)
     }
 
     private func controlsRow(displayedCount: Int) -> some View {
@@ -1537,6 +1628,10 @@ private struct QuotesListView: View {
                 totalMatchingHighlightCount: pagePayload.totalMatchingHighlightCount
             )
             isLoadingHighlights = false
+            lastResolvedPrimaryContent = QuotesListContentPresentationModel.resolvedPrimaryContent(
+                totalHighlightCount: appState.totalHighlightCount,
+                displayedRowCount: pagePayload.highlights.count
+            )
             reconcileSelectedHighlights()
             completeRefreshMeasurement(loadedCount: pagePayload.highlights.count)
 
@@ -2206,6 +2301,35 @@ enum QuotesListViewTestProbe {
         let didAcceptPagePayload: Bool
         let didRequestFilterOptions: Bool
         let didAcceptFilterOptions: Bool
+    }
+
+    static func resolvedPrimaryContent(
+        totalHighlightCount: Int,
+        displayedRowCount: Int
+    ) -> String {
+        QuotesListContentPresentationModel.resolvedPrimaryContent(
+            totalHighlightCount: totalHighlightCount,
+            displayedRowCount: displayedRowCount
+        ).rawValue
+    }
+
+    static func presentationState(
+        isLoadingHighlights: Bool,
+        lastResolvedPrimaryContent: String?,
+        totalHighlightCount: Int,
+        displayedRowCount: Int
+    ) -> (primaryContent: String, showsRefreshOverlay: Bool) {
+        let presentationState = QuotesListContentPresentationModel.presentationState(
+            isLoadingHighlights: isLoadingHighlights,
+            lastResolvedPrimaryContent: lastResolvedPrimaryContent.flatMap(QuotesListPrimaryContent.init(rawValue:)),
+            totalHighlightCount: totalHighlightCount,
+            displayedRowCount: displayedRowCount
+        )
+
+        return (
+            primaryContent: presentationState.primaryContent.rawValue,
+            showsRefreshOverlay: presentationState.showsRefreshOverlay
+        )
     }
 
     static func reloadsFilterOptions(for reason: String) -> Bool {
