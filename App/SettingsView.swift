@@ -1071,13 +1071,6 @@ private enum QuotesListPagingPresentationModel {
 }
 
 private struct QuotesListView: View {
-    private enum DebugRenderPath: String, CaseIterable, Identifiable {
-        case listNavigation = "List + NavigationLink"
-        case scrollLazyStaticRows = "ScrollView + LazyVStack"
-
-        var id: Self { self }
-    }
-
     @EnvironmentObject private var appState: AppState
     @State private var searchText = ""
     @State private var sortMode: QuotesListSortMode = .mostRecentlyAdded
@@ -1100,7 +1093,6 @@ private struct QuotesListView: View {
     @State private var renderObservationToken = UUID()
     @State private var refreshTask: Task<Void, Never>? = nil
     @State private var loadMoreTask: Task<Void, Never>? = nil
-    @State private var debugRenderPath: DebugRenderPath = .listNavigation
 
     var body: some View {
         let displayedRows = rowModels
@@ -1145,34 +1137,22 @@ private struct QuotesListView: View {
                     }
                     .listStyle(.inset)
                 } else {
-                    if debugRenderPath == .scrollLazyStaticRows {
-                        ScrollView {
-                            LazyVStack(alignment: .leading, spacing: 0) {
-                                ForEach(displayedRows) { row in
-                                    QuotesListRowView(row: row)
-                                        .equatable()
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                }
+                    List {
+                        ForEach(displayedRows) { row in
+                            NavigationLink(value: SettingsDestination.quoteDetail(row.id)) {
+                                QuotesListRowView(row: row)
+                                    .equatable()
+                            }
+                            .onAppear {
+                                loadMoreIfNeeded(currentHighlightID: row.id)
                             }
                         }
-                    } else {
-                        List {
-                            ForEach(displayedRows) { row in
-                                NavigationLink(value: SettingsDestination.quoteDetail(row.id)) {
-                                    QuotesListRowView(row: row)
-                                        .equatable()
-                                }
-                                .onAppear {
-                                    loadMoreIfNeeded(currentHighlightID: row.id)
-                                }
-                            }
 
-                            if isLoadingNextPage {
-                                loadingMoreRow
-                            }
+                        if isLoadingNextPage {
+                            loadingMoreRow
                         }
-                        .listStyle(.inset)
                     }
+                    .listStyle(.inset)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1340,13 +1320,6 @@ private struct QuotesListView: View {
                     }
                 }
             }
-            Picker("Render Path", selection: $debugRenderPath) {
-                ForEach(DebugRenderPath.allCases) { path in
-                    Text(path.rawValue)
-                        .tag(path)
-                }
-            }
-            .pickerStyle(.menu)
         }
     }
 
