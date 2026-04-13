@@ -2,6 +2,16 @@ import Foundation
 import GRDB
 import OSLog
 
+struct QuotesPagePayload: Equatable {
+    let highlights: [Highlight]
+    let totalMatchingHighlightCount: Int
+}
+
+struct QuotesFilterOptionsPayload: Equatable {
+    let availableBookTitles: [String]
+    let availableAuthors: [String]
+}
+
 enum DatabaseManager {
     enum HighlightUpdateError: Error, Equatable {
         case duplicateDedupeKey
@@ -797,6 +807,111 @@ enum DatabaseManager {
                 "failed=1"
             )
             fatalError("Failed to fetch highlight page: \(error)")
+        }
+    }
+
+    static func fetchHighlightPagePayload(
+        searchText: String = "",
+        filters: QuotesListFilters = QuotesListFilters(),
+        sortedBy sortMode: QuotesListSortMode = .mostRecentlyAdded,
+        limit: Int,
+        offset: Int
+    ) -> QuotesPagePayload {
+        guard limit > 0, offset >= 0 else {
+            return QuotesPagePayload(highlights: [], totalMatchingHighlightCount: 0)
+        }
+
+        let signpostState = quotesPerformanceSignposter.beginInterval(
+            "QuotesDBPagePayloadFetch",
+            "sortMode=\(sortMode.rawValue, privacy: .public) limit=\(limit) offset=\(offset)"
+        )
+
+        do {
+            let payload = try shared.read { database in
+                let totalMatchingHighlightCount = try fetchHighlightsCount(
+                    searchText: searchText,
+                    filters: filters,
+                    database: database
+                )
+                let highlights: [Highlight]
+                switch sortMode {
+                case .mostRecentlyAdded:
+                    highlights = try fetchMostRecentHighlightsPage(
+                        searchText: searchText,
+                        filters: filters,
+                        limit: limit,
+                        offset: offset,
+                        database: database
+                    )
+                case .alphabeticalByBook:
+                    let query = quotesAlphabeticalPageQuery(
+                        searchText: searchText,
+                        filters: filters,
+                        limit: limit,
+                        offset: offset
+                    )
+                    let rows = try Row.fetchAll(
+                        database,
+                        sql: query.sql,
+                        arguments: query.arguments
+                    )
+                    highlights = rows.map(highlight(from:))
+                }
+
+                return QuotesPagePayload(
+                    highlights: highlights,
+                    totalMatchingHighlightCount: totalMatchingHighlightCount
+                )
+            }
+
+            quotesPerformanceSignposter.endInterval(
+                "QuotesDBPagePayloadFetch",
+                signpostState,
+                "rows=\(payload.highlights.count) total=\(payload.totalMatchingHighlightCount)"
+            )
+            return payload
+        } catch {
+            quotesPerformanceSignposter.endInterval(
+                "QuotesDBPagePayloadFetch",
+                signpostState,
+                "failed=1"
+            )
+            fatalError("Failed to fetch highlight page payload: \(error)")
+        }
+    }
+
+    static func fetchHighlightFilterOptions(
+        searchText: String = "",
+        filters: QuotesListFilters = QuotesListFilters()
+    ) -> QuotesFilterOptionsPayload {
+        do {
+            return try shared.read { database in
+                let bookTitlesQuery = quotesFilterOptionsQuery(
+                    field: .bookTitle,
+                    searchText: searchText,
+                    filters: filters
+                )
+                let authorsQuery = quotesFilterOptionsQuery(
+                    field: .author,
+                    searchText: searchText,
+                    filters: filters
+                )
+
+                return QuotesFilterOptionsPayload(
+                    availableBookTitles: try String.fetchAll(
+                        database,
+                        sql: bookTitlesQuery.sql,
+                        arguments: bookTitlesQuery.arguments
+                    ),
+                    availableAuthors: try String.fetchAll(
+                        database,
+                        sql: authorsQuery.sql,
+                        arguments: authorsQuery.arguments
+                    )
+                )
+            }
+        } catch {
+            fatalError("Failed to fetch quote filter options: \(error)")
         }
     }
 

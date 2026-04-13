@@ -16,6 +16,18 @@ private let quotesQueryWorkQueue = DispatchQueue(
     attributes: .concurrent
 )
 
+#if !canImport(GRDB)
+struct QuotesPagePayload: Equatable {
+    let highlights: [Highlight]
+    let totalMatchingHighlightCount: Int
+}
+
+struct QuotesFilterOptionsPayload: Equatable {
+    let availableBookTitles: [String]
+    let availableAuthors: [String]
+}
+#endif
+
 struct QuotesQuerySnapshot: Equatable {
     let highlights: [Highlight]
     let totalMatchingHighlightCount: Int
@@ -24,26 +36,67 @@ struct QuotesQuerySnapshot: Equatable {
 }
 
 final class QuotesQueryService {
+    typealias FetchPagePayload = (String, QuotesListFilters, QuotesListSortMode, Int, Int) -> QuotesPagePayload
+    typealias FetchFilterOptions = (String, QuotesListFilters) -> QuotesFilterOptionsPayload
     typealias FetchHighlightsPage = (String, QuotesListFilters, QuotesListSortMode, Int, Int) -> [Highlight]
-    typealias CountHighlights = (String, QuotesListFilters) -> Int
-    typealias FetchAvailableHighlightBookTitles = (String, QuotesListFilters) -> [String]
-    typealias FetchAvailableHighlightAuthors = (String, QuotesListFilters) -> [String]
 
+    private let fetchPagePayload: FetchPagePayload
+    private let fetchFilterOptions: FetchFilterOptions
     private let fetchHighlightsPage: FetchHighlightsPage
-    private let countHighlights: CountHighlights
-    private let fetchAvailableHighlightBookTitles: FetchAvailableHighlightBookTitles
-    private let fetchAvailableHighlightAuthors: FetchAvailableHighlightAuthors
 
     init(
-        fetchHighlightsPage: @escaping FetchHighlightsPage,
-        countHighlights: @escaping CountHighlights,
-        fetchAvailableHighlightBookTitles: @escaping FetchAvailableHighlightBookTitles,
-        fetchAvailableHighlightAuthors: @escaping FetchAvailableHighlightAuthors
+        fetchPagePayload: @escaping FetchPagePayload,
+        fetchFilterOptions: @escaping FetchFilterOptions,
+        fetchHighlightsPage: @escaping FetchHighlightsPage
     ) {
+        self.fetchPagePayload = fetchPagePayload
+        self.fetchFilterOptions = fetchFilterOptions
         self.fetchHighlightsPage = fetchHighlightsPage
-        self.countHighlights = countHighlights
-        self.fetchAvailableHighlightBookTitles = fetchAvailableHighlightBookTitles
-        self.fetchAvailableHighlightAuthors = fetchAvailableHighlightAuthors
+    }
+
+    convenience init(
+        fetchHighlightsPage: @escaping FetchHighlightsPage,
+        countHighlights: @escaping (String, QuotesListFilters) -> Int,
+        fetchAvailableHighlightBookTitles: @escaping (String, QuotesListFilters) -> [String],
+        fetchAvailableHighlightAuthors: @escaping (String, QuotesListFilters) -> [String]
+    ) {
+        self.init(
+            fetchPagePayload: { searchText, filters, sortMode, limit, offset in
+                QuotesPagePayload(
+                    highlights: fetchHighlightsPage(searchText, filters, sortMode, limit, offset),
+                    totalMatchingHighlightCount: countHighlights(searchText, filters)
+                )
+            },
+            fetchFilterOptions: { searchText, filters in
+                QuotesFilterOptionsPayload(
+                    availableBookTitles: fetchAvailableHighlightBookTitles(searchText, filters),
+                    availableAuthors: fetchAvailableHighlightAuthors(searchText, filters)
+                )
+            },
+            fetchHighlightsPage: fetchHighlightsPage
+        )
+    }
+
+    func loadPagePayload(
+        searchText: String = "",
+        filters: QuotesListFilters = QuotesListFilters(),
+        sortedBy sortMode: QuotesListSortMode = .mostRecentlyAdded,
+        pageSize: Int
+    ) async -> QuotesPagePayload {
+        let fetchPagePayload = self.fetchPagePayload
+        return await Self.executeQuery {
+            fetchPagePayload(searchText, filters, sortMode, pageSize, 0)
+        }
+    }
+
+    func loadFilterOptions(
+        searchText: String = "",
+        filters: QuotesListFilters = QuotesListFilters()
+    ) async -> QuotesFilterOptionsPayload {
+        let fetchFilterOptions = self.fetchFilterOptions
+        return await Self.executeQuery {
+            fetchFilterOptions(searchText, filters)
+        }
     }
 
     func loadSnapshot(
@@ -52,36 +105,25 @@ final class QuotesQueryService {
         sortedBy sortMode: QuotesListSortMode = .mostRecentlyAdded,
         pageSize: Int
     ) async -> QuotesQuerySnapshot {
-        async let loadedHighlights = loadPage(
+        async let pagePayload = loadPagePayload(
             searchText: searchText,
             filters: filters,
             sortedBy: sortMode,
-            limit: pageSize,
-            offset: 0
+            pageSize: pageSize
         )
-        async let loadedCount = loadHighlightsCount(
-            searchText: searchText,
-            filters: filters
-        )
-        async let loadedBookTitles = loadAvailableHighlightBookTitles(
-            searchText: searchText,
-            filters: filters
-        )
-        async let loadedAuthors = loadAvailableHighlightAuthors(
+        async let filterOptions = loadFilterOptions(
             searchText: searchText,
             filters: filters
         )
 
-        let highlights = await loadedHighlights
-        let totalMatchingHighlightCount = await loadedCount
-        let availableBookTitles = await loadedBookTitles
-        let availableAuthors = await loadedAuthors
+        let loadedPagePayload = await pagePayload
+        let loadedFilterOptions = await filterOptions
 
         return QuotesQuerySnapshot(
-            highlights: highlights,
-            totalMatchingHighlightCount: totalMatchingHighlightCount,
-            availableBookTitles: availableBookTitles,
-            availableAuthors: availableAuthors
+            highlights: loadedPagePayload.highlights,
+            totalMatchingHighlightCount: loadedPagePayload.totalMatchingHighlightCount,
+            availableBookTitles: loadedFilterOptions.availableBookTitles,
+            availableAuthors: loadedFilterOptions.availableAuthors
         )
     }
 
@@ -95,36 +137,6 @@ final class QuotesQueryService {
         let fetchHighlightsPage = self.fetchHighlightsPage
         return await Self.executeQuery {
             fetchHighlightsPage(searchText, filters, sortMode, limit, offset)
-        }
-    }
-
-    private func loadHighlightsCount(
-        searchText: String = "",
-        filters: QuotesListFilters = QuotesListFilters()
-    ) async -> Int {
-        let countHighlights = self.countHighlights
-        return await Self.executeQuery {
-            countHighlights(searchText, filters)
-        }
-    }
-
-    private func loadAvailableHighlightBookTitles(
-        searchText: String = "",
-        filters: QuotesListFilters = QuotesListFilters()
-    ) async -> [String] {
-        let fetchAvailableHighlightBookTitles = self.fetchAvailableHighlightBookTitles
-        return await Self.executeQuery {
-            fetchAvailableHighlightBookTitles(searchText, filters)
-        }
-    }
-
-    private func loadAvailableHighlightAuthors(
-        searchText: String = "",
-        filters: QuotesListFilters = QuotesListFilters()
-    ) async -> [String] {
-        let fetchAvailableHighlightAuthors = self.fetchAvailableHighlightAuthors
-        return await Self.executeQuery {
-            fetchAvailableHighlightAuthors(searchText, filters)
         }
     }
 
@@ -1363,6 +1375,11 @@ extension AppState {
             countHighlights: DatabaseManager.countHighlights(searchText:filters:),
             fetchAvailableHighlightBookTitles: DatabaseManager.fetchAvailableHighlightBookTitles(searchText:filters:),
             fetchAvailableHighlightAuthors: DatabaseManager.fetchAvailableHighlightAuthors(searchText:filters:),
+            quotesQueryService: QuotesQueryService(
+                fetchPagePayload: DatabaseManager.fetchHighlightPagePayload(searchText:filters:sortedBy:limit:offset:),
+                fetchFilterOptions: DatabaseManager.fetchHighlightFilterOptions(searchText:filters:),
+                fetchHighlightsPage: DatabaseManager.fetchHighlightsPage(searchText:filters:sortedBy:limit:offset:)
+            ),
             fetchTotalHighlightCount: DatabaseManager.totalHighlightCount,
             loadBackgroundPreviewState: {
                 let result = backgroundStore.loadBackgroundImageCollection()

@@ -1413,7 +1413,7 @@ private struct QuotesListView: View {
         let currentSortMode = sortMode
         let quotesQueryService = appState.quotesQueryService
         refreshTask = Task {
-            let snapshot = await quotesQueryService.loadSnapshot(
+            let pagePayload = await quotesQueryService.loadPagePayload(
                 searchText: currentSearchText,
                 filters: currentFilters,
                 sortedBy: currentSortMode,
@@ -1424,32 +1424,42 @@ private struct QuotesListView: View {
                 return
             }
 
-            availableBookTitles = snapshot.availableBookTitles
-            availableAuthors = snapshot.availableAuthors
+            highlights = pagePayload.highlights
+            rowModels = makeRowModels(from: pagePayload.highlights)
+            totalMatchingHighlightCount = pagePayload.totalMatchingHighlightCount
+            hasMoreHighlights = QuotesListPagingPresentationModel.hasMoreHighlights(
+                loadedCount: pagePayload.highlights.count,
+                totalMatchingHighlightCount: pagePayload.totalMatchingHighlightCount
+            )
+            isLoadingHighlights = false
+            reconcileSelectedHighlights()
+            completeRefreshMeasurement(loadedCount: pagePayload.highlights.count)
+
+            pendingRenderSignpostState = QuotesListPerformanceSignposts.beginRender(
+                reason: reason,
+                sortMode: currentSortMode,
+                totalCount: pagePayload.highlights.count
+            )
+            renderObservationToken = UUID()
+
+            let filterOptions = await quotesQueryService.loadFilterOptions(
+                searchText: currentSearchText,
+                filters: currentFilters
+            )
+
+            guard !Task.isCancelled, currentGeneration == queryGeneration else {
+                return
+            }
+
+            availableBookTitles = filterOptions.availableBookTitles
+            availableAuthors = filterOptions.availableAuthors
 
             guard reconcileFilters() == false else {
                 refreshTask = nil
                 return
             }
 
-            highlights = snapshot.highlights
-            rowModels = makeRowModels(from: snapshot.highlights)
-            totalMatchingHighlightCount = snapshot.totalMatchingHighlightCount
-            hasMoreHighlights = QuotesListPagingPresentationModel.hasMoreHighlights(
-                loadedCount: snapshot.highlights.count,
-                totalMatchingHighlightCount: snapshot.totalMatchingHighlightCount
-            )
-            isLoadingHighlights = false
             refreshTask = nil
-            reconcileSelectedHighlights()
-            completeRefreshMeasurement(loadedCount: snapshot.highlights.count)
-
-            pendingRenderSignpostState = QuotesListPerformanceSignposts.beginRender(
-                reason: reason,
-                sortMode: currentSortMode,
-                totalCount: snapshot.highlights.count
-            )
-            renderObservationToken = UUID()
         }
     }
 
