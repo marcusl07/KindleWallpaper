@@ -986,6 +986,30 @@ private enum QuotesListRefreshReason: String {
     case libraryChanged
 }
 
+private enum QuotesListSearchPresentationModel {
+    struct SearchRefreshCommitState: Equatable {
+        let effectiveSearchText: String
+        let shouldRefresh: Bool
+    }
+
+    static func hasActiveQuery(
+        effectiveSearchText: String,
+        filters: QuotesListFilters
+    ) -> Bool {
+        !effectiveSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || filters.isActive
+    }
+
+    static func commitSearchRefresh(
+        rawSearchText: String,
+        effectiveSearchText: String
+    ) -> SearchRefreshCommitState {
+        SearchRefreshCommitState(
+            effectiveSearchText: rawSearchText,
+            shouldRefresh: rawSearchText != effectiveSearchText
+        )
+    }
+}
+
 private enum QuotesListRefreshPresentationModel {
     static func reloadsFilterOptions(for reason: QuotesListRefreshReason) -> Bool {
         reason != .sortChanged
@@ -1100,6 +1124,7 @@ private struct QuotesListView: View {
 
     @EnvironmentObject private var appState: AppState
     @State private var searchText = ""
+    @State private var effectiveSearchText = ""
     @State private var sortMode: QuotesListSortMode = .mostRecentlyAdded
     @State private var filters = QuotesListFilters()
     @State private var highlights: [Highlight] = []
@@ -1377,7 +1402,10 @@ private struct QuotesListView: View {
     }
 
     private var hasActiveQuery: Bool {
-        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || filters.isActive
+        QuotesListSearchPresentationModel.hasActiveQuery(
+            effectiveSearchText: effectiveSearchText,
+            filters: filters
+        )
     }
 
     private var deleteSelectedHelpText: String {
@@ -1418,7 +1446,10 @@ private struct QuotesListView: View {
         refreshHighlights(reason: .refresh)
     }
 
-    private func refreshHighlights(reason: QuotesListRefreshReason) {
+    private func refreshHighlights(
+        reason: QuotesListRefreshReason,
+        searchTextOverride: String? = nil
+    ) {
         cancelPendingSearchRefresh()
         cancelActiveQuotesTasks()
         cancelPendingMeasurements()
@@ -1448,7 +1479,7 @@ private struct QuotesListView: View {
             sortMode: sortMode
         )
 
-        let currentSearchText = searchText
+        let currentSearchText = searchTextOverride ?? searchText
         let currentFilters = filters
         let currentSortMode = sortMode
         let quotesQueryService = appState.quotesQueryService
@@ -1665,7 +1696,20 @@ private struct QuotesListView: View {
             replacing: pendingSearchRefreshTask
         ) {
             pendingSearchRefreshTask = nil
-            refreshHighlights(reason: .searchChanged)
+            let commitState = QuotesListSearchPresentationModel.commitSearchRefresh(
+                rawSearchText: searchText,
+                effectiveSearchText: effectiveSearchText
+            )
+            effectiveSearchText = commitState.effectiveSearchText
+
+            guard commitState.shouldRefresh else {
+                return
+            }
+
+            refreshHighlights(
+                reason: .searchChanged,
+                searchTextOverride: commitState.effectiveSearchText
+            )
         }
     }
 
@@ -2148,6 +2192,30 @@ enum QuotesListViewTestProbe {
         QuotesListRefreshPresentationModel.shouldAcceptAsyncResult(
             capturedGeneration: capturedGeneration,
             activeQueryGeneration: activeQueryGeneration
+        )
+    }
+
+    static func committedSearchRefresh(
+        rawSearchText: String,
+        effectiveSearchText: String
+    ) -> (effectiveSearchText: String, shouldRefresh: Bool) {
+        let state = QuotesListSearchPresentationModel.commitSearchRefresh(
+            rawSearchText: rawSearchText,
+            effectiveSearchText: effectiveSearchText
+        )
+        return (
+            effectiveSearchText: state.effectiveSearchText,
+            shouldRefresh: state.shouldRefresh
+        )
+    }
+
+    static func hasActiveQuery(
+        effectiveSearchText: String,
+        filters: QuotesListFilters
+    ) -> Bool {
+        QuotesListSearchPresentationModel.hasActiveQuery(
+            effectiveSearchText: effectiveSearchText,
+            filters: filters
         )
     }
 
