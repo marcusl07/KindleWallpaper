@@ -19,10 +19,18 @@ enum DatabaseManager {
 
     private static let tombstoneInsertBatchRowLimit = 400
     private static let importPreflightBatchRowLimit = 400
+    private static let importBookUpsertBatchRowLimit = 200
+    private static let importHighlightInsertBatchRowLimit = 90
     private static let quotesPerformanceSignposter = OSSignposter(
         subsystem: Bundle.main.bundleIdentifier ?? "com.marcuslo.KindleWall",
         category: "QuotesPerformance"
     )
+
+    private struct ImportHighlightInsertRow {
+        let highlight: Highlight
+        let quoteIdentityKey: String
+        let dedupeKey: String
+    }
 
     static let shared: DatabaseQueue = {
         do {
@@ -654,17 +662,14 @@ enum DatabaseManager {
     ) -> ImportPersistenceResult {
         do {
             return try shared.write { database in
-                var persistedBookIDsByParsedID: [UUID: UUID] = [:]
-                persistedBookIDsByParsedID.reserveCapacity(books.count)
-
-                for book in books {
-                    let persistedBookID = try upsertBook(book, database: database)
-                    persistedBookIDsByParsedID[book.id] = persistedBookID
-                }
+                let persistedBookIDsByParsedID = try bulkUpsertBooksForImport(
+                    books,
+                    database: database
+                )
 
                 var missingBookMappingCount = 0
-                var persistedHighlights: [Highlight] = []
-                persistedHighlights.reserveCapacity(highlights.count)
+                var importHighlightRows: [ImportHighlightInsertRow] = []
+                importHighlightRows.reserveCapacity(highlights.count)
 
                 for highlight in highlights {
                     guard
@@ -686,9 +691,21 @@ enum DatabaseManager {
                         lastShownAt: highlight.lastShownAt,
                         isEnabled: highlight.isEnabled
                     )
-                    persistedHighlights.append(persistedHighlight)
+                    importHighlightRows.append(
+                        ImportHighlightInsertRow(
+                            highlight: persistedHighlight,
+                            quoteIdentityKey: computeImportStableQuoteIdentity(
+                                bookTitle: persistedHighlight.bookTitle,
+                                author: persistedHighlight.author,
+                                location: persistedHighlight.location,
+                                quoteText: persistedHighlight.quoteText
+                            ),
+                            dedupeKey: computeDedupeKey(for: persistedHighlight)
+                        )
+                    )
                 }
 
+                let persistedHighlights = importHighlightRows.map(\.highlight)
                 let existingTombstoneIdentityKeys = try fetchExistingImportTombstoneIdentityKeys(
                     for: persistedHighlights,
                     database: database
@@ -698,31 +715,25 @@ enum DatabaseManager {
                     database: database
                 )
 
-                var insertedHighlightCount = 0
+                var survivingImportHighlightRows: [ImportHighlightInsertRow] = []
+                survivingImportHighlightRows.reserveCapacity(importHighlightRows.count)
 
-                for persistedHighlight in persistedHighlights {
-                    let quoteIdentityKey = computeImportStableQuoteIdentity(
-                        bookTitle: persistedHighlight.bookTitle,
-                        author: persistedHighlight.author,
-                        location: persistedHighlight.location,
-                        quoteText: persistedHighlight.quoteText
-                    )
-                    guard existingTombstoneIdentityKeys.contains(quoteIdentityKey) == false else {
+                for importHighlightRow in importHighlightRows {
+                    guard existingTombstoneIdentityKeys.contains(importHighlightRow.quoteIdentityKey) == false else {
                         continue
                     }
 
-                    let dedupeKey = computeDedupeKey(for: persistedHighlight)
-                    guard knownDedupeKeys.insert(dedupeKey).inserted else {
+                    guard knownDedupeKeys.insert(importHighlightRow.dedupeKey).inserted else {
                         continue
                     }
 
-                    try insertHighlight(
-                        persistedHighlight,
-                        dedupeKey: dedupeKey,
-                        database: database
-                    )
-                    insertedHighlightCount += 1
+                    survivingImportHighlightRows.append(importHighlightRow)
                 }
+
+                let insertedHighlightCount = try bulkInsertHighlightsForImport(
+                    survivingImportHighlightRows,
+                    database: database
+                )
 
                 return ImportPersistenceResult(
                     newHighlightCount: insertedHighlightCount,
@@ -1368,6 +1379,109 @@ enum DatabaseManager {
         }
     }
 
+    private static func bulkUpsertBooksForImport(
+        _ books: [Book],
+        database: Database
+    ) throws -> [UUID: UUID] {
+        guard !books.isEmpty else {
+            return [:]
+        }
+
+        var persistedBookIDsByParsedID: [UUID: UUID] = [:]
+        persistedBookIDsByParsedID.reserveCapacity(books.count)
+
+        var batchStartIndex = 0
+        while batchStartIndex < books.count {
+            let batchEndIndex = min(batchStartIndex + importBookUpsertBatchRowLimit, books.count)
+            let bookBatch = Array(books[batchStartIndex..<batchEndIndex])
+            let sqlValueTuples = Array(repeating: "(?, ?, ?, ?)", count: bookBatch.count).joined(separator: ", ")
+
+            var insertArguments: [(any DatabaseValueConvertible)?] = []
+            insertArguments.reserveCapacity(bookBatch.count * 4)
+
+            for book in bookBatch {
+                insertArguments.append(book.id.uuidString)
+                insertArguments.append(book.title)
+                insertArguments.append(book.author)
+                insertArguments.append(book.isEnabled ? 1 : 0)
+            }
+
+            try database.execute(
+                sql: """
+                INSERT OR IGNORE INTO books (id, title, author, isEnabled)
+                VALUES \(sqlValueTuples)
+                """,
+                arguments: StatementArguments(insertArguments)
+            )
+
+            let persistedBatchBookIDs = try fetchPersistedImportBookIDs(
+                for: bookBatch,
+                database: database
+            )
+            persistedBookIDsByParsedID.merge(persistedBatchBookIDs) { _, rhs in rhs }
+
+            guard persistedBatchBookIDs.count == bookBatch.count else {
+                fatalError("Failed to resolve all imported books after bulk upsert")
+            }
+
+            batchStartIndex = batchEndIndex
+        }
+
+        return persistedBookIDsByParsedID
+    }
+
+    private static func fetchPersistedImportBookIDs(
+        for books: [Book],
+        database: Database
+    ) throws -> [UUID: UUID] {
+        guard !books.isEmpty else {
+            return [:]
+        }
+
+        let sqlValueTuples = Array(repeating: "(?, ?, ?)", count: books.count).joined(separator: ", ")
+        var arguments: [(any DatabaseValueConvertible)?] = []
+        arguments.reserveCapacity(books.count * 3)
+
+        for book in books {
+            arguments.append(book.id.uuidString)
+            arguments.append(book.title)
+            arguments.append(book.author)
+        }
+
+        let rows = try Row.fetchAll(
+            database,
+            sql: """
+            WITH import_books(parsedID, title, author) AS (
+                VALUES \(sqlValueTuples)
+            )
+            SELECT import_books.parsedID, books.id AS storedID
+            FROM import_books
+            JOIN books
+                ON books.title = import_books.title
+               AND books.author = import_books.author
+            """,
+            arguments: StatementArguments(arguments)
+        )
+
+        var persistedBookIDsByParsedID: [UUID: UUID] = [:]
+        persistedBookIDsByParsedID.reserveCapacity(books.count)
+
+        for row in rows {
+            guard
+                let parsedBookIDValue: String = row["parsedID"],
+                let parsedBookID = UUID(uuidString: parsedBookIDValue),
+                let storedBookIDValue: String = row["storedID"],
+                let storedBookID = UUID(uuidString: storedBookIDValue)
+            else {
+                fatalError("Invalid book id returned while resolving imported books")
+            }
+
+            persistedBookIDsByParsedID[parsedBookID] = storedBookID
+        }
+
+        return persistedBookIDsByParsedID
+    }
+
     private static func upsertBook(_ book: Book, database: Database) throws -> UUID {
         try database.execute(
             sql: """
@@ -1444,6 +1558,65 @@ enum DatabaseManager {
                 dedupeKey
             ]
         )
+    }
+
+    private static func bulkInsertHighlightsForImport(
+        _ importHighlightRows: [ImportHighlightInsertRow],
+        database: Database
+    ) throws -> Int {
+        guard !importHighlightRows.isEmpty else {
+            return 0
+        }
+
+        var insertedHighlightCount = 0
+        var batchStartIndex = 0
+
+        while batchStartIndex < importHighlightRows.count {
+            let batchEndIndex = min(batchStartIndex + importHighlightInsertBatchRowLimit, importHighlightRows.count)
+            let highlightBatch = Array(importHighlightRows[batchStartIndex..<batchEndIndex])
+            let sqlValueTuples = Array(repeating: "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", count: highlightBatch.count)
+                .joined(separator: ", ")
+            var arguments: [(any DatabaseValueConvertible)?] = []
+            arguments.reserveCapacity(highlightBatch.count * 10)
+
+            for importHighlightRow in highlightBatch {
+                let highlight = importHighlightRow.highlight
+                arguments.append(highlight.id.uuidString)
+                arguments.append(highlight.bookId?.uuidString)
+                arguments.append(highlight.quoteText)
+                arguments.append(highlight.bookTitle)
+                arguments.append(highlight.author)
+                arguments.append(highlight.location)
+                arguments.append(iso8601String(from: highlight.dateAdded))
+                arguments.append(iso8601String(from: highlight.lastShownAt))
+                arguments.append(highlight.isEnabled ? 1 : 0)
+                arguments.append(importHighlightRow.dedupeKey)
+            }
+
+            try database.execute(
+                sql: """
+                INSERT INTO highlights (
+                    id,
+                    bookId,
+                    quoteText,
+                    bookTitle,
+                    author,
+                    location,
+                    dateAdded,
+                    lastShownAt,
+                    isEnabled,
+                    dedupeKey
+                )
+                VALUES \(sqlValueTuples)
+                """,
+                arguments: StatementArguments(arguments)
+            )
+
+            insertedHighlightCount += highlightBatch.count
+            batchStartIndex = batchEndIndex
+        }
+
+        return insertedHighlightCount
     }
 
     private static func fetchAllBooks(database: Database) throws -> [Book] {

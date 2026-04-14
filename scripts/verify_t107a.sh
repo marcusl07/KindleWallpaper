@@ -41,9 +41,9 @@ sed -n '/static func persistImport(/,/static func fetchAllBooks()/p' "$DATABASE_
 
 require_pattern "$PERSIST_IMPORT_BLOCK" 'fetchExistingImportTombstoneIdentityKeys' "persistImport tombstone preflight call"
 require_pattern "$PERSIST_IMPORT_BLOCK" 'fetchExistingHighlightDedupeKeys' "persistImport dedupe preflight call"
-require_pattern "$PERSIST_IMPORT_BLOCK" 'persistedHighlights\.append' "persistImport staged persisted highlights"
-require_pattern "$PERSIST_IMPORT_BLOCK" 'knownDedupeKeys\.insert\(dedupeKey\)\.inserted' "persistImport in-memory dedupe tracking"
-require_pattern "$PERSIST_IMPORT_BLOCK" 'try[[:space:]]+insertHighlight\(' "persistImport direct insert after preflight"
+require_pattern "$PERSIST_IMPORT_BLOCK" 'importHighlightRows\.append' "persistImport staged import highlight rows"
+require_pattern "$PERSIST_IMPORT_BLOCK" 'knownDedupeKeys\.insert\(importHighlightRow\.dedupeKey\)\.inserted' "persistImport in-memory dedupe tracking"
+require_pattern "$PERSIST_IMPORT_BLOCK" 'bulkInsertHighlightsForImport' "persistImport bulk insert after preflight"
 
 forbid_pattern "$PERSIST_IMPORT_BLOCK" 'hasHighlightTombstone\(highlight:[[:space:]]*persistedHighlight' "per-highlight tombstone lookup inside persistImport"
 forbid_pattern "$PERSIST_IMPORT_BLOCK" 'insertHighlightIfNew\(persistedHighlight' "per-highlight dedupe lookup inside persistImport"
