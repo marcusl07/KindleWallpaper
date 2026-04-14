@@ -96,11 +96,13 @@ swiftc \
   "$ROOT_DIR/App/AppSupportPaths.swift" \
   "$ROOT_DIR/App/BackgroundImageStore.swift" \
   "$ROOT_DIR/App/BackgroundImageLoader.swift" \
+  "$ROOT_DIR/App/DebouncedTaskScheduler.swift" \
   "$DISPLAY_IDENTITY_RESOLVER_FILE" \
   "$DISPLAY_TOPOLOGY_COORDINATOR_FILE" \
   "$ROOT_DIR/App/SettingsView.swift" \
   "$ROOT_DIR/App/WallpaperSetter.swift" \
   "$ROOT_DIR/Models/Book.swift" \
+  "$ROOT_DIR/Models/BulkBookDeletionPlan.swift" \
   "$ROOT_DIR/Models/Highlight.swift" \
   -o "$TMP_DIR/verify_t64_main"
 

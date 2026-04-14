@@ -887,6 +887,7 @@ final class AppState: ObservableObject {
 
     nonisolated static func reapplyCurrentWallpaperForTopology<Screen>(
         resolvedScreens: [WallpaperSetter.ResolvedScreen<Screen>],
+        storedWallpapers: [StoredGeneratedWallpaper] = [],
         preferredSourceScreen: Screen?,
         sameScreen: (Screen, Screen) -> Bool,
         currentDesktopImageURL: @escaping WallpaperSetter.CurrentDesktopImageURL<Screen>,
@@ -902,9 +903,11 @@ final class AppState: ObservableObject {
             sameScreen: sameScreen
         )
 
-        guard
-            let imageURL = sourceScreens.lazy.compactMap({ currentDesktopImageURL($0.screen) }).first
-        else {
+        guard let imageURL = topologyWallpaperSourceURL(
+            storedWallpapers: storedWallpapers,
+            sourceScreens: sourceScreens,
+            currentDesktopImageURL: currentDesktopImageURL
+        ) else {
             return .noCurrentWallpaper
         }
 
@@ -919,6 +922,40 @@ final class AppState: ObservableObject {
         } catch {
             return .applyFailure
         }
+    }
+
+    nonisolated private static func topologyWallpaperSourceURL<Screen>(
+        storedWallpapers: [StoredGeneratedWallpaper],
+        sourceScreens: [WallpaperSetter.ResolvedScreen<Screen>],
+        currentDesktopImageURL: WallpaperSetter.CurrentDesktopImageURL<Screen>
+    ) -> URL? {
+        let preferredResolvedScreen = sourceScreens.first
+        let firstResolvedScreen = sourceScreens.last ?? preferredResolvedScreen
+
+        let persistedSourceIdentifiers = [
+            preferredResolvedScreen?.identifier,
+            firstResolvedScreen?.identifier
+        ].compactMap { $0 }
+
+        for identifier in persistedSourceIdentifiers {
+            if let fileURL = storedWallpapers.first(where: { $0.targetIdentifier == identifier })?.fileURL {
+                return fileURL
+            }
+        }
+
+        if let sharedFileURL = storedWallpapers.first(where: {
+            $0.targetIdentifier == StoredGeneratedWallpaper.allScreensTargetIdentifier
+        })?.fileURL {
+            return sharedFileURL
+        }
+
+        for screen in sourceScreens.map(\.screen) {
+            if let imageURL = currentDesktopImageURL(screen) {
+                return imageURL
+            }
+        }
+
+        return nil
     }
 
     nonisolated private static func topologyWallpaperSourceScreens<Screen>(
@@ -1342,8 +1379,10 @@ extension AppState {
             },
             reapplyCurrentWallpaperForTopology: {
                 let resolvedScreens = DisplayIdentityResolver.resolvedConnectedScreens()
+                let storedWallpapers = userDefaults.loadReusableGeneratedWallpapers()
                 return AppState.reapplyCurrentWallpaperForTopology(
                     resolvedScreens: resolvedScreens,
+                    storedWallpapers: storedWallpapers,
                     preferredSourceScreen: NSScreen.main,
                     sameScreen: { lhs, rhs in lhs === rhs },
                     currentDesktopImageURL: { screen in

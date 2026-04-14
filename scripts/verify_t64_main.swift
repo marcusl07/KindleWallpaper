@@ -1011,7 +1011,7 @@ private func testAppStateExplicitMergeAndClearForwardToPersistenceBoundary() {
 }
 
 @MainActor
-private func testAppStateTopologyReapplySharesCurrentWallpaperAcrossConnectedScreens() {
+private func testAppStateTopologyReapplyPrefersPersistedPrimaryWallpaperOverLiveFallback() {
     let defaults = makeDefaults()
     defer { clearDefaults(defaults) }
 
@@ -1036,17 +1036,17 @@ private func testAppStateTopologyReapplySharesCurrentWallpaperAcrossConnectedScr
         originX: 1920,
         originY: 0
     )
-    let currentWallpaperURL = makeWallpaper(directory: directory, name: "current-shared.png")
-    let stalePersistedPrimaryURL = makeWallpaper(directory: directory, name: "stale-primary.png")
+    let persistedPrimaryURL = makeWallpaper(directory: directory, name: "persisted-primary-kindlewall.png")
     let stalePersistedExternalURL = makeWallpaper(directory: directory, name: "stale-external.png")
+    let sonomaHorizonURL = makeWallpaper(directory: directory, name: "sonoma-horizon-stand-in.heic")
 
     defaults.replaceReusableGeneratedWallpapers([
-        StoredGeneratedWallpaper(targetIdentifier: "display-a", fileURL: stalePersistedPrimaryURL),
+        StoredGeneratedWallpaper(targetIdentifier: "display-a", fileURL: persistedPrimaryURL),
         StoredGeneratedWallpaper(targetIdentifier: "display-b", fileURL: stalePersistedExternalURL)
     ])
 
     var activeImagesByScreen: [String: URL] = [
-        "screen-a": currentWallpaperURL,
+        "screen-a": sonomaHorizonURL,
         "screen-b": stalePersistedExternalURL
     ]
     var reappliedImagesByScreen: [String: URL] = [:]
@@ -1064,6 +1064,7 @@ private func testAppStateTopologyReapplySharesCurrentWallpaperAcrossConnectedScr
             reappliedImagesByScreen.removeAll()
             return AppState.reapplyCurrentWallpaperForTopology(
                 resolvedScreens: [primaryScreen, secondaryScreen],
+                storedWallpapers: defaults.loadReusableGeneratedWallpapers(),
                 preferredSourceScreen: "screen-a",
                 sameScreen: ==,
                 currentDesktopImageURL: { screen in
@@ -1080,36 +1081,142 @@ private func testAppStateTopologyReapplySharesCurrentWallpaperAcrossConnectedScr
     )
 
     let reapplyOutcome = appState.reapplyCurrentWallpaperForTopologyChange()
-    expectEqual(reapplyOutcome, .reapplied, "Expected topology reapply to share the active wallpaper across the connected screens")
-    expectEqual(reappliedImagesByScreen.count, 1, "Expected topology reapply to update only the mismatched screen")
+    expectEqual(reapplyOutcome, .reapplied, "Expected topology reapply to reuse the persisted primary KindleWall wallpaper before any transient live fallback")
+    expectEqual(reappliedImagesByScreen.count, 2, "Expected topology reapply to rewrite every screen whose live wallpaper drifted away from the resolved shared source")
     expectEqual(
         reappliedImagesByScreen["screen-a"],
-        nil,
-        "Expected topology reapply not to rewrite the already-correct source screen"
+        persistedPrimaryURL.standardizedFileURL,
+        "Expected topology reapply to restore the preferred source screen away from the transient Sonoma Horizon fallback"
     )
     expectEqual(
         reappliedImagesByScreen["screen-b"],
-        currentWallpaperURL.standardizedFileURL,
-        "Expected topology reapply to push the currently active wallpaper onto the secondary display"
+        persistedPrimaryURL.standardizedFileURL,
+        "Expected topology reapply to push the persisted primary KindleWall wallpaper onto the secondary display"
     )
     expect(
         reappliedImagesByScreen["screen-b"] != stalePersistedExternalURL.standardizedFileURL,
         "Expected topology reapply not to restore the stale persisted external-monitor wallpaper"
     )
+    expect(
+        reappliedImagesByScreen["screen-b"] != sonomaHorizonURL.standardizedFileURL,
+        "Expected topology reapply not to trust the transient Sonoma Horizon fallback as the shared source"
+    )
     expectEqual(
         activeImagesByScreen["screen-a"],
-        currentWallpaperURL.standardizedFileURL,
-        "Expected the source screen to keep the currently active shared wallpaper"
+        persistedPrimaryURL.standardizedFileURL,
+        "Expected topology reapply to restore the preferred source screen back to the persisted primary KindleWall wallpaper"
     )
     expectEqual(
         activeImagesByScreen["screen-b"],
-        currentWallpaperURL.standardizedFileURL,
-        "Expected topology reapply to leave all connected screens on the currently active wallpaper"
+        persistedPrimaryURL.standardizedFileURL,
+        "Expected topology reapply to leave all connected screens on the persisted primary KindleWall wallpaper"
     )
     expectEqual(
-        defaults.loadReusableGeneratedWallpapers().map(\.fileURL.standardizedFileURL),
-        [stalePersistedPrimaryURL.standardizedFileURL, stalePersistedExternalURL.standardizedFileURL],
-        "Expected topology reapply to ignore the stale persisted snapshot rather than restoring it"
+        defaults.loadReusableGeneratedWallpapers(),
+        [
+            StoredGeneratedWallpaper(targetIdentifier: "display-a", fileURL: persistedPrimaryURL),
+            StoredGeneratedWallpaper(targetIdentifier: "display-b", fileURL: stalePersistedExternalURL)
+        ],
+        "Expected topology reapply to preserve persisted storage after restoring from the saved primary-screen wallpaper"
+    )
+}
+
+@MainActor
+private func testSharedWallpaperTopologyReapplyFallsBackToPersistedAllScreensWallpaper() {
+    let directory = makeTemporaryDirectory(prefix: "kindlewall-t64-all-screens-fallback")
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let allScreensWallpaperURL = makeWallpaper(directory: directory, name: "persisted-all-screens.png")
+    let livePreferredURL = makeWallpaper(directory: directory, name: "live-preferred-stand-in.png")
+    let liveFirstURL = makeWallpaper(directory: directory, name: "live-first-stand-in.png")
+    let resolvedScreens = [
+        makeResolvedScreen(screen: "screen-a", identifier: "display-a"),
+        makeResolvedScreen(screen: "screen-b", identifier: "display-b")
+    ]
+    var activeImagesByScreen: [String: URL] = [
+        "screen-a": liveFirstURL,
+        "screen-b": livePreferredURL
+    ]
+    var appliedImagesByScreen: [String: URL] = [:]
+
+    let outcome = AppState.reapplyCurrentWallpaperForTopology(
+        resolvedScreens: resolvedScreens,
+        storedWallpapers: [
+            StoredGeneratedWallpaper(
+                targetIdentifier: StoredGeneratedWallpaper.allScreensTargetIdentifier,
+                fileURL: allScreensWallpaperURL
+            )
+        ],
+        preferredSourceScreen: "screen-b",
+        sameScreen: ==,
+        currentDesktopImageURL: { screen in
+            activeImagesByScreen[screen]
+        },
+        setDesktopImage: { url, screen in
+            let standardizedURL = url.standardizedFileURL
+            activeImagesByScreen[screen] = standardizedURL
+            appliedImagesByScreen[screen] = standardizedURL
+        }
+    )
+
+    expectEqual(outcome, .reapplied, "Expected topology reapply to fall back to the persisted all-screens wallpaper when targeted persisted entries are missing")
+    expectEqual(
+        appliedImagesByScreen,
+        [
+            "screen-a": allScreensWallpaperURL.standardizedFileURL,
+            "screen-b": allScreensWallpaperURL.standardizedFileURL
+        ],
+        "Expected topology reapply to use the persisted all-screens wallpaper instead of live desktop state"
+    )
+}
+
+@MainActor
+private func testSharedWallpaperTopologyReapplyFallsBackToLiveWallpaperWhenPersistedSourceIsUnavailable() {
+    let directory = makeTemporaryDirectory(prefix: "kindlewall-t64-live-fallback")
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let livePreferredURL = makeWallpaper(directory: directory, name: "live-preferred.png")
+    let staleSecondaryURL = makeWallpaper(directory: directory, name: "live-secondary-stale.png")
+    let resolvedScreens = [
+        makeResolvedScreen(screen: "screen-a", identifier: "display-a"),
+        makeResolvedScreen(screen: "screen-b", identifier: "display-b")
+    ]
+    var activeImagesByScreen: [String: URL] = [
+        "screen-a": livePreferredURL,
+        "screen-b": staleSecondaryURL
+    ]
+    var appliedImagesByScreen: [String: URL] = [:]
+
+    let outcome = AppState.reapplyCurrentWallpaperForTopology(
+        resolvedScreens: resolvedScreens,
+        storedWallpapers: [],
+        preferredSourceScreen: "screen-a",
+        sameScreen: ==,
+        currentDesktopImageURL: { screen in
+            activeImagesByScreen[screen]
+        },
+        setDesktopImage: { url, screen in
+            let standardizedURL = url.standardizedFileURL
+            activeImagesByScreen[screen] = standardizedURL
+            appliedImagesByScreen[screen] = standardizedURL
+        }
+    )
+
+    expectEqual(outcome, .reapplied, "Expected topology reapply to preserve the live shared-wallpaper behavior when persisted storage is unavailable")
+    expectEqual(
+        appliedImagesByScreen,
+        ["screen-b": livePreferredURL.standardizedFileURL],
+        "Expected topology reapply to use the preferred screen's live wallpaper when no persisted source survives loading"
+    )
+    expectEqual(
+        activeImagesByScreen["screen-a"],
+        livePreferredURL.standardizedFileURL,
+        "Expected the preferred live source screen to remain unchanged"
+    )
+    expectEqual(
+        activeImagesByScreen["screen-b"],
+        livePreferredURL.standardizedFileURL,
+        "Expected topology reapply to share the live preferred wallpaper across all connected screens"
     )
 }
 
@@ -1132,6 +1239,27 @@ private func testSharedWallpaperTopologyReapplyReportsAlreadyAppliedExplicitly()
     )
 
     expectEqual(outcome, .alreadyApplied, "Expected shared-wallpaper topology reapply to report an explicit no-op outcome")
+}
+
+@MainActor
+private func testSharedWallpaperTopologyReapplyReportsNoCurrentWallpaperWhenPersistedAndLiveSourcesAreMissing() {
+    let resolvedScreens = [
+        makeResolvedScreen(screen: "screen-a", identifier: "display-a"),
+        makeResolvedScreen(screen: "screen-b", identifier: "display-b")
+    ]
+
+    let outcome = AppState.reapplyCurrentWallpaperForTopology(
+        resolvedScreens: resolvedScreens,
+        storedWallpapers: [],
+        preferredSourceScreen: "screen-a",
+        sameScreen: ==,
+        currentDesktopImageURL: { _ in nil },
+        setDesktopImage: { (_: URL, _: String) in
+            fail("Expected missing-source topology reapply not to rewrite wallpapers")
+        }
+    )
+
+    expectEqual(outcome, .noCurrentWallpaper, "Expected topology reapply to report no current wallpaper only after persisted and live source lookups both fail")
 }
 
 @MainActor
@@ -1158,7 +1286,7 @@ private func testSharedWallpaperTopologyReapplyReportsApplyFailureExplicitly() {
 }
 
 @MainActor
-private func testDisplayTopologyCoordinatorDisplayChangesShareCurrentWallpaperAcrossConnectedScreens() {
+private func testDisplayTopologyCoordinatorDisplayChangesPreferPersistedPrimaryWallpaper() {
     let defaults = makeDefaults()
     defer { clearDefaults(defaults) }
 
@@ -1183,17 +1311,17 @@ private func testDisplayTopologyCoordinatorDisplayChangesShareCurrentWallpaperAc
         originX: 1920,
         originY: 0
     )
-    let currentWallpaperURL = makeWallpaper(directory: directory, name: "display-change-current-shared.png")
-    let stalePersistedPrimaryURL = makeWallpaper(directory: directory, name: "display-change-stale-primary.png")
+    let persistedPrimaryURL = makeWallpaper(directory: directory, name: "display-change-persisted-primary.png")
     let stalePersistedExternalURL = makeWallpaper(directory: directory, name: "display-change-stale-external.png")
+    let sonomaHorizonURL = makeWallpaper(directory: directory, name: "display-change-sonoma-horizon.heic")
 
     defaults.replaceReusableGeneratedWallpapers([
-        StoredGeneratedWallpaper(targetIdentifier: "display-a", fileURL: stalePersistedPrimaryURL),
+        StoredGeneratedWallpaper(targetIdentifier: "display-a", fileURL: persistedPrimaryURL),
         StoredGeneratedWallpaper(targetIdentifier: "display-b", fileURL: stalePersistedExternalURL)
     ])
 
     var activeImagesByScreen: [String: URL] = [
-        "screen-a": currentWallpaperURL,
+        "screen-a": sonomaHorizonURL,
         "screen-b": stalePersistedExternalURL
     ]
     var appliedImagesByScreen: [String: URL] = [:]
@@ -1216,6 +1344,7 @@ private func testDisplayTopologyCoordinatorDisplayChangesShareCurrentWallpaperAc
         reapplyCurrentWallpaperForTopology: {
             let outcome = AppState.reapplyCurrentWallpaperForTopology(
                 resolvedScreens: [primaryScreen, secondaryScreen],
+                storedWallpapers: defaults.loadReusableGeneratedWallpapers(),
                 preferredSourceScreen: "screen-a",
                 sameScreen: ==,
                 currentDesktopImageURL: { screen in
@@ -1254,35 +1383,42 @@ private func testDisplayTopologyCoordinatorDisplayChangesShareCurrentWallpaperAc
 
     scheduler.fire(at: 0)
     expectEqual(reapplyOutcomes, [.reapplied], "Expected the settled display-change topology reapply to report an explicit reapply outcome")
-    expectEqual(appliedImagesByScreen.count, 1, "Expected display-change topology reapply to update only the mismatched screen")
+    expectEqual(appliedImagesByScreen.count, 2, "Expected display-change topology reapply to rewrite every screen whose live wallpaper drifted away from the resolved shared source")
     expectEqual(
         appliedImagesByScreen["screen-a"],
-        nil,
-        "Expected display-change topology reapply to skip rewriting the source screen"
+        persistedPrimaryURL.standardizedFileURL,
+        "Expected display-change topology reapply to restore the preferred source screen away from the transient Sonoma Horizon fallback"
     )
     expectEqual(
         appliedImagesByScreen["screen-b"],
-        currentWallpaperURL.standardizedFileURL,
-        "Expected display-change topology reapply to push the active wallpaper onto the secondary screen"
+        persistedPrimaryURL.standardizedFileURL,
+        "Expected display-change topology reapply to push the persisted primary wallpaper onto the secondary screen"
     )
     expect(
         appliedImagesByScreen["screen-b"] != stalePersistedExternalURL.standardizedFileURL,
         "Expected display-change topology reapply not to restore the stale persisted external-monitor wallpaper"
     )
+    expect(
+        appliedImagesByScreen["screen-b"] != sonomaHorizonURL.standardizedFileURL,
+        "Expected display-change topology reapply not to trust the transient Sonoma Horizon live wallpaper"
+    )
     expectEqual(
         activeImagesByScreen["screen-a"],
-        currentWallpaperURL.standardizedFileURL,
-        "Expected display-change topology reapply to keep the source screen on the current wallpaper"
+        persistedPrimaryURL.standardizedFileURL,
+        "Expected display-change topology reapply to restore the preferred source screen to the persisted primary wallpaper"
     )
     expectEqual(
         activeImagesByScreen["screen-b"],
-        currentWallpaperURL.standardizedFileURL,
-        "Expected display-change topology reapply to leave all connected screens on the current wallpaper"
+        persistedPrimaryURL.standardizedFileURL,
+        "Expected display-change topology reapply to leave all connected screens on the persisted primary wallpaper"
     )
     expectEqual(
-        defaults.loadReusableGeneratedWallpapers().map(\.fileURL.standardizedFileURL),
-        [stalePersistedPrimaryURL.standardizedFileURL, stalePersistedExternalURL.standardizedFileURL],
-        "Expected display-change topology reapply not to restore from the stale persisted snapshot"
+        defaults.loadReusableGeneratedWallpapers(),
+        [
+            StoredGeneratedWallpaper(targetIdentifier: "display-a", fileURL: persistedPrimaryURL),
+            StoredGeneratedWallpaper(targetIdentifier: "display-b", fileURL: stalePersistedExternalURL)
+        ],
+        "Expected display-change topology reapply to preserve persisted storage after the topology pass"
     )
 }
 
@@ -1311,10 +1447,13 @@ await MainActor.run {
     testAppStateRotationUsesReplacePersistenceOnly()
     testAppStateRotationFailureSkipsPersistenceOperations()
     testAppStateExplicitMergeAndClearForwardToPersistenceBoundary()
-    testAppStateTopologyReapplySharesCurrentWallpaperAcrossConnectedScreens()
+    testAppStateTopologyReapplyPrefersPersistedPrimaryWallpaperOverLiveFallback()
+    testSharedWallpaperTopologyReapplyFallsBackToPersistedAllScreensWallpaper()
+    testSharedWallpaperTopologyReapplyFallsBackToLiveWallpaperWhenPersistedSourceIsUnavailable()
     testSharedWallpaperTopologyReapplyReportsAlreadyAppliedExplicitly()
+    testSharedWallpaperTopologyReapplyReportsNoCurrentWallpaperWhenPersistedAndLiveSourcesAreMissing()
     testSharedWallpaperTopologyReapplyReportsApplyFailureExplicitly()
-    testDisplayTopologyCoordinatorDisplayChangesShareCurrentWallpaperAcrossConnectedScreens()
+    testDisplayTopologyCoordinatorDisplayChangesPreferPersistedPrimaryWallpaper()
 }
 
 print("verify_t64_main passed")
