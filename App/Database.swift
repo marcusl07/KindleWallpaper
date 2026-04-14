@@ -18,6 +18,7 @@ enum DatabaseManager {
     }
 
     private static let tombstoneInsertBatchRowLimit = 400
+    private static let importPreflightBatchRowLimit = 400
     private static let quotesPerformanceSignposter = OSSignposter(
         subsystem: Bundle.main.bundleIdentifier ?? "com.marcuslo.KindleWall",
         category: "QuotesPerformance"
@@ -662,7 +663,8 @@ enum DatabaseManager {
                 }
 
                 var missingBookMappingCount = 0
-                var insertedHighlightCount = 0
+                var persistedHighlights: [Highlight] = []
+                persistedHighlights.reserveCapacity(highlights.count)
 
                 for highlight in highlights {
                     guard
@@ -684,14 +686,42 @@ enum DatabaseManager {
                         lastShownAt: highlight.lastShownAt,
                         isEnabled: highlight.isEnabled
                     )
+                    persistedHighlights.append(persistedHighlight)
+                }
 
-                    guard try hasHighlightTombstone(highlight: persistedHighlight, database: database) == false else {
+                let existingTombstoneIdentityKeys = try fetchExistingImportTombstoneIdentityKeys(
+                    for: persistedHighlights,
+                    database: database
+                )
+                var knownDedupeKeys = try fetchExistingHighlightDedupeKeys(
+                    for: persistedHighlights,
+                    database: database
+                )
+
+                var insertedHighlightCount = 0
+
+                for persistedHighlight in persistedHighlights {
+                    let quoteIdentityKey = computeImportStableQuoteIdentity(
+                        bookTitle: persistedHighlight.bookTitle,
+                        author: persistedHighlight.author,
+                        location: persistedHighlight.location,
+                        quoteText: persistedHighlight.quoteText
+                    )
+                    guard existingTombstoneIdentityKeys.contains(quoteIdentityKey) == false else {
                         continue
                     }
 
-                    if try insertHighlightIfNew(persistedHighlight, database: database) {
-                        insertedHighlightCount += 1
+                    let dedupeKey = computeDedupeKey(for: persistedHighlight)
+                    guard knownDedupeKeys.insert(dedupeKey).inserted else {
+                        continue
                     }
+
+                    try insertHighlight(
+                        persistedHighlight,
+                        dedupeKey: dedupeKey,
+                        database: database
+                    )
+                    insertedHighlightCount += 1
                 }
 
                 return ImportPersistenceResult(
@@ -1372,21 +1402,19 @@ enum DatabaseManager {
         database: Database
     ) throws -> Bool {
         let dedupeKey = computeDedupeKey(for: highlight)
-        let alreadyExists = try Int.fetchOne(
-            database,
-            sql: """
-            SELECT 1
-            FROM highlights
-            WHERE dedupeKey = ?
-            LIMIT 1
-            """,
-            arguments: [dedupeKey]
-        ) != nil
-
-        guard !alreadyExists else {
+        guard try hasHighlight(dedupeKey: dedupeKey, database: database) == false else {
             return false
         }
 
+        try insertHighlight(highlight, dedupeKey: dedupeKey, database: database)
+        return true
+    }
+
+    private static func insertHighlight(
+        _ highlight: Highlight,
+        dedupeKey: String,
+        database: Database
+    ) throws {
         try database.execute(
             sql: """
             INSERT INTO highlights (
@@ -1416,8 +1444,6 @@ enum DatabaseManager {
                 dedupeKey
             ]
         )
-
-        return true
     }
 
     private static func fetchAllBooks(database: Database) throws -> [Book] {
@@ -1504,6 +1530,95 @@ enum DatabaseManager {
             LIMIT 1
             """,
             arguments: [quoteIdentityKey]
+        ) != nil
+    }
+
+    private static func fetchExistingImportTombstoneIdentityKeys(
+        for highlights: [Highlight],
+        database: Database
+    ) throws -> Set<String> {
+        let quoteIdentityKeys = uniqueStringsPreservingOrder(from: highlights.map { highlight in
+            computeImportStableQuoteIdentity(
+                bookTitle: highlight.bookTitle,
+                author: highlight.author,
+                location: highlight.location,
+                quoteText: highlight.quoteText
+            )
+        })
+        guard !quoteIdentityKeys.isEmpty else {
+            return []
+        }
+
+        var existingQuoteIdentityKeys = Set<String>()
+        var batchStartIndex = 0
+
+        while batchStartIndex < quoteIdentityKeys.count {
+            let batchEndIndex = min(batchStartIndex + importPreflightBatchRowLimit, quoteIdentityKeys.count)
+            let quoteIdentityKeyBatch = Array(quoteIdentityKeys[batchStartIndex..<batchEndIndex])
+
+            let existingBatchKeys = try String.fetchAll(
+                database,
+                sql: """
+                SELECT quoteIdentityKey
+                FROM highlight_tombstones
+                WHERE quoteIdentityKey IN (\(sqlPlaceholders(count: quoteIdentityKeyBatch.count)))
+                """,
+                arguments: StatementArguments(quoteIdentityKeyBatch)
+            )
+            existingQuoteIdentityKeys.formUnion(existingBatchKeys)
+            batchStartIndex = batchEndIndex
+        }
+
+        return existingQuoteIdentityKeys
+    }
+
+    private static func fetchExistingHighlightDedupeKeys(
+        for highlights: [Highlight],
+        database: Database
+    ) throws -> Set<String> {
+        let dedupeKeys = uniqueStringsPreservingOrder(from: highlights.map { highlight in
+            computeDedupeKey(for: highlight)
+        })
+        guard !dedupeKeys.isEmpty else {
+            return []
+        }
+
+        var existingDedupeKeys = Set<String>()
+        var batchStartIndex = 0
+
+        while batchStartIndex < dedupeKeys.count {
+            let batchEndIndex = min(batchStartIndex + importPreflightBatchRowLimit, dedupeKeys.count)
+            let dedupeKeyBatch = Array(dedupeKeys[batchStartIndex..<batchEndIndex])
+
+            let existingBatchKeys = try String.fetchAll(
+                database,
+                sql: """
+                SELECT dedupeKey
+                FROM highlights
+                WHERE dedupeKey IN (\(sqlPlaceholders(count: dedupeKeyBatch.count)))
+                """,
+                arguments: StatementArguments(dedupeKeyBatch)
+            )
+            existingDedupeKeys.formUnion(existingBatchKeys)
+            batchStartIndex = batchEndIndex
+        }
+
+        return existingDedupeKeys
+    }
+
+    private static func hasHighlight(
+        dedupeKey: String,
+        database: Database
+    ) throws -> Bool {
+        try Int.fetchOne(
+            database,
+            sql: """
+            SELECT 1
+            FROM highlights
+            WHERE dedupeKey = ?
+            LIMIT 1
+            """,
+            arguments: [dedupeKey]
         ) != nil
     }
 
