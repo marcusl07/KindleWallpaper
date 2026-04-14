@@ -2841,6 +2841,19 @@ enum QuoteEditViewTestProbe {
         )
     }
 }
+
+enum SettingsImportFlowTestProbe {
+    static func refreshDecision(
+        for librarySnapshot: LibrarySnapshot?
+    ) -> (mode: String, snapshot: LibrarySnapshot?) {
+        switch ImportRefreshPresentationModel.refreshDecision(for: librarySnapshot) {
+        case .applySnapshot(let librarySnapshot):
+            return ("applySnapshot", librarySnapshot)
+        case .refreshLibraryState:
+            return ("refreshLibraryState", nil)
+        }
+    }
+}
 #endif
 
 private struct QuotesImportHeaderView: View {
@@ -2919,6 +2932,21 @@ private func chooseClippingsFile(for appState: AppState) {
     #endif
 }
 
+private enum ImportRefreshPresentationModel {
+    enum RefreshDecision: Equatable {
+        case applySnapshot(LibrarySnapshot)
+        case refreshLibraryState
+    }
+
+    static func refreshDecision(for librarySnapshot: LibrarySnapshot?) -> RefreshDecision {
+        if let librarySnapshot {
+            return .applySnapshot(librarySnapshot)
+        }
+
+        return .refreshLibraryState
+    }
+}
+
 @MainActor
 private func importClippingsFile(at fileURL: URL, for appState: AppState) {
     #if canImport(GRDB)
@@ -2939,9 +2967,10 @@ private func importClippingsFile(at fileURL: URL, for appState: AppState) {
             warningDetails: status.warningDetails
         )
     )
-    if let librarySnapshot = result.librarySnapshot {
+    switch ImportRefreshPresentationModel.refreshDecision(for: result.librarySnapshot) {
+    case .applySnapshot(let librarySnapshot):
         appState.applyLibrarySnapshot(librarySnapshot)
-    } else {
+    case .refreshLibraryState:
         appState.refreshLibraryState()
     }
     #else
