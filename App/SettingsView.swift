@@ -923,6 +923,64 @@ private struct QuotesListRenderCompletionObserver: NSViewRepresentable {
     }
 }
 
+private struct QuotesFilterControlsContentMetrics: Equatable {
+    let width: CGFloat
+    let minX: CGFloat
+}
+
+private struct QuotesFilterControlsViewportWidthPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+private struct QuotesFilterControlsContentMetricsPreferenceKey: PreferenceKey {
+    static var defaultValue = QuotesFilterControlsContentMetrics(width: 0, minX: 0)
+
+    static func reduce(value: inout QuotesFilterControlsContentMetrics, nextValue: () -> QuotesFilterControlsContentMetrics) {
+        value = nextValue()
+    }
+}
+
+private struct QuotesFilterOverflowAffordance: View {
+    let systemImage: String
+    let alignment: Alignment
+
+    var body: some View {
+        ZStack(alignment: alignment) {
+            Rectangle()
+                .fill(gradient)
+                .frame(width: 30)
+
+            Image(systemName: systemImage)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
+        .accessibilityHidden(true)
+    }
+
+    private var gradient: LinearGradient {
+        switch alignment {
+        case .leading:
+            return LinearGradient(
+                colors: [Color(nsColor: .windowBackgroundColor), Color(nsColor: .windowBackgroundColor).opacity(0)],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        default:
+            return LinearGradient(
+                colors: [Color(nsColor: .windowBackgroundColor).opacity(0), Color(nsColor: .windowBackgroundColor)],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        }
+    }
+}
+
 private struct QuotesListRowModel: Identifiable, Equatable {
     let highlight: Highlight
     let previewText: String
@@ -1055,6 +1113,11 @@ private struct QuotesListContentPresentationState: Equatable {
     let showsRefreshOverlay: Bool
 }
 
+private struct QuotesFilterOverflowPresentationState: Equatable {
+    let showsLeadingAffordance: Bool
+    let showsTrailingAffordance: Bool
+}
+
 private enum QuotesListContentPresentationModel {
     static func resolvedPrimaryContent(
         totalHighlightCount: Int,
@@ -1097,6 +1160,30 @@ private enum QuotesListContentPresentationModel {
                 displayedRowCount: displayedRowCount
             ),
             showsRefreshOverlay: false
+        )
+    }
+}
+
+private enum QuotesFilterOverflowPresentationModel {
+    static func presentationState(
+        viewportWidth: CGFloat,
+        contentWidth: CGFloat,
+        contentOffset: CGFloat,
+        tolerance: CGFloat = 1
+    ) -> QuotesFilterOverflowPresentationState {
+        guard viewportWidth > 0, contentWidth - viewportWidth > tolerance else {
+            return QuotesFilterOverflowPresentationState(
+                showsLeadingAffordance: false,
+                showsTrailingAffordance: false
+            )
+        }
+
+        let maxOffset = max(contentWidth - viewportWidth, 0)
+        let clampedOffset = min(max(contentOffset, 0), maxOffset)
+
+        return QuotesFilterOverflowPresentationState(
+            showsLeadingAffordance: clampedOffset > tolerance,
+            showsTrailingAffordance: maxOffset - clampedOffset > tolerance
         )
     }
 }
@@ -1199,6 +1286,7 @@ private enum QuotesListPagingPresentationModel {
 
 private struct QuotesListView: View {
     private static let searchRefreshDebounceInterval: TimeInterval = 0.3
+    private static let filterScrollCoordinateSpaceName = "QuotesFilterControlsScrollView"
 
     @EnvironmentObject private var appState: AppState
     @State private var searchText = ""
@@ -1222,6 +1310,9 @@ private struct QuotesListView: View {
     @State private var pendingRefreshSignpostState: OSSignpostIntervalState? = nil
     @State private var pendingRenderSignpostState: OSSignpostIntervalState? = nil
     @State private var renderObservationToken = UUID()
+    @State private var filterControlsViewportWidth: CGFloat = 0
+    @State private var filterControlsContentWidth: CGFloat = 0
+    @State private var filterControlsContentOffset: CGFloat = 0
     @State private var refreshTask: Task<Void, Never>? = nil
     @State private var loadMoreTask: Task<Void, Never>? = nil
     @State private var pendingSearchRefreshTask: Task<Void, Never>? = nil
@@ -1430,7 +1521,13 @@ private struct QuotesListView: View {
     }
 
     private func controlsRow(displayedCount: Int) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let overflowPresentation = QuotesFilterOverflowPresentationModel.presentationState(
+            viewportWidth: filterControlsViewportWidth,
+            contentWidth: filterControlsContentWidth,
+            contentOffset: filterControlsContentOffset
+        )
+
+        return VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .center, spacing: 12) {
                 Picker("Sort", selection: $sortMode) {
                     ForEach(QuotesListSortMode.allCases) { mode in
@@ -1448,53 +1545,121 @@ private struct QuotesListView: View {
                     .foregroundStyle(.secondary)
             }
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .center, spacing: 12) {
-                    Picker("Book", selection: $filters.selectedBookTitle) {
-                        Text("All Books")
-                            .tag(nil as String?)
+            HStack(alignment: .center, spacing: 12) {
+                ZStack {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(alignment: .center, spacing: 12) {
+                            Picker("Book", selection: $filters.selectedBookTitle) {
+                                Text("All Books")
+                                    .tag(nil as String?)
 
-                        ForEach(availableBookTitles, id: \.self) { title in
-                            Text(title)
-                                .tag(title as String?)
+                                ForEach(availableBookTitles, id: \.self) { title in
+                                    Text(title)
+                                        .tag(title as String?)
+                                }
+                            }
+                            .pickerStyle(.menu)
+
+                            Picker("Author", selection: $filters.selectedAuthor) {
+                                Text("All Authors")
+                                    .tag(nil as String?)
+
+                                ForEach(availableAuthors, id: \.self) { author in
+                                    Text(author)
+                                        .tag(author as String?)
+                                }
+                            }
+                            .pickerStyle(.menu)
+
+                            Picker("Book Status", selection: $filters.bookStatus) {
+                                ForEach(QuotesListBookStatusFilterMode.allCases) { mode in
+                                    Text(mode.title)
+                                        .tag(mode)
+                                }
+                            }
+                            .pickerStyle(.menu)
+
+                            Picker("Manual Added", selection: $filters.source) {
+                                ForEach(QuotesListSourceFilterMode.allCases) { mode in
+                                    Text(mode.title)
+                                        .tag(mode)
+                                }
+                            }
+                            .pickerStyle(.menu)
                         }
+                        .background(filterControlsContentMetricsReader)
                     }
-                    .pickerStyle(.menu)
-
-                    Picker("Author", selection: $filters.selectedAuthor) {
-                        Text("All Authors")
-                            .tag(nil as String?)
-
-                        ForEach(availableAuthors, id: \.self) { author in
-                            Text(author)
-                                .tag(author as String?)
-                        }
+                    .coordinateSpace(name: Self.filterScrollCoordinateSpaceName)
+                    .background(filterControlsViewportMetricsReader)
+                    .overlay(alignment: .leading) {
+                        overflowAffordanceOverlay(
+                            systemImage: "chevron.left",
+                            isVisible: overflowPresentation.showsLeadingAffordance,
+                            alignment: .leading
+                        )
                     }
-                    .pickerStyle(.menu)
-
-                    Picker("Book Status", selection: $filters.bookStatus) {
-                        ForEach(QuotesListBookStatusFilterMode.allCases) { mode in
-                            Text(mode.title)
-                                .tag(mode)
-                        }
+                    .overlay(alignment: .trailing) {
+                        overflowAffordanceOverlay(
+                            systemImage: "chevron.right",
+                            isVisible: overflowPresentation.showsTrailingAffordance,
+                            alignment: .trailing
+                        )
                     }
-                    .pickerStyle(.menu)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-                    Picker("Manual Added", selection: $filters.source) {
-                        ForEach(QuotesListSourceFilterMode.allCases) { mode in
-                            Text(mode.title)
-                                .tag(mode)
-                        }
-                    }
-                    .pickerStyle(.menu)
-
-                    if filters.isActive {
-                        Button("Reset Filters") {
-                            filters = QuotesListFilters()
-                        }
+                if filters.isActive {
+                    Button("Reset Filters") {
+                        filters = QuotesListFilters()
                     }
                 }
             }
+        }
+    }
+
+    private var filterControlsViewportMetricsReader: some View {
+        GeometryReader { geometry in
+            Color.clear
+                .preference(
+                    key: QuotesFilterControlsViewportWidthPreferenceKey.self,
+                    value: geometry.size.width
+                )
+        }
+        .onPreferenceChange(QuotesFilterControlsViewportWidthPreferenceKey.self) { width in
+            filterControlsViewportWidth = width
+        }
+    }
+
+    private var filterControlsContentMetricsReader: some View {
+        GeometryReader { geometry in
+            let frame = geometry.frame(in: .named(Self.filterScrollCoordinateSpaceName))
+            Color.clear
+                .preference(
+                    key: QuotesFilterControlsContentMetricsPreferenceKey.self,
+                    value: QuotesFilterControlsContentMetrics(
+                        width: frame.width,
+                        minX: frame.minX
+                    )
+                )
+        }
+        .onPreferenceChange(QuotesFilterControlsContentMetricsPreferenceKey.self) { metrics in
+            filterControlsContentWidth = metrics.width
+            filterControlsContentOffset = max(-metrics.minX, 0)
+        }
+    }
+
+    @ViewBuilder
+    private func overflowAffordanceOverlay(
+        systemImage: String,
+        isVisible: Bool,
+        alignment: Alignment
+    ) -> some View {
+        if isVisible {
+            QuotesFilterOverflowAffordance(
+                systemImage: systemImage,
+                alignment: alignment
+            )
+            .allowsHitTesting(false)
         }
     }
 
@@ -2733,6 +2898,22 @@ enum QuotesListViewTestProbe {
             hasActiveQuery: hasActiveQuery,
             isEditing: isEditing,
             selectedCount: selectedCount
+        )
+    }
+
+    static func filterOverflowPresentationState(
+        viewportWidth: CGFloat,
+        contentWidth: CGFloat,
+        contentOffset: CGFloat
+    ) -> (showsLeadingAffordance: Bool, showsTrailingAffordance: Bool) {
+        let state = QuotesFilterOverflowPresentationModel.presentationState(
+            viewportWidth: viewportWidth,
+            contentWidth: contentWidth,
+            contentOffset: contentOffset
+        )
+        return (
+            showsLeadingAffordance: state.showsLeadingAffordance,
+            showsTrailingAffordance: state.showsTrailingAffordance
         )
     }
 }

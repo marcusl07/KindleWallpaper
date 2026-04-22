@@ -766,3 +766,17 @@ Spec out the horizontal overflow issue in the filter row where the controls requ
 
 
 
+
+
+**T136-a — Add visible overflow affordances for the quotes filter row**
+Refactor the filter-controls row in `App/SettingsView.swift` so horizontally clipped filter controls advertise that more content exists offscreen without relying on always-visible scroll bars. Preserve the current horizontal scroll behavior and filter semantics, keep `Reset Filters` reachable when filters are active, and scope the UI change so sort/result-count layout and query behavior remain unchanged.
+
+
+
+**T137-a — Verify quotes filter-row overflow presentation behavior**
+Add deterministic coverage for any extracted filter-row overflow presentation/helper logic so compact widths correctly show or hide leading/trailing overflow affordances as scroll position changes. Re-run the existing quotes verification scripts after adding the new coverage to confirm the UI-only overflow work does not regress search, filtering, sorting, paging, or edit-mode selection behavior.
+
+## DB Performance
+
+
+
