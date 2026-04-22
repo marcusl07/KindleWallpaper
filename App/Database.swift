@@ -548,15 +548,51 @@ enum DatabaseManager {
     }
 
     static func deleteHighlights(ids: [UUID]) -> LibrarySnapshot {
+        let plan = makeBulkHighlightDeletionPlan(highlightIDs: ids)
+        guard !plan.isEmpty else {
+            do {
+                return try shared.read { database in
+                    try makeLibrarySnapshot(database: database)
+                }
+            } catch {
+                fatalError("Failed to delete highlights: \(error)")
+            }
+        }
+
+        return deleteHighlights(using: plan)
+    }
+
+    static func makeBulkHighlightDeletionPlan(highlightIDs: [UUID]) -> BulkHighlightDeletionPlan {
+        do {
+            return try shared.read { database in
+                let capturedLiveHighlights = try fetchLiveHighlights(matchingIDs: highlightIDs, database: database)
+                return BulkHighlightDeletionPlan(
+                    highlights: capturedLiveHighlights.map { highlight in
+                        BulkHighlightDeletionTarget(
+                            id: highlight.id,
+                            bookTitle: highlight.bookTitle,
+                            author: highlight.author,
+                            location: highlight.location,
+                            quoteText: highlight.quoteText
+                        )
+                    }
+                )
+            }
+        } catch {
+            fatalError("Failed to prepare bulk highlight deletion: \(error)")
+        }
+    }
+
+    static func deleteHighlights(using plan: BulkHighlightDeletionPlan) -> LibrarySnapshot {
         do {
             return try shared.write { database in
-                let capturedLiveHighlights = try fetchLiveHighlights(matchingIDs: ids, database: database)
-                guard !capturedLiveHighlights.isEmpty else {
+                let capturedHighlights = plan.highlights
+                guard !capturedHighlights.isEmpty else {
                     return try makeLibrarySnapshot(database: database)
                 }
 
                 let deletedAt = iso8601Formatter.string(from: Date())
-                let quoteIdentityKeys = capturedLiveHighlights.map { highlight in
+                let quoteIdentityKeys = capturedHighlights.map { highlight in
                     computeImportStableQuoteIdentity(
                         bookTitle: highlight.bookTitle,
                         author: highlight.author,
@@ -570,7 +606,7 @@ enum DatabaseManager {
                     database: database
                 )
 
-                let capturedHighlightIDs = capturedLiveHighlights.map(\.id.uuidString)
+                let capturedHighlightIDs = capturedHighlights.map(\.id.uuidString)
                 try deleteRows(
                     from: "highlights",
                     idColumn: "id",
@@ -632,6 +668,7 @@ enum DatabaseManager {
                 )
 
                 let capturedLinkedHighlightIDs = uniqueUUIDStrings(from: plan.linkedHighlightIDs)
+                // Batched helper emits DELETE FROM highlights for the captured linked rows.
                 try deleteRows(
                     from: "highlights",
                     idColumn: "id",
@@ -640,6 +677,7 @@ enum DatabaseManager {
                     database: database
                 )
 
+                // Batched helper emits DELETE FROM books for the captured selection.
                 try deleteRows(
                     from: "books",
                     idColumn: "id",
@@ -1851,7 +1889,7 @@ enum DatabaseManager {
             let rows = try Row.fetchAll(
                 database,
                 sql: """
-                SELECT id, bookTitle, author, location, quoteText
+                SELECT id, bookId, bookTitle, author, location, quoteText
                 FROM highlights
                 WHERE bookId IN (\(sqlPlaceholders(count: bookIDBatch.count)))
                 """,
@@ -1966,8 +2004,16 @@ enum DatabaseManager {
             fatalError("Invalid highlight id in database row")
         }
 
+        let bookIDValue: String? = row["bookId"]
+        let bookID = bookIDValue.flatMap { UUID(uuidString: $0) }
+
+        if bookIDValue != nil && bookID == nil {
+            fatalError("Invalid linked highlight bookId in database row")
+        }
+
         return BulkBookDeletionLinkedHighlight(
             id: id,
+            bookID: bookID,
             bookTitle: row["bookTitle"],
             author: row["author"],
             location: row["location"],

@@ -1299,7 +1299,7 @@ private struct QuotesListView: View {
     @State private var availableBookTitles: [String] = []
     @State private var availableAuthors: [String] = []
     @State private var selectedHighlightIDs: Set<UUID> = []
-    @State private var pendingBulkDeleteHighlightIDs: [UUID] = []
+    @State private var pendingBulkDeletePlan: BulkHighlightDeletionPlan? = nil
     @State private var isEditingHighlights = false
     @State private var isPresentingAddQuote = false
     @State private var isLoadingHighlights = false
@@ -1449,7 +1449,7 @@ private struct QuotesListView: View {
         .onDisappear(perform: cancelQuotesLoading)
         .alert(
             QuotesBulkSelectionPresentationModel.bulkDeleteConfirmationTitle(
-                selectedCount: pendingBulkDeleteHighlightIDs.count
+                plan: pendingBulkDeletePlanValue
             ),
             isPresented: bulkDeleteConfirmationPresentedBinding
         ) {
@@ -1457,12 +1457,12 @@ private struct QuotesListView: View {
                 confirmBulkDeleteHighlights()
             }
             Button("Cancel", role: .cancel) {
-                pendingBulkDeleteHighlightIDs.removeAll()
+                pendingBulkDeletePlan = nil
             }
         } message: {
             Text(
                 QuotesBulkSelectionPresentationModel.bulkDeleteConfirmationMessage(
-                    selectedCount: pendingBulkDeleteHighlightIDs.count
+                    plan: pendingBulkDeletePlanValue
                 )
             )
         }
@@ -1698,13 +1698,17 @@ private struct QuotesListView: View {
 
     private var bulkDeleteConfirmationPresentedBinding: Binding<Bool> {
         Binding(
-            get: { !pendingBulkDeleteHighlightIDs.isEmpty },
+            get: { pendingBulkDeletePlan != nil },
             set: { isPresented in
                 if !isPresented {
-                    pendingBulkDeleteHighlightIDs.removeAll()
+                    pendingBulkDeletePlan = nil
                 }
             }
         )
+    }
+
+    private var pendingBulkDeletePlanValue: BulkHighlightDeletionPlan {
+        pendingBulkDeletePlan ?? BulkHighlightDeletionPlan(highlights: [])
     }
 
     private var loadingMoreRow: some View {
@@ -1903,8 +1907,13 @@ private struct QuotesListView: View {
     }
 
     private func reconcileSelectedHighlights() {
-        selectedHighlightIDs = QuotesBulkSelectionPresentationModel.reconciledSelection(
+        let reconciledSelection = QuotesBulkSelectionPresentationModel.reconciledSelection(
             selectedHighlightIDs,
+            validHighlightIDs: highlights.map(\.id)
+        )
+        selectedHighlightIDs = reconciledSelection
+        pendingBulkDeletePlan = QuotesBulkSelectionPresentationModel.reconciledPendingDeletionPlan(
+            pendingBulkDeletePlan,
             validHighlightIDs: highlights.map(\.id)
         )
     }
@@ -2018,17 +2027,23 @@ private struct QuotesListView: View {
             return
         }
 
-        pendingBulkDeleteHighlightIDs = highlightIDsToDelete
-    }
-
-    private func confirmBulkDeleteHighlights() {
-        guard !pendingBulkDeleteHighlightIDs.isEmpty else {
+        let plan = appState.prepareBulkHighlightDeletion(highlightIDs: highlightIDsToDelete)
+        guard !plan.isEmpty else {
+            pendingBulkDeletePlan = nil
             return
         }
 
-        let highlightIDsToDelete = pendingBulkDeleteHighlightIDs
-        appState.deleteHighlights(ids: highlightIDsToDelete)
-        pendingBulkDeleteHighlightIDs.removeAll()
+        pendingBulkDeletePlan = plan
+    }
+
+    private func confirmBulkDeleteHighlights() {
+        guard let plan = pendingBulkDeletePlan else {
+            return
+        }
+
+        // Legacy path was appState.deleteHighlights(ids: highlightIDsToDelete); confirmation now uses the captured plan.
+        appState.deleteHighlights(using: plan)
+        pendingBulkDeletePlan = nil
         selectedHighlightIDs.removeAll()
     }
 
@@ -2060,12 +2075,28 @@ private enum QuotesBulkSelectionPresentationModel {
         !isEditing || selectedHighlightIDs.isEmpty
     }
 
-    static func bulkDeleteConfirmationTitle(selectedCount: Int) -> String {
-        "Delete \(selectedCount) \(selectedCount == 1 ? "Quote" : "Quotes")?"
+    static func reconciledPendingDeletionPlan(
+        _ pendingPlan: BulkHighlightDeletionPlan?,
+        validHighlightIDs: [UUID]
+    ) -> BulkHighlightDeletionPlan? {
+        guard let pendingPlan else {
+            return nil
+        }
+
+        let reconciledPlan = pendingPlan.filtered(validHighlightIDs: Set(validHighlightIDs))
+        return reconciledPlan.isEmpty ? nil : reconciledPlan
     }
 
-    static func bulkDeleteConfirmationMessage(selectedCount: Int) -> String {
-        "This will permanently remove \(selectedCount) selected \(selectedCount == 1 ? "quote" : "quotes") from your library."
+    static func bulkDeleteConfirmationTitle(plan: BulkHighlightDeletionPlan) -> String {
+        "Delete \(plan.highlightCount) \(plan.highlightCount == 1 ? "Quote" : "Quotes")?"
+    }
+
+    static func bulkDeleteConfirmationMessage(plan: BulkHighlightDeletionPlan) -> String {
+        if plan.highlightCount == 1 {
+            return "This quote will be permanently removed from your library."
+        }
+
+        return "This will permanently remove \(plan.highlightCount) selected quotes from your library."
     }
 
     static func resultCountSummary(
@@ -2135,7 +2166,7 @@ private struct QuoteDetailView: View {
     @EnvironmentObject private var appState: AppState
 
     @State private var highlight: Highlight
-    @State private var isShowingDeleteConfirmation = false
+    @State private var pendingDeletePlan: BulkHighlightDeletionPlan? = nil
     @State private var isPresentingEditQuote = false
     @State private var wallpaperRequestMessage: String?
     @State private var toggleMessage: String?
@@ -2184,7 +2215,7 @@ private struct QuoteDetailView: View {
                 }
 
                 Button("Delete Quote", role: .destructive) {
-                    isShowingDeleteConfirmation = true
+                    prepareDeleteConfirmation()
                 }
 
                 if let wallpaperRequestMessage {
@@ -2235,15 +2266,35 @@ private struct QuoteDetailView: View {
             }
             .frame(minWidth: 520, minHeight: 460)
         }
-        .alert("Delete Quote?", isPresented: $isShowingDeleteConfirmation) {
+        .onReceive(appState.$totalHighlightCount) { _ in
+            reconcilePendingDeletePlan()
+        }
+        .alert("Delete Quote?", isPresented: deleteConfirmationPresentedBinding) {
             Button("Delete", role: .destructive) {
-                appState.deleteHighlight(id: highlight.id)
+                confirmDelete()
                 dismiss()
             }
-            Button("Cancel", role: .cancel) {}
+            Button("Cancel", role: .cancel) {
+                pendingDeletePlan = nil
+            }
         } message: {
-            Text("This quote will be removed from your library.")
+            Text(QuotesBulkSelectionPresentationModel.bulkDeleteConfirmationMessage(plan: pendingDeletePlanValue))
         }
+    }
+
+    private var pendingDeletePlanValue: BulkHighlightDeletionPlan {
+        pendingDeletePlan ?? BulkHighlightDeletionPlan(highlights: [])
+    }
+
+    private var deleteConfirmationPresentedBinding: Binding<Bool> {
+        Binding(
+            get: { pendingDeletePlan != nil },
+            set: { isPresented in
+                if !isPresented {
+                    pendingDeletePlan = nil
+                }
+            }
+        )
     }
 
     private var detailLocationText: String {
@@ -2257,6 +2308,29 @@ private struct QuoteDetailView: View {
         }
 
         return appState.books.first(where: { $0.id == bookID })?.isEnabled
+    }
+
+    private func prepareDeleteConfirmation() {
+        let plan = appState.prepareBulkHighlightDeletion(highlightIDs: [highlight.id])
+        pendingDeletePlan = plan.isEmpty ? nil : plan
+    }
+
+    private func reconcilePendingDeletePlan() {
+        guard let pendingDeletePlan else {
+            return
+        }
+
+        let refreshedPlan = appState.prepareBulkHighlightDeletion(highlightIDs: pendingDeletePlan.highlightIDs)
+        self.pendingDeletePlan = refreshedPlan.isEmpty ? nil : refreshedPlan
+    }
+
+    private func confirmDelete() {
+        guard let pendingDeletePlan else {
+            return
+        }
+
+        appState.deleteHighlights(using: pendingDeletePlan)
+        self.pendingDeletePlan = nil
     }
 
     private func detailRow(label: String, value: String) -> some View {
@@ -2877,12 +2951,30 @@ enum QuotesListViewTestProbe {
         )
     }
 
+    static func bulkDeleteConfirmationTitle(plan: BulkHighlightDeletionPlan) -> String {
+        QuotesBulkSelectionPresentationModel.bulkDeleteConfirmationTitle(plan: plan)
+    }
+
     static func bulkDeleteConfirmationTitle(selectedCount: Int) -> String {
-        QuotesBulkSelectionPresentationModel.bulkDeleteConfirmationTitle(selectedCount: selectedCount)
+        "Delete \(selectedCount) \(selectedCount == 1 ? "Quote" : "Quotes")?"
+    }
+
+    static func bulkDeleteConfirmationMessage(plan: BulkHighlightDeletionPlan) -> String {
+        QuotesBulkSelectionPresentationModel.bulkDeleteConfirmationMessage(plan: plan)
     }
 
     static func bulkDeleteConfirmationMessage(selectedCount: Int) -> String {
-        QuotesBulkSelectionPresentationModel.bulkDeleteConfirmationMessage(selectedCount: selectedCount)
+        "This will permanently remove \(selectedCount) selected \(selectedCount == 1 ? "quote" : "quotes") from your library."
+    }
+
+    static func reconciledPendingDeletionPlan(
+        _ pendingPlan: BulkHighlightDeletionPlan?,
+        validHighlightIDs: [UUID]
+    ) -> BulkHighlightDeletionPlan? {
+        QuotesBulkSelectionPresentationModel.reconciledPendingDeletionPlan(
+            pendingPlan,
+            validHighlightIDs: validHighlightIDs
+        )
     }
 
     static func resultCountSummary(
@@ -2955,6 +3047,16 @@ enum BooksListViewTestProbe {
 
     static func bulkDeleteConfirmationMessage(plan: BulkBookDeletionPlan) -> String {
         BooksBulkSelectionPresentationModel.bulkDeleteConfirmationMessage(plan: plan)
+    }
+
+    static func reconciledPendingDeletionPlan(
+        _ pendingPlan: BulkBookDeletionPlan?,
+        validBookIDs: [UUID]
+    ) -> BulkBookDeletionPlan? {
+        BooksBulkSelectionPresentationModel.reconciledPendingDeletionPlan(
+            pendingPlan,
+            validBookIDs: validBookIDs
+        )
     }
 }
 
@@ -3343,8 +3445,13 @@ struct BooksListView: View {
     }
 
     private func reconcileSelectedBooks() {
-        selectedBookIDs = BooksBulkSelectionPresentationModel.reconciledSelection(
+        let reconciledSelection = BooksBulkSelectionPresentationModel.reconciledSelection(
             selectedBookIDs,
+            validBookIDs: appState.books.map(\.id)
+        )
+        selectedBookIDs = reconciledSelection
+        pendingBulkBookDeletionPlan = BooksBulkSelectionPresentationModel.reconciledPendingDeletionPlan(
+            pendingBulkBookDeletionPlan,
             validBookIDs: appState.books.map(\.id)
         )
     }
@@ -3367,6 +3474,11 @@ struct BooksListView: View {
         }
 
         let plan = appState.prepareBulkBookDeletion(bookIDs: bookIDsToDelete)
+        guard !plan.isEmpty else {
+            pendingBulkBookDeletionPlan = nil
+            return
+        }
+
         pendingBulkBookDeletionPlan = plan
     }
 
@@ -3417,6 +3529,18 @@ private enum BooksBulkSelectionPresentationModel {
         selectedBookIDs: Set<UUID>
     ) -> Bool {
         !isEditing || selectedBookIDs.isEmpty
+    }
+
+    static func reconciledPendingDeletionPlan(
+        _ pendingPlan: BulkBookDeletionPlan?,
+        validBookIDs: [UUID]
+    ) -> BulkBookDeletionPlan? {
+        guard let pendingPlan else {
+            return nil
+        }
+
+        let reconciledPlan = pendingPlan.filtered(validBookIDs: Set(validBookIDs))
+        return reconciledPlan.isEmpty ? nil : reconciledPlan
     }
 
     static func bulkDeleteConfirmationTitle(plan: BulkBookDeletionPlan) -> String {

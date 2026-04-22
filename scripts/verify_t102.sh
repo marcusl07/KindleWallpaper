@@ -17,13 +17,13 @@ require_pattern() {
   fi
 }
 
-require_pattern "$SETTINGS_FILE" '@State[[:space:]]+private[[:space:]]+var[[:space:]]+pendingBulkDeleteHighlightIDs:[[:space:]]+\[UUID\]' "captured quote bulk-delete IDs state"
-require_pattern "$SETTINGS_FILE" 'pendingBulkDeleteHighlightIDs[[:space:]]*=[[:space:]]*highlightIDsToDelete' "captured selected quote IDs before confirmation"
+require_pattern "$SETTINGS_FILE" '@State[[:space:]]+private[[:space:]]+var[[:space:]]+pendingBulkDeletePlan:[[:space:]]+BulkHighlightDeletionPlan\?' "captured quote bulk-delete plan state"
+require_pattern "$SETTINGS_FILE" 'let[[:space:]]+plan[[:space:]]*=[[:space:]]*appState\.prepareBulkHighlightDeletion\(highlightIDs:[[:space:]]*highlightIDsToDelete\)' "captured selected quote plan before confirmation"
 require_pattern "$SETTINGS_FILE" 'confirmBulkDeleteHighlights\(\)' "confirmed quote bulk-delete action"
 require_pattern "$SETTINGS_FILE" 'bulkDeleteConfirmationTitle\(' "count-based quote bulk-delete confirmation title"
 require_pattern "$SETTINGS_FILE" 'bulkDeleteConfirmationMessage\(' "count-based quote bulk-delete confirmation message"
-require_pattern "$SETTINGS_FILE" 'let[[:space:]]+highlightIDsToDelete[[:space:]]*=[[:space:]]*pendingBulkDeleteHighlightIDs' "confirmed delete captures pending quote IDs"
-require_pattern "$SETTINGS_FILE" 'appState\.deleteHighlights\(ids:[[:space:]]*highlightIDsToDelete\)' "confirmed delete uses captured quote IDs"
+require_pattern "$SETTINGS_FILE" 'guard[[:space:]]+let[[:space:]]+plan[[:space:]]*=[[:space:]]*pendingBulkDeletePlan' "confirmed delete captures pending quote plan"
+require_pattern "$SETTINGS_FILE" 'appState\.deleteHighlights\(using:[[:space:]]*plan\)' "confirmed delete uses captured quote plan"
 require_pattern "$SETTINGS_FILE" 'QuotesListViewTestProbe' "quote test probe exposure"
 
 cp "$ROOT_DIR/scripts/verify_t102_main.swift" "$TMP_DIR/main.swift"
@@ -32,6 +32,7 @@ cp "$ROOT_DIR/App/AppState.swift" "$TMP_DIR/AppState.swift"
 cp "$ROOT_DIR/App/AppSupportPaths.swift" "$TMP_DIR/AppSupportPaths.swift"
 cp "$ROOT_DIR/App/BackgroundImageStore.swift" "$TMP_DIR/BackgroundImageStore.swift"
 cp "$ROOT_DIR/App/BackgroundImageLoader.swift" "$TMP_DIR/BackgroundImageLoader.swift"
+cp "$ROOT_DIR/App/DebouncedTaskScheduler.swift" "$TMP_DIR/DebouncedTaskScheduler.swift"
 cp "$ROOT_DIR/App/SettingsView.swift" "$TMP_DIR/SettingsView.swift"
 cp "$ROOT_DIR/Models/Book.swift" "$TMP_DIR/Book.swift"
 cp "$ROOT_DIR/Models/BulkBookDeletionPlan.swift" "$TMP_DIR/BulkBookDeletionPlan.swift"
@@ -46,6 +47,7 @@ swiftc \
   "$TMP_DIR/AppSupportPaths.swift" \
   "$TMP_DIR/BackgroundImageStore.swift" \
   "$TMP_DIR/BackgroundImageLoader.swift" \
+  "$TMP_DIR/DebouncedTaskScheduler.swift" \
   "$TMP_DIR/SettingsView.swift" \
   "$TMP_DIR/Book.swift" \
   "$TMP_DIR/BulkBookDeletionPlan.swift" \

@@ -33,7 +33,7 @@ require_pattern "$SETTINGS_FILE" 'QuotesListViewTestProbe' "quote bulk-delete te
 require_pattern "$SETTINGS_FILE" 'BooksListViewTestProbe' "book bulk-delete test probe"
 require_pattern "$SETTINGS_FILE" 'bulkDeleteConfirmationTitle' "bulk-delete confirmation count helper"
 require_pattern "$SETTINGS_FILE" 'bulkDeleteButtonDisabled' "bulk-delete disabled-state helper"
-require_pattern "$APP_STATE_FILE" 'func[[:space:]]+loadAllHighlights\(\)[[:space:]]*->[[:space:]]*\[Highlight\]' "highlight refresh API for selection reconciliation"
+require_pattern "$APP_STATE_FILE" 'func[[:space:]]+loadAllHighlights\(sortedBy[[:space:]]+sortMode:[[:space:]]*QuotesListSortMode' "highlight refresh API for selection reconciliation"
 
 DB_FILE="$TMP_DIR/t104_rollback.db"
 
@@ -120,6 +120,7 @@ cp "$ROOT_DIR/App/AppState.swift" "$TMP_DIR/AppState.swift"
 cp "$ROOT_DIR/App/AppSupportPaths.swift" "$TMP_DIR/AppSupportPaths.swift"
 cp "$ROOT_DIR/App/BackgroundImageStore.swift" "$TMP_DIR/BackgroundImageStore.swift"
 cp "$ROOT_DIR/App/BackgroundImageLoader.swift" "$TMP_DIR/BackgroundImageLoader.swift"
+cp "$ROOT_DIR/App/DebouncedTaskScheduler.swift" "$TMP_DIR/DebouncedTaskScheduler.swift"
 cp "$ROOT_DIR/App/ImportCoordinator.swift" "$TMP_DIR/ImportCoordinator.swift"
 cp "$ROOT_DIR/App/SettingsView.swift" "$TMP_DIR/SettingsView.swift"
 cp "$ROOT_DIR/Models/Book.swift" "$TMP_DIR/Book.swift"
@@ -137,6 +138,7 @@ swiftc \
   "$TMP_DIR/AppSupportPaths.swift" \
   "$TMP_DIR/BackgroundImageStore.swift" \
   "$TMP_DIR/BackgroundImageLoader.swift" \
+  "$TMP_DIR/DebouncedTaskScheduler.swift" \
   "$TMP_DIR/ImportCoordinator.swift" \
   "$TMP_DIR/SettingsView.swift" \
   "$TMP_DIR/Book.swift" \

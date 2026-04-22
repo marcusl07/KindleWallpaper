@@ -40,6 +40,7 @@ cp "$ROOT_DIR/App/AppState.swift" "$TMP_DIR/AppState.swift"
 cp "$ROOT_DIR/App/AppSupportPaths.swift" "$TMP_DIR/AppSupportPaths.swift"
 cp "$ROOT_DIR/App/BackgroundImageStore.swift" "$TMP_DIR/BackgroundImageStore.swift"
 cp "$ROOT_DIR/App/BackgroundImageLoader.swift" "$TMP_DIR/BackgroundImageLoader.swift"
+cp "$ROOT_DIR/App/DebouncedTaskScheduler.swift" "$TMP_DIR/DebouncedTaskScheduler.swift"
 cp "$ROOT_DIR/App/SettingsView.swift" "$TMP_DIR/SettingsView.swift"
 cp "$ROOT_DIR/Models/Book.swift" "$TMP_DIR/Book.swift"
 cp "$ROOT_DIR/Models/BulkBookDeletionPlan.swift" "$TMP_DIR/BulkBookDeletionPlan.swift"
@@ -54,6 +55,7 @@ swiftc \
   "$TMP_DIR/AppSupportPaths.swift" \
   "$TMP_DIR/BackgroundImageStore.swift" \
   "$TMP_DIR/BackgroundImageLoader.swift" \
+  "$TMP_DIR/DebouncedTaskScheduler.swift" \
   "$TMP_DIR/SettingsView.swift" \
   "$TMP_DIR/Book.swift" \
   "$TMP_DIR/BulkBookDeletionPlan.swift" \

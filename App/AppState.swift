@@ -347,6 +347,8 @@ final class AppState: ObservableObject {
     typealias UpdateHighlight = (Highlight) throws -> Void
     typealias DeleteHighlight = (UUID) -> Void
     typealias DeleteHighlights = ([UUID]) -> LibrarySnapshot
+    typealias PrepareBulkHighlightDeletion = ([UUID]) -> BulkHighlightDeletionPlan
+    typealias DeleteCapturedHighlights = (BulkHighlightDeletionPlan) -> LibrarySnapshot
     typealias PrepareBulkBookDeletion = ([UUID]) -> BulkBookDeletionPlan
     typealias DeleteBooks = (BulkBookDeletionPlan) -> LibrarySnapshot
     typealias SetBookEnabled = (UUID, Bool) -> Void
@@ -394,6 +396,8 @@ final class AppState: ObservableObject {
     private let insertHighlightAction: InsertHighlight
     private let updateHighlightAction: UpdateHighlight
     private let deleteHighlightsAction: DeleteHighlights
+    private let prepareBulkHighlightDeletionAction: PrepareBulkHighlightDeletion
+    private let deleteCapturedHighlightsAction: DeleteCapturedHighlights
     private let prepareBulkBookDeletionAction: PrepareBulkBookDeletion
     private let deleteBooksAction: DeleteBooks
     private let setBookEnabledAction: SetBookEnabled
@@ -459,6 +463,10 @@ final class AppState: ObservableObject {
         updateHighlight: @escaping UpdateHighlight = { _ in },
         deleteHighlight: @escaping DeleteHighlight = { _ in },
         deleteHighlights: DeleteHighlights? = nil,
+        prepareBulkHighlightDeletion: @escaping PrepareBulkHighlightDeletion = { _ in
+            BulkHighlightDeletionPlan(highlights: [])
+        },
+        deleteCapturedHighlights: DeleteCapturedHighlights? = nil,
         prepareBulkBookDeletion: @escaping PrepareBulkBookDeletion = { _ in
             BulkBookDeletionPlan(bookIDs: [], linkedHighlights: [])
         },
@@ -588,6 +596,15 @@ final class AppState: ObservableObject {
                     totalHighlightCount: fetchTotalHighlightCount(),
                     books: fetchAllBooks()
                 )
+            }
+        }
+        self.prepareBulkHighlightDeletionAction = prepareBulkHighlightDeletion
+        if let deleteCapturedHighlights {
+            self.deleteCapturedHighlightsAction = deleteCapturedHighlights
+        } else {
+            let deleteHighlightsAction = self.deleteHighlightsAction
+            self.deleteCapturedHighlightsAction = { plan in
+                deleteHighlightsAction(plan.highlightIDs)
             }
         }
         self.prepareBulkBookDeletionAction = prepareBulkBookDeletion
@@ -1113,6 +1130,19 @@ final class AppState: ObservableObject {
     }
 
     @discardableResult
+    func prepareBulkHighlightDeletion(highlightIDs: [UUID]) -> BulkHighlightDeletionPlan {
+        prepareBulkHighlightDeletionAction(highlightIDs)
+    }
+
+    func deleteHighlights(using plan: BulkHighlightDeletionPlan) {
+        guard !plan.isEmpty else {
+            return
+        }
+
+        applyLibrarySnapshot(deleteCapturedHighlightsAction(plan))
+    }
+
+    @discardableResult
     func prepareBulkBookDeletion(bookIDs: [UUID]) -> BulkBookDeletionPlan {
         prepareBulkBookDeletionAction(bookIDs)
     }
@@ -1403,6 +1433,8 @@ extension AppState {
                 }
             },
             deleteHighlights: DatabaseManager.deleteHighlights(ids:),
+            prepareBulkHighlightDeletion: DatabaseManager.makeBulkHighlightDeletionPlan(highlightIDs:),
+            deleteCapturedHighlights: DatabaseManager.deleteHighlights(using:),
             prepareBulkBookDeletion: DatabaseManager.makeBulkBookDeletionPlan(bookIDs:),
             deleteBooks: DatabaseManager.deleteBooks(using:),
             setBookEnabled: DatabaseManager.setBookEnabled(id:enabled:),
