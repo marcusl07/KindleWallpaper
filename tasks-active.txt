@@ -21,5 +21,3 @@ Verify KindleWall launch-at-login behavior on macOS, including enable, disable, 
 
 ## DB Performance
 
-**T135-a — Verify large-selection delete batching and captured confirmation behavior**
-Add deterministic coverage proving quote/book delete flows remain correct for selections large enough to require batching, that confirmation counts/messages are driven by captured delete plans instead of live mutable UI state, and that empty or stale pending plans neither present misleading destructive alerts nor execute destructive work. Re-run the existing delete verification scripts after adding the new coverage.
