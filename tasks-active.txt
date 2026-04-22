@@ -1,0 +1,45 @@
+When a task is completed, run `scripts/archive_task.sh <TASK_ID>` using the full task ID (for example `T99-a`) to move it out of `tasks-active.txt` and append it to `tasks-archive.txt`.
+Tasks are grouped into parallel waves by numeric stem. Tasks that share the same numeric stem (for example `T99-a` and `T99-b`) are intended to be independently executable in parallel.
+Only put tasks in the same numeric wave if their primary file ownership is disjoint. If two tasks would mainly edit the same file, they must be placed in different waves.
+Tasks in the same numeric wave must have no dependency relationship. If task B requires task A's schema, helper, API, migration, or shared model change, they must be placed in different waves.
+Primary file ownership means the full set of tracked files likely to be edited to complete the task, not just the task's headline file.
+If two tasks may both touch the same shared infrastructure file, such as `App/Database.swift`, `App/AppState.swift`, `App/ImportCoordinator.swift`, or shared model/helper files, they are not parallel-safe and must be placed in different waves.
+Before starting a task, identify the expected write files. If another task in the same wave overlaps those files, stop and move one of the tasks to a different wave before implementation.
+Prefer completing the full current wave before starting the next numeric stem unless a section explicitly says otherwise.
+Do not leave completed tasks in `tasks-active.txt`. When the header has no tasks below it delete the header.
+
+## Auto-launch On Startup
+
+**T94-a — Add launch-at-login AppState and ServiceManagement plumbing**
+Implement launch-at-login service for KindleWall using `ServiceManagement.SMAppService.mainApp`, with AppState plumbing for current enabled state, refresh, toggle, and user-visible error handling.
+
+**T94-b — Add Settings UI for launch-at-login**
+Add a Settings toggle in the About section for launching KindleWall at login, including helper copy about macOS Login Items and inline error/status messaging from AppState.
+
+**T95-a — Verify launch-at-login behavior end to end**
+Verify KindleWall launch-at-login behavior on macOS, including enable, disable, restart/login behavior, accessory-app launch behavior, and compatibility with the existing On app launch wallpaper rotation mode.
+
+## Filter Row Overflow
+
+**T136-a — Add visible overflow affordances for the quotes filter row**
+Refactor the filter-controls row in `App/SettingsView.swift` so horizontally clipped filter controls advertise that more content exists offscreen without relying on always-visible scroll bars. Preserve the current horizontal scroll behavior and filter semantics, keep `Reset Filters` reachable when filters are active, and scope the UI change so sort/result-count layout and query behavior remain unchanged.
+
+
+
+**T137-a — Verify quotes filter-row overflow presentation behavior**
+Add deterministic coverage for any extracted filter-row overflow presentation/helper logic so compact widths correctly show or hide leading/trailing overflow affordances as scroll position changes. Re-run the existing quotes verification scripts after adding the new coverage to confirm the UI-only overflow work does not regress search, filtering, sorting, paging, or edit-mode selection behavior.
+
+## DB Performance
+
+**T133-a — Batch large-selection delete capture and execution**
+Refactor delete-related database helpers in `App/Database.swift` so quote/book live-row capture plus the final `DELETE ... WHERE id IN (...)` work in bounded batches for large highlight and book selections, while preserving exact captured-row semantics, tombstone behavior, and single-transaction rollback safety.
+
+
+
+**T134-a — Add captured quote delete plans and stale-plan-safe confirmation flow**
+Introduce a `BulkHighlightDeletionPlan` plus app-state preparation APIs so quote bulk delete and detail-view single delete capture exact live rows before confirmation, suppress destructive alerts when the captured plan is empty or stale, and keep quote/book pending delete state and explicit selections aligned with refreshes that happen while a confirmation is open.
+
+
+
+**T135-a — Verify large-selection delete batching and captured confirmation behavior**
+Add deterministic coverage proving quote/book delete flows remain correct for selections large enough to require batching, that confirmation counts/messages are driven by captured delete plans instead of live mutable UI state, and that empty or stale pending plans neither present misleading destructive alerts nor execute destructive work. Re-run the existing delete verification scripts after adding the new coverage.

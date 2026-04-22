@@ -1,0 +1,768 @@
+# KindleWall — Archived Completed Tasks
+
+This file contains completed tasks and resolved handoff bugs. Active work lives in tasks-active.txt.
+
+---
+
+## Phase 1 — Project Scaffold
+
+**T01 — Create Xcode project**
+Create a new macOS App target in Xcode. Set bundle ID, deployment target (macOS 13+). Configure `Info.plist` to suppress dock icon (`LSUIElement = YES`). Add `GRDB.swift` as a Swift Package dependency.
+
+**T02 — Define `Highlight` and `Book` Swift models**
+Implement `Highlight.swift` and `Book.swift` exactly as specced in the Data Model section. No logic — pure structs with the correct fields and types including optionals.
+
+---
+
+## Phase 2 — Storage
+
+**T03 — Initialise SQLite database**
+In `Database.swift`, open (or create) `highlights.db` in `~/Library/Application Support/KindleWall/`. Run the `CREATE TABLE IF NOT EXISTS` statements for `books` and `highlights` exactly as specced. Expose a shared `DatabaseQueue` instance.
+
+**T04 — Implement book upsert**
+Write a function `upsertBook(_ book: Book) -> UUID` that inserts a new row into `books` or, if `(title, author)` already exists, returns the existing `id`. Uses the `UNIQUE(title, author)` constraint with `INSERT OR IGNORE`.
+
+**T05 — Implement highlight insert with dedupe**
+Write a function `insertHighlightIfNew(_ highlight: Highlight)` that computes the `dedupeKey`, checks if it already exists in `highlights`, and inserts only if not present. Never throws on duplicate — silently skips.
+
+**T06 — Implement book enable/disable toggle**
+Write a function `setBookEnabled(id: UUID, enabled: Bool)` that updates `isEnabled` in the `books` table. When a book is toggled **on**, also set `lastShownAt = NULL` for all its highlights. When toggled **off**, no highlight changes needed.
+
+**T07 — Implement highlight query for wallpaper (COUNT + OFFSET)**
+Write a function `pickNextHighlight() -> Highlight?` that:
+1. Counts highlights where `bookId IN (enabled books) AND lastShownAt IS NULL`
+2. Picks `LIMIT 1 OFFSET Int.random(in: 0..<count)`
+3. If count is 0, resets `lastShownAt = NULL` for the entire active pool, then repeats
+Returns `nil` only if the active pool is empty (no enabled books with highlights).
+
+**T08 — Implement `markHighlightShown(id: UUID)`**
+Write a function that sets `lastShownAt` to the current ISO8601 timestamp (with timezone offset) for a given highlight ID.
+
+**T09 — Implement book list query**
+Write a function `fetchAllBooks() -> [Book]` that returns all rows from `books`, sorted alphabetically by title, with a derived `highlightCount` via a `COUNT` subquery or join.
+
+**T10 — Implement highlight count query**
+Write a function `totalHighlightCount() -> Int` returning the total row count of `highlights`. Used for the "N highlights in library" display.
+
+---
+
+## Phase 3 — Parsing
+
+**T11 — Implement `ClippingsParser`: chunk splitting**
+In `ClippingsParser.swift`, write the first stage of parsing: normalize `\r\n` → `\n`, split on lines that equal `==========` when trimmed, discard empty chunks. Return an array of raw string chunks. No field extraction yet — just clean splitting.
+
+**T12 — Implement `ClippingsParser`: per-chunk field extraction**
+For each chunk from T11: skip leading blank lines, find the title line (first non-blank), find the metadata line (first line starting with `- Your `), skip chunks where metadata doesn't contain `Your Highlight`, extract quote body (lines after first blank line following metadata), skip if body is empty.
+
+**T13 — Implement title and author cleaning**
+Write a function `cleanTitleAndAuthor(from titleLine: String) -> (title: String, author: String)` covering both formats: standard `Book Title (Author Name)` and verbose sideloaded `Book Title -- Author;Editor -- ...`. Extract title before first ` --` and author from final `(...)` group or first `--` segment as fallback.
+
+**T14 — Implement date parsing**
+Write a function `parseKindleDate(_ string: String) -> Date?` using `en_US_POSIX` locale, system timezone, and format `"EEEE, MMMM d, yyyy h:mm:ss a"`. Returns `nil` on failure. Track failures via a `parseErrorCount` counter. Never drop an entry due to date failure.
+
+**T15 — Implement dedupeKey computation**
+Write a function `computeDedupeKey(bookId: UUID, location: String?, quoteText: String) -> String` implementing the primary and fallback key logic: lowercase + whitespace-collapse both location and first 50 chars of text, join with `"|"` separators, prefix with `bookId`.
+
+**T16 — Wire full parse pipeline**
+Write the top-level function `parseClippings(fileURL: URL) -> (highlights: [Highlight], books: [Book], parseErrorCount: Int)` that calls T11–T15 in sequence and returns fully populated model objects ready for database insertion.
+
+---
+
+## Phase 4 — Import
+
+**T17 — Implement `ImportCoordinator`**
+Write a function `importFile(at url: URL) -> ImportResult` (where `ImportResult` carries new highlight count, error string if any) that: calls the parse pipeline (T16), upserts books (T04), inserts highlights (T05), and returns a result. This is the single entry point for both auto and manual import.
+
+**T18 — Implement `VolumeWatcher`: known path check**
+In `VolumeWatcher.swift`, write `findClippingsFile(on volume: URL) -> URL?` that tries the three known paths (`/documents/My Clippings.txt`, `/Documents/My Clippings.txt`, `/My Clippings.txt`) in order and returns the first hit.
+
+**T19 — Implement `VolumeWatcher`: bounded shallow search**
+Extend `findClippingsFile` with the fallback traversal: max depth 3, hard cap of 2000 directories and 1 second elapsed, skip hidden/system dirs (`.` prefix, `.Spotlight-V100`, `.Trashes`, `.fseventsd`, `.app` packages). Return immediately on a `documents`-path match; otherwise return best match after scan completes.
+
+**T20 — Implement `VolumeWatcher`: USB mount listener**
+Register for `NSWorkspace.didMountNotificationName`. On each mount event, call `findClippingsFile` (T18 + T19). If found, call `importFile` (T17) and update the import status in `AppState`.
+
+---
+
+## Phase 5 — Wallpaper Generation
+
+**T21 — Implement background image storage**
+Write functions to: copy a user-picked image file into `~/Library/Application Support/KindleWall/background.*`, store the path in `UserDefaults`, and retrieve it. Handle the no-image-set case (return `nil`).
+
+**T22 — Implement `WallpaperGenerator`: compose image**
+In `WallpaperGenerator.swift`, write `generateWallpaper(highlight: Highlight, backgroundURL: URL?) -> URL` that:
+- Loads the background image or creates a black `NSImage` at main screen resolution if no image
+- Draws a black overlay at 40% opacity over the full image
+- Renders the quote text centered, white, `NSFont.systemFont(ofSize: 36, weight: .regular)`, word-wrapped at 70% image width
+- Renders `"Book Title - Author"` below the quote, `NSFont.systemFont(ofSize: 20, weight: .light)`, white
+- Saves the composited result as PNG to `Application Support/KindleWall/current_wallpaper.png`
+- Returns the output URL
+
+**T23 — Implement wallpaper setter (all screens)**
+Write `setWallpaper(imageURL: URL)` that iterates `NSScreen.screens` and calls `NSWorkspace.shared.setDesktopImageURL(_:for:options:)` for each screen with the same image.
+
+**T24 — Wire wallpaper rotation trigger**
+Write `rotateWallpaper()` in `AppState` that: calls `pickNextHighlight()` (T07), calls `generateWallpaper` (T22), calls `setWallpaper` (T23), calls `markHighlightShown` (T08), updates `lastChangedAt` in `UserDefaults`, and updates the current quote preview in `AppState`.
+
+---
+
+## Phase 6 — Scheduling
+
+**T25 — Implement `WallpaperScheduler`**
+In `WallpaperScheduler.swift`, implement a scheduler that:
+- On init and every 60 seconds, checks the active schedule setting from `UserDefaults`
+- **Daily:** if `now >= todayScheduledTime` and `lastChangedAt < todayScheduledStart`, call `rotateWallpaper()`
+- **Every 30 min:** if `now - lastChangedAt >= 30 * 60`, call `rotateWallpaper()`
+- **On launch:** call `rotateWallpaper()` once on app start
+- **Manual:** do nothing (rotation only via "Next Quote" button)
+
+**T26 — Implement daily time UserDefaults storage**
+Write get/set helpers for `scheduleDailyHour: Int` (default 9) and `scheduleDailyMinute: Int` (default 0). Used by T25 and the Settings time picker.
+
+---
+
+## Phase 7 — App Shell
+
+**T27 — Implement `AppState`**
+Create `AppState.swift` as an `ObservableObject` holding: current highlight (quote preview text), import status string, import error string, total highlight count, all books list, active schedule setting, last changed timestamp. This is the single source of truth the UI binds to.
+
+**T28 — Implement `KindleWallApp` entry point**
+In `KindleWallApp.swift`, set up `@main`, create the `NSStatusItem` (menu bar icon), instantiate `AppState`, `VolumeWatcher`, and `WallpaperScheduler`. Suppress dock icon. Wire `AppState` as an `@EnvironmentObject`.
+
+---
+
+## Phase 8 — UI
+
+**T29 — Implement `MenuBarView`**
+Build the menu bar dropdown with: current quote preview (truncated to ~80 chars, non-interactive), "Next Quote" button (calls `rotateWallpaper()`), "Open Settings..." button, "Highlights in library: N" label, "Quit" button.
+
+**T30 — Implement Settings window shell**
+Create `SettingsView.swift` as a SwiftUI `View` inside a `Window` or `NSPanel`. Tabbed or sectioned layout with five sections: Import, Books, Background Image, Rotation Schedule, About. Wire to `AppState`.
+
+**T31 — Implement Settings: Import section**
+Render the import status line (success string or red failure string), total highlight count, and "Import My Clippings.txt..." button that opens an `NSOpenPanel` filtered to `.txt`, then calls `importFile` (T17) and refreshes `AppState`.
+
+**T32 — Implement Settings: Books section**
+Render a scrollable list of books from `AppState.books`, each row with a `Toggle`/checkbox, book title, author, and muted highlight count. "Select All" and "Deselect All" buttons. On toggle, call `setBookEnabled` (T06) and refresh `AppState.books`. Show inline warning if all books are deselected.
+
+**T33 — Implement Settings: Background Image section**
+Render the current background image as a thumbnail (or black placeholder with "No image — black background" text). "Change Image..." button opens `NSOpenPanel` filtered to image types (jpg, png, heic), copies selection to `Application Support`, updates `UserDefaults`, refreshes thumbnail.
+
+**T34 — Implement Settings: Rotation Schedule section**
+Render radio buttons/picker for Manual, Daily at set time, On app launch, Every 30 minutes. When "Daily at set time" selected, show a `DatePicker` (time-only) defaulting to 9:00 AM, saving hour/minute to `UserDefaults` via T26 helpers. Show "Last changed: [date/time]" and muted caveat note.
+
+**T35 — Implement Settings: About section**
+Render app name and version string (read from `Bundle.main.infoDictionary`).
+
+---
+
+## Phase 9 — Integration & Smoke Test
+
+**T36 — End-to-end smoke test: manual import → wallpaper**
+Manually verify: import a real `My Clippings.txt`, confirm highlight count updates, confirm books list populates, click "Next Quote", confirm wallpaper changes on all screens with correct text rendering.
+
+**T37 — End-to-end smoke test: USB auto-import**
+Plug in Kindle, confirm auto-detection fires, confirm import status updates in Settings, confirm new highlights appear in count.
+
+**T38 — Verify daily schedule logic**
+Set daily time to 1 minute in the future, wait, confirm wallpaper rotates exactly once. Relaunch app, confirm it does not rotate again (already fired today).
+
+**T39 — Verify book toggle pool behavior**
+Disable all but one book, confirm rotation only shows quotes from that book. Re-enable a book, confirm its quotes become eligible without wiping history of the already-active book.
+
+---
+---
+
+## Resolved Agent Handoff Bugs
+
+### ✅ H1 — Books toggles not applying from Settings UI
+Reported by user after successful auto-import.
+
+Current observed behavior:
+- Interaction is intermittent/flaky, not fully broken.
+- Individual book checkboxes in the **Books** section sometimes apply on first click, sometimes require multiple clicks, and sometimes ignore clicks entirely.
+- **Select All** and **Deselect All** also behave inconsistently (sometimes apply, sometimes no-op).
+- Additional observed pattern: only the first 3 checkboxes in the list reliably respond; rows below are often non-responsive.
+
+Expected behavior:
+- Individual checkbox toggles update `isEnabled` for that book immediately.
+- `Select All` enables all books.
+- `Deselect All` disables all books.
+- UI reflects persisted state after each action.
+
+Repro steps:
+1. Open app settings.
+2. Go to **Books** section with imported books present.
+3. Toggle any checkbox repeatedly and then use **Select All** / **Deselect All**.
+4. Observe inconsistent behavior (some clicks apply, some do nothing).
+5. Specifically test rows after the first 3 and observe they are frequently non-responsive.
+
+Candidate areas to inspect:
+- `App/SettingsView.swift` (`bindingForBook`, button actions, toggle list refresh behavior)
+- `App/AppState.swift` (`setBookEnabled`, `setAllBooksEnabled`, refresh flow)
+- `Database` write/read path for book enabled state persistence.
+- Row hit-testing/layout interactions in the scrollable books list (`ScrollView` + `LazyVStack` + row content structure).
+
+Acceptance criteria:
+- Toggle actions update UI and persisted DB state deterministically on every click.
+- Reopening settings shows the same enabled/disabled state.
+
+
+### ✅ H3 — "Next Quote" rotates once, then stops responding
+Reported by user after import and initial successful wallpaper update.
+
+Current observed behavior:
+- Clicking **Next Quote** updates wallpaper once.
+- Subsequent clicks do not produce additional wallpaper changes.
+- The menu's current-quote preview text does continue updating, even when wallpaper does not visibly change.
+
+Expected behavior:
+- Every click of **Next Quote** should attempt a fresh rotation immediately.
+- If no active quote pool exists, user should receive clear feedback; otherwise wallpaper should keep changing.
+
+Repro steps:
+1. Launch app with imported highlights available.
+2. Click **Next Quote** from menu bar; observe first wallpaper update succeeds.
+3. Click **Next Quote** again (multiple times).
+4. Observe no further wallpaper updates.
+
+Candidate areas to inspect:
+- `App/AppState.swift` (`rotateWallpaper` re-entrancy guard and state reset behavior)
+- `App/KindleWallApp.swift` action wiring from `StatusItemController` to `appState.rotateWallpaper()`
+- `App/WallpaperScheduler.swift`/manual-trigger interaction and shared guard state
+- `App/WallpaperGenerator.swift` + `App/WallpaperSetter.swift` failure paths that might silently block later updates.
+- Wallpaper file URL reuse/cache behavior (`current_wallpaper.png` reused across updates) vs forcing unique output URL per rotation.
+
+Acceptance criteria:
+- Repeated **Next Quote** clicks produce repeated wallpaper rotations when highlights are available.
+- Manual trigger remains responsive after first successful run.
+
+
+### ✅ H4 — Non-blocking runtime log noise (`fopen` cache invalidation)
+Reported by user during app runtime; appeared non-fatal.
+
+Observed logs:
+- `fopen failed for data file: errno = 2 (No such file or directory)`
+- `Errors found! Invalidating cache...`
+
+Root cause identified:
+- Repeated background-image decode attempts could hit missing/unreadable/invalid files from persisted paths.
+- Repeated decode attempts produced noisy lower-level framework messages.
+
+Implemented fix:
+- Added shared `BackgroundImageLoader` boundary with explicit outcomes:
+  - `noImageConfigured`
+  - `missingFile`
+  - `unreadableFile`
+  - `decodeFailed`
+  - `success`
+- Added one-time warning dedupe per `(failure kind, file path)` to avoid repeated runtime log spam.
+- Added in-memory decode cache keyed by path + file identity (`mtime`, `size`) with invalidation on file change.
+- Routed both settings-preview loading and wallpaper-generation loading through the same loader boundary.
+
+Verification:
+- Added deterministic `scripts/verify_h4.sh` coverage for missing/unreadable/decode-failed/success outcomes.
+- Added coverage that warnings are deduped and cache invalidates when file identity changes.
+- Added wallpaper-generator fallback-path coverage when background decode fails.
+
+
+### ✅ H3 (Books UI) — "Show Books..." button does nothing
+Reported by user from the settings/library UI.
+
+Current observed behavior:
+- Clicking `Show Books...` had no visible effect.
+- No books list window/panel appeared.
+
+Expected behavior:
+- Clicking `Show Books...` opens the books management view/window.
+- If already open, clicking should bring it to front.
+
+Repro steps:
+1. Open the UI section that shows `21 of 23 books enabled`.
+2. Click `Show Books...`.
+3. Observe that nothing opens or changes.
+
+Root cause:
+- `Show Books...` only toggled local in-view route state.
+- In menu-bar usage, users expected window/panel presentation behavior, not an in-place route transition.
+
+Implemented fix:
+- Added injected settings actions in `SettingsView`:
+  - `showBooksAction` for deterministic books presentation.
+  - `closeBooksAction` for standalone books-window dismiss.
+- Updated `SettingsWindowCoordinator` to own and reuse a dedicated books window controller.
+- Wired `Show Books...` in the settings window to open/focus that books window.
+- Kept route-based in-view books navigation as fallback when no coordinator action is provided.
+
+Verification:
+- Added `scripts/verify_h3.sh` for wiring checks across `SettingsView` and `SettingsWindowCoordinator`.
+- Verified parse correctness for modified Swift files.
+
+**T40 — Create `SettingsWindowCoordinator` boundary**
+Extract settings-window lifecycle management out of `AppDelegate` into a dedicated coordinator that owns create/show/reuse/teardown behavior for the settings window.
+
+
+
+**T41 — Fix settings window persistence across app deactivation**
+Ensure the settings window remains open (non-key but visible) when user clicks away to another app and only closes when explicitly closed by user.
+
+
+
+**T52 — Optimize highlight-pick query path**
+Add/validate database indexing for active-pool selection (`bookId`, `lastShownAt`) and verify pick-next-highlight query efficiency at larger library sizes.
+
+
+
+**T47 — DRY mount-listener status publishing logic**
+Remove duplicated import-status publish/update closures in `KindleWallApp.makeMountListener` by extracting a single shared main-thread publisher path.
+
+
+
+**T44 — Serialize books mutation flow in `AppState`**
+Create a single serialized mutation path for per-book toggle and bulk toggle operations to prevent overlapping writes/refetch races.
+
+
+**T45 — Add deterministic in-flight UI state for books controls**
+Expose mutation-in-progress state and disable/re-enable book checkboxes and Select All/Deselect All controls deterministically during commit.
+
+
+**T43 — Use unique wallpaper artifact paths per rotation**
+Replace static `current_wallpaper.png` reuse with unique output names per rotation (timestamp/UUID) and add bounded cleanup to avoid unbounded file growth.
+
+
+
+**T46 — Enforce main-thread ownership for UI state/controllers**
+Apply `@MainActor` boundaries to UI-facing state and controllers (`AppState`, delegate/controller surfaces) and make background-to-main hops explicit.
+
+
+
+**T53 — Move wallpaper generation/set flow off UI interaction path**
+Run expensive wallpaper compose/write work on a dedicated background executor while publishing state changes safely back on main.
+
+
+
+**T54 — Cache decoded background image with invalidation**
+Add background image decode cache keyed by source path + mtime and invalidate when user changes background image.
+
+**T49 — Add rapid books-interaction reliability tests**
+Add deterministic tests covering repeated checkbox clicks plus Select All/Deselect All sequences to validate serialized mutation behavior.
+
+
+
+**T48 — Add settings window lifecycle tests**
+Add behavioral verification for settings open/reopen/deactivate semantics to prevent regressions where the window disappears on focus loss.
+
+
+
+**T50 — Add repeated Next Quote wallpaper update tests**
+Add tests ensuring successive Next Quote actions generate distinct wallpaper output identities and invoke wallpaper apply each time.
+
+
+
+**T55 — Fix daily scheduled rotation drop when rotation in progress**
+When the daily scheduler ticks and requestWallpaperRotation() returns false (busy), the scheduled rotation is silently dropped and won't retry that day. Fix by adding retry or queue behavior so the scheduled rotation eventually executes if initially rejected.
+
+**T56 — Background image collection data model**
+Define storage model for multiple background images. Replace single image path in ScheduleSettings or AppState with a collection. Handle migration from single image to collection (existing image becomes first item).
+
+
+
+**T58 — Random background selection in rotation pipeline**
+Update WallpaperGenerator rotation path to randomly pick from the background image collection each rotation. Single image in collection = current behavior. Update T54 cache to invalidate per selected image.
+
+
+
+**T57 — Background image collection UI**
+Replace "Change Image" picker in Settings with a managed backgrounds view (similar pattern to Books window). Show collection with previews, add/remove controls, block removal of last image, prompt to add if empty. UI should try to follow the default macOS Wallpaper settings menu patterns.
+
+
+
+**T60 — macOS wallpaper cycling conflict warning**
+Add a small notice in Settings warning users to disable macOS's built-in wallpaper rotation to avoid conflicts with KindleWall managing the wallpaper.
+
+**T59 — Capitalize highlight text toggle**
+Add a toggle in Settings to automatically capitalize the first letter of highlight text if it is lowercase. Off by default.
+
+**T42 — Introduce explicit rotation outcomes**
+Refactor wallpaper rotation orchestration into a boundary that returns explicit outcomes (e.g., success, no-active-pool, wallpaper-apply-failure) instead of relying on implicit side effects.
+
+
+
+**T51 — Add rotation outcome/error propagation tests**
+Add tests for success and failure outcomes (including no active pool and wallpaper apply failure) and verify UI-visible status propagation.
+
+**T62 — Prevent stale wallpaper file references after cleanup**
+Protect the most recently applied KindleWall wallpaper file from 5-file cleanup deletion so macOS display mappings never point at a removed file, and ensure wake re-application (T61) only reuses a wallpaper artifact that is guaranteed to still exist on disk.
+
+**T61 — Re-apply wallpaper on wake from sleep**
+Register an observer for `NSWorkspace.didWakeNotification` and re-apply the most recently generated KindleWall wallpaper on wake without triggering a new rotation. Depends on T62 so the file being reapplied is guaranteed to still exist on disk.
+
+---
+
+## Open Agent Handoff Bugs
+
+### ✅ H2 — Settings window closes on app deactivation
+Reported by user after opening settings from menu bar.
+
+Current observed behavior:
+- Clicking away causes the settings window to disappear.
+- User must reopen settings from the menu bar status item each time.
+
+Expected behavior:
+- Settings window remains open after losing focus.
+- Window should close only when explicitly closed by user.
+
+Repro steps:
+1. Open settings from menu bar.
+2. Click another app/window.
+3. Observe settings window disappears instead of remaining as a normal background window.
+
+Candidate areas to inspect:
+- `App/KindleWallApp.swift` custom settings window lifecycle in `AppDelegate`.
+- Window configuration flags/levels/collection behavior.
+- Any implicit close/hide behavior tied to app activation policy (`.accessory`).
+
+Acceptance criteria:
+- Settings window remains visible (non-key) after app deactivation.
+- User can bring it back to front without recreating state.
+
+**T63 — Add NavigationStack to Settings window**
+Wrap the main Settings view content in a SwiftUI `NavigationStack`. No navigation links wired yet, just the scaffold in place with back/forward navigation arrows available at the top of the window.
+
+
+
+**T66 — Fix background image collection reorder on selection**
+When a background image is clicked in the collection view it jumps to the front of the list. Fix with a stable sort so collection order never changes on state update or selection.
+
+**T64 — Wire Books section to in-place navigation**
+Replace the "Show Books..." button with a `NavigationLink` that drills into `BooksListView` inside the existing Settings window `NavigationStack`. No separate window, no notification-based routing.
+
+
+
+**T65 — Remove Books window from SettingsWindowCoordinator**
+Delete `showBooksWindow()`, the books window controller, and the `.kindleWallShowBooksWindow` notification observer from `SettingsWindowCoordinator`. Clean up all dead code left behind.
+
+- T69 — Fix back/forward arrows missing for Backgrounds detail view
+
+
+- T68 — Reset row selection state on main settings view appear
+
+
+- T67 — Add trailing chevron to Books and Backgrounds navigation rows
+
+
+**T72 — Add `isEnabled` column to `highlights` table**
+Add `isEnabled INTEGER NOT NULL DEFAULT 1` to the `highlights` table. Write migration for existing databases. Update the active-pool query to filter on `highlights.isEnabled = 1`.
+
+
+
+**T73 — Make `bookId` nullable on `highlights` table**
+Change `bookId` on the `highlights` table to allow `NULL` for manually added quotes with no book association. Write migration. Update all queries referencing `bookId` to handle `NULL` gracefully.
+
+
+
+**T74 — Update wallpaper renderer for missing book title and author**
+In `WallpaperGenerator.swift`, handle empty/nil `bookTitle` and `author` and omit the attribution line entirely rather than rendering blank space.
+
+
+**T75 — Replace Import section with Quotes navigation row in Settings**
+Remove the Import section from the main settings view. Add a Quotes row navigating in-place to `QuotesListView`. Move import button and status into the Quotes list view header.
+
+**T76 — Build Quotes list view with search and sort**
+Create `QuotesListView` with real-time search across quote text/book title/author, sort toggle (alphabetical by book / most recently added). Each row shows truncated quote text + book title + author.
+
+
+**T82 — Implement Set as Current Wallpaper from detail view**
+Wire `Set as Current Wallpaper` in `QuoteDetailView` to force that specific highlight through the rotation pipeline immediately. Reuse `requestWallpaperRotation` with a forced highlight parameter.
+
+**T80 — Implement per-quote enable/disable toggle**
+Wire enable/disable in `QuoteDetailView` to update `highlights.isEnabled` in the database via `AppState`. Disabled quotes excluded from rotation pool.
+
+**T77 — Add filter controls to Quotes list view**
+Add filters to `QuotesListView`: by book title, author, enabled/disabled books only, manually added only. Filters compose with search.
+
+
+
+**T81 — Implement delete quote**
+Wire delete in `QuoteDetailView` to remove highlight from database. Confirmation alert before deleting. Return to list after deletion.
+
+
+
+**T83 — Implement manual add quote**
+Wire `+` button in `QuotesListView` to open `QuoteEditView` in add mode. On save, insert new highlight with nullable `bookId`. Link to existing book if title+author match.
+
+**T64a — Make wallpaper restore outcomes explicit**
+In `WallpaperSetter.swift` and `AppState.swift`, replace the current `Bool`-style restore result with a structured outcome that distinguishes full restore, partial restore, no stored wallpapers, no connected screens, and apply failure. Add `scripts/verify_t64.sh` and `scripts/verify_t64_main.swift` coverage for each outcome while preserving current app behavior.
+
+**T64b — Introduce a display topology coordinator boundary**
+Create `DisplayTopologyCoordinator.swift` and move wake-triggered restore orchestration out of `KindleWallApp.swift` into that coordinator. Keep this slice wake-only so the app remains behaviorally equivalent while centralizing lifecycle policy and adding focused verification coverage.
+
+**T64d — Make wallpaper-assignment persistence operations explicit**
+In `ScheduleSettings.swift` and `AppState.swift`, replace the current replace-only persistence helper with explicit operations for replacing, merging, and clearing saved wallpaper assignments. Keep runtime behavior equivalent in this slice, and add targeted verification so later topology fixes can use these operations intentionally.
+
+**T64e — Extract display identity and remapping heuristics**
+Create `DisplayIdentityResolver.swift` and move display matching/remapping policy out of `WallpaperSetter.swift`, keeping `WallpaperSetter` focused on applying assignments. Wire `AppState.swift` to use the resolver for restore matching, and add adversarial tests for main-display changes, reordering, same-resolution displays, missing displays, and extra displays.
+
+**T64c — Handle display reconfiguration with debounced restore**
+Extend `DisplayTopologyCoordinator.swift` and `KindleWallApp.swift` to observe display-configuration changes in addition to wake events, then debounce event bursts into a single restore pass after topology settles. Cover wake-then-reconfigure and repeated reconfiguration sequences in `scripts/verify_t64.sh` / `scripts/verify_t64_main.swift`.
+
+## Open Agent Handoff Bugs
+
+**T64f — Prevent transient reduced topologies from erasing full assignments**
+Update `AppState.swift`, `ScheduleSettings.swift`, and `DisplayTopologyCoordinator.swift` so a temporary one-display snapshot does not immediately replace a previously saved two-display assignment set. Add integration coverage in `scripts/verify_t64.sh` / `scripts/verify_t64_main.swift` for two displays -> transient one display -> reconnect -> successful restore without losing the second assignment.
+
+**T64g — Add no-op apply guards and final restore cleanup**
+Tighten `DisplayTopologyCoordinator.swift`, `WallpaperSetter.swift`, and `KindleWallApp.swift` to skip redundant restore/apply cycles when the desired assignment is already active, and remove obsolete wake-specific glue left behind by earlier slices. Finish `scripts/verify_t64.sh` / `scripts/verify_t64_main.swift` with end-to-end coverage for the full wake/reconfigure/reconnect flow.
+
+
+**T89 — Delete obsolete external monitor findings doc**
+Remove `text-files/external-monitor-findings.txt` because it is no longer needed.
+
+
+**T90 — Import failure visibility**
+Fix the import path so file-read failures, encoding errors, and malformed clippings content surface as explicit import failures in the Settings Quotes status row instead of silent success or "library up to date." Partially malformed files succeed with a warning showing both new highlight count and skipped entry count.
+
+---
+
+## Phase 14 — Wallpaper Restore Reliability
+
+
+
+**T84 — Add shared-wallpaper topology apply helper**
+In `WallpaperSetter.swift`, add a helper that takes one canonical wallpaper URL and applies it to all connected screens, skipping screens that already show that same file.
+
+
+
+**T85 — Add topology-specific current-wallpaper reapply path**
+In `AppState.swift`, add a topology-only reapply path that reads the current wallpaper from the main screen (fallback: first connected screen) and reapplies that same file across all connected screens. Do not change the scheduled/manual rotation path or its stored-assignment persistence behavior.
+
+
+
+**T86 — Switch display topology coordinator to shared reapply**
+In `DisplayTopologyCoordinator.swift`, change the debounced display-change callback to call the new topology-specific shared-wallpaper reapply path in `AppState` instead of the stored targeted restore flow.
+
+
+
+**T87 — Replace reconnect tests with shared-wallpaper topology expectations**
+In `scripts/verify_t64_main.swift`, replace the reconnect tests so they assert `1A` behavior: topology changes reapply the currently active wallpaper file across all connected screens, stale external-monitor wallpapers are not restored by topology events, and no-op/failure cases are explicit.
+
+
+
+**T88 — Sync T64 shell verifier with topology shared-wallpaper flow**
+In `scripts/verify_t64.sh`, update the verifier so it checks for the new topology-specific reapply path and no longer expects the old display-resolver restore wiring for display-change handling.
+
+
+**T91 — Skip missed scheduled rotations on app launch**
+Keep `On app launch` as an explicit rotation option. When the app starts in `Daily at set time` or `Every 30 minutes`, do not generate a wallpaper immediately on startup even if the scheduled time or interval was already missed while the app was not running. Example: if daily rotation is set to 9:00 AM and the app launches at 9:30 AM, skip that missed run and wait until 9:00 AM tomorrow. Preserve current `On app launch` behavior so startup rotation only happens when that mode is explicitly selected.
+
+**T79 — Build Quote edit/add view**
+Create `QuoteEditView` for editing all fields (quote text, book title, author, location). All fields optional except quote text. If book title + author match existing book, link to it. Save/Cancel.
+
+**T78 — Build Quote detail view**
+Create `QuoteDetailView` showing full quote text, book, author, location, date added, last shown. Actions: Edit, Set as Current Wallpaper, Enable/Disable from rotation, Delete with confirmation.
+
+**T93 — Keep settings content below titlebar controls while scrolling**
+Fix the Settings window so scrolling content never renders beneath the macOS traffic lights or the back/forward toolbar buttons. Prefer restoring standard macOS titlebar/content separation over adding custom inset workarounds. Update the existing settings window verification to match the chosen window chrome configuration and confirm open/reopen/deactivation behavior still works.
+
+
+
+**T92 — Replace fixed 30-minute rotation with custom interval picker**
+Replace the `Every 30 minutes` schedule option with a generic `Every interval` mode. In Settings, show an hours/minutes scroller when that mode is selected, allowing `1 minute` through `23h 59m` and defaulting to `0h 30m`. Persist the interval in `UserDefaults`, migrate existing `every30Minutes` mode values to the new generic interval mode, and update `WallpaperScheduler` to use the stored interval instead of a hard-coded 30-minute threshold. Add or update verification for persistence, scheduler threshold behavior, and the settings UI label and control.
+
+
+**T97-a — Add import-stable quote tombstone identity and schema**
+Define a shared import-stable quote identity key that uses normalized `bookTitle`, `author`, optional `location`, and full normalized `quoteText` with no database UUID component. Add persistent tombstone storage plus any required migration/index so deleted quotes can be suppressed during future imports even if the originating book row is recreated with a new ID.
+
+
+
+**T97-b — Suppress re-import of deleted quotes**
+Update import so parsed highlights are skipped when their import-stable quote identity matches a tombstone. Treat pre-feature deletions as a known limitation: only quotes deleted after this change gain re-import suppression.
+
+
+
+**T98-a — Make single and bulk quote delete transactional**
+Add database and app-state APIs for deleting one or many quotes in a single transaction that records tombstones and then removes the captured live quote rows. Refresh library state afterward so total quote count and per-book highlight counts stay in sync.
+
+
+
+**T99-a — Implement transactional bulk book delete with exact affected-quote capture**
+Add database and app-state APIs for deleting multiple selected books by first capturing the exact currently live linked quote IDs, then in one transaction inserting tombstones for that captured set, deleting those quote rows, and deleting the selected book rows. The operation should use the captured set so the affected-quote count shown in confirmation matches the rows actually deleted.
+
+
+
+**T100-a — Add Quotes edit mode and explicit bulk-delete selection flow**
+Add multi-select edit mode to the Quotes screen with a visible but disabled bulk-delete toolbar action when selection is empty. Bulk delete must operate only on explicitly selected rows, not the filtered result set, and selection should preserve still-valid IDs across list refreshes while dropping rows that no longer exist.
+
+
+
+**T101-a — Add Books edit mode and explicit bulk-delete selection flow**
+Add multi-select edit mode to the Books screen with the same explicit-selection behavior as Quotes and a visible but disabled bulk-delete toolbar action when selection is empty. Preserve valid selections across refreshes, drop selections for removed rows, and leave newly imported rows unselected while edit mode is active.
+
+
+
+**T102-a — Add count-based confirmation for quote bulk delete**
+For Quotes, show a two-step destructive confirmation using the exact captured selected quote count.
+
+
+
+**T103-a — Add count-based confirmation for book bulk delete**
+For Books, show a two-step destructive confirmation using the exact captured selected book count plus the exact number of currently live linked quotes that will be deleted; do not count previously deleted or tombstoned quotes.
+
+
+
+**T104-a — Verify bulk delete, suppression, and selection-state behavior**
+Add or update verification coverage for tombstone matching across re-import, transactional rollback safety for bulk book delete failures, exact confirmation counts, disabled empty-selection toolbar state, and edit-mode selection reconciliation when rows are deleted or newly imported during list refresh.
+
+## DB Performance
+
+
+
+**T105-a — Spec out DB performance improvements**
+Define the next DB-focused follow-on wave for bulk delete and import performance. Scope the work around batched tombstone persistence, batched import tombstone/dedupe preflight, returning post-mutation library state without redundant full-library refreshes, and deterministic verification coverage.
+
+
+
+**T106-a — Batch tombstone persistence for delete flows**
+Refactor quote and book delete paths in `Database.swift` so captured tombstones are written through one set-based or batched database path instead of per-highlight `INSERT OR IGNORE` calls, while preserving exact captured-row semantics and transactional rollback safety.
+
+
+
+**T109-a — Avoid redundant post-mutation library refetches after delete and import**
+Add mutation results that return updated total count plus refreshed book rows from the write path, and wire delete/import callers to consume that snapshot instead of immediately issuing a separate `COUNT(*)` and `fetchAllBooks()` refresh.
+
+
+
+**T112-a — Move quotes list sorting to DB and add highlight sort indexes**
+Add database indexes on `highlights.bookTitle`, `highlights.author`, and `highlights.dateAdded`, make the quotes fetch API sort-aware, and push the quotes tab Book A-Z ordering into SQL while preserving the existing eager full-dataset load and current sort semantics.
+
+
+
+**T113-a — Eliminate repeated quotes list recomputation in Settings**
+Update the quotes list presentation path so `displayedHighlights` preserves incoming DB order instead of re-sorting in memory, and compute it once per render in `QuotesListView` for reuse across empty-state checks, list rendering, and result-count display.
+
+
+**T114-a — Add paged quotes DB query and filter-option APIs**
+Add database APIs for paged quotes fetching plus dedicated distinct book/author filter option queries, with DB-side search and filter predicates and any required shared query types or helper logic.
+
+
+
+**T115-a — Optimize most-recent paged quotes ordering**
+Replace the current CASE-based most-recent paged ordering with a two-segment non-null/null `dateAdded` fetch strategy that preserves exact ordering semantics across page boundaries without relying on the temp sort path.
+
+
+
+**T116-a — Move Quotes tab to async paged loading**
+Refactor the Quotes tab to load pages asynchronously off the main thread, reset visible results synchronously on query changes, append additional pages on scroll, and discard stale responses.
+
+
+
+**T117-a — Verify paged Quotes tab behavior**
+Add deterministic verification coverage for paged quote fetching, cross-dimension filter option queries, most-recent boundary pagination, and Quotes tab reset/load-more behavior.
+
+
+**T118-a — Eliminate Quotes tab render bottlenecks**
+Refactor the Quotes tab row rendering so unrelated `QuotesListView.body` re-evaluations do not rebuild unchanged visible rows, and remove per-render `previewText` regex overhead while preserving identical text output and stable row identity. In a Release build against the 10k synthetic DB, `QuotesListRender` must average at or below 500 ms and stay below 1 s across five cold loads, `QuotesListRefresh` must remain within 10% of the current baseline, and search, sort, pagination, enable/disable, and quote-detail navigation must behave exactly as before. Add regression coverage that compares the old and new preview-text normalization across a corpus of at least 20 real highlights and verify via Instruments that unchanged visible rows are not re-rendered after unrelated `AppState` publishes.
+
+## Import Warning Details
+
+
+
+**T119-a — Surface parse warning details in import status**
+Extend the import pipeline so parse-site warning messages, not just a count, flow from `ClippingsParser` through `ImportResult`, `VolumeWatcher.ImportPayload`, and `AppState.ImportStatus` into the Quotes import UI. Each warning must be human-readable, include a raw entry snippet capped at 80 characters, cap the full list at 20 messages with a final `… and N more` sentinel when truncated, and drive the existing warning count from `warningMessages.count` rather than a separate counter. Keep the one-line summary row unchanged, add a collapsed-by-default `DisclosureGroup` labeled `Warning details` only when warnings exist, restore warning messages anywhere import status is already persisted, and preserve identical clean-import behavior when there are zero warnings.
+
+## Quote Edit Collision Handling
+
+
+
+**T120-a — Make duplicate dedupe-key collisions recoverable during quote edit save**
+Handle SQLite unique-constraint failures during edited-quote saves by keeping the edit form open with all unsaved field values intact and showing a user-facing duplicate-entry error instead of crashing. Route the three known collision cases through the same recoverable path: matching highlight book/location/text-prefix collisions, matching manual-quote title/author/location/text-prefix collisions, and book-title-plus-author edits that shift the dedupe key onto an existing entry. The user must be able to dismiss the error and continue editing or cancel back out without mutating the original stored quote, while other save-adjacent flows such as new quote creation, enable/disable toggles, and wallpaper set remain unchanged. Do not touch the existing `fatalError` paths for DB init or `WallpaperGenerator.swift`.
+
+## Settings Window Deactivation
+
+
+
+**T121-a — Keep the settings window visible across app deactivation**
+Fix the accessory-app settings window lifecycle so opening Settings and then switching to another app or clicking the desktop leaves the same window visible on screen as a non-key background window. Preserve visibility across repeated deactivate/reactivate cycles without duplicate windows or navigation-state drift, keep the menu bar item and menu functioning while the app is in the background, and do not change the `.accessory` activation policy or scope-creep into H3 (`Next Quote` closing Settings).
+
+
+**T122-a — Make quotes refresh state non-destructive**
+Update `QuotesListView` refresh semantics so starting a refresh no longer clears `highlights`, `rowModels`, counts, filter options, or selection before the incoming snapshot is accepted. Keep task cancellation, query-generation updates, and paging reset behavior intact so refreshes stop unmounting the current quotes content due to an intentional blank-slate reset.
+
+
+
+**T125-a — Split quotes refresh into render-critical page payload and deferred filter-options payload**
+Refactor the quotes refresh pipeline so the list no longer depends on the current `QuotesQueryService.loadSnapshot(...)` 4-read structure (`loadPage`, `loadHighlightsCount`, `loadAvailableHighlightBookTitles`, `loadAvailableHighlightAuthors`) before first paint. In `App/Database.swift`, add `QuotesPagePayload` plus `static func fetchHighlightPagePayload(searchText: String = "", filters: QuotesListFilters = QuotesListFilters(), sortedBy sortMode: QuotesListSortMode = .mostRecentlyAdded, limit: Int, offset: Int) -> QuotesPagePayload` and `QuotesFilterOptionsPayload` plus `static func fetchHighlightFilterOptions(searchText: String = "", filters: QuotesListFilters = QuotesListFilters()) -> QuotesFilterOptionsPayload`; both should keep existing SQL behavior but collapse related reads into one `shared.read` each. In `App/AppState.swift`, replace the monolithic snapshot orchestration with `QuotesQueryService.loadPagePayload(...)` and `QuotesQueryService.loadFilterOptions(...)`, where the refresh path loads page payload first, applies rows/count if still current, and only then optionally loads filter options as a follow-up. The goal is not generic sequentialization; it is priority staging that prevents each keystroke from enqueueing four stale DB reads on the single underlying `DatabaseQueue`.
+
+
+
+**T126-a — Add testable debounced search scheduling for quotes refresh**
+Replace the direct `.onChange(of: searchText) { refreshHighlights(reason: "searchChanged") }` path in `App/SettingsView.swift` with debounced scheduling so rapid typing collapses into one effective refresh for the final value. Make the debounce testable by introducing an app-layer sleep/debounce abstraction instead of hard-coding `Task.sleep`; the production implementation can sleep for `300ms`, while tests must inject a controllable fake that resumes suspended waits manually. Verification for this task must assert real query-service behavior, not just local flags: rapid `searchText` changes should produce one final page-payload request for the last term, and cancelled intermediate debounce waits must not trigger stale refreshes.
+
+
+
+**T127-a — Restrict sort changes to page-only fetches and harden generation-based stale-result discard**
+Keep the refresh generation counter in `QuotesListView` as the single UI-side freshness gate, increment it inside `refreshHighlights(reason:)`, capture the incremented value per task, and discard any async result whose captured generation no longer matches `queryGeneration` before mutating state. Update the staged refresh logic so `.onChange(of: sortMode)` continues to call `refreshHighlights(reason: "sortChanged")`, but the sort-changed path loads only `QuotesQueryService.loadPagePayload(...)` and explicitly skips `loadFilterOptions(...)`. Remove the current implicit filter-option reload from sort changes by eliminating the `loadSnapshot(...)` coupling, while keeping option reloads for initial appearance, debounced search changes, explicit filter changes, and library-count changes. Preserve the current filter reconciliation behavior after deferred option loads, including starting a new generation if selected values are invalidated.
+
+
+
+**T128-a — Verify staged refresh, debounce, and sort-only quotes behavior**
+Add deterministic coverage for the refactored quotes refresh pipeline. Tests should prove that stale generations cannot overwrite newer rows or filter options, that sort changes call only the page-payload path with zero filter-options reloads, and that debounced search triggers one final effective refresh after manual advancement of the injected test debouncer. Re-run the existing quotes verification scripts after adding the new coverage and confirm the refactor does not regress paging, filtering, mounted-content refresh behavior, or edit-mode selection handling.
+
+
+**T129-a — Spec out effective-search-state debounce fix for Quotes**
+Define the follow-on implementation wave for the quotes search debounce bug where rapid typing still triggers immediate refreshes because `QuotesListView` debounces only the refresh trigger while the rest of the query pipeline continues to read raw `searchText`. The spec should require separating UI input state from effective debounced query state, moving search-triggered refreshes onto the debounced state, updating refresh and paging paths to consume the debounced value consistently, and adding deterministic coverage that proves unrelated refresh paths and load-more behavior cannot bypass the debounce during active typing.
+
+
+
+**T130-a — Split Quotes search input from effective debounced query state**
+Refactor `QuotesListView` in `App/SettingsView.swift` so `.searchable` remains bound to raw UI input while the query pipeline reads a separate debounced effective search state. Commit the effective value only when the search debounce resolves, move search-triggered refreshes onto that committed state, and update list/query presentation in the view to read the effective value consistently so in-progress typing does not partially apply a new search before the debounce completes.
+
+
+
+**T131-a — Route Quotes refresh and paging paths through the committed effective search**
+Update `QuotesListView` refresh and load-more code paths in `App/SettingsView.swift` so every query-service call captures the same committed effective search text, including sort changes, filter changes, library-change refreshes, and pagination requests that happen while the user is still typing in the search field. Preserve the current debounce interval, staged filter-options loading rules, generation-based stale-result discard, and mounted-refresh behavior while preventing unrelated refresh paths from bypassing the debounce by reading raw UI input.
+
+
+
+**T132-a — Verify effective debounced Quotes search state behavior**
+Add deterministic coverage proving rapid typing does not reach `QuotesQueryService` until the debounced effective search value commits, and that sort/filter/library refreshes plus load-more requests triggered during active typing continue using the previously committed search term until the debounce completes. Re-run the existing quotes verification scripts covering debounce, staged refresh, mounted refresh behavior, and pagination after adding the new coverage.
+
+
+**T123-a — Keep quotes content mounted and move loading to explicit overlay/initial-load modes**
+Refactor `QuotesListView` rendering so loading has two explicit presentations: a spinner-only primary content state on first load when there is no previously resolved content to preserve, and a centered loading overlay for refreshes after content has already been shown. Keep the existing `List`/empty-state subtree mounted during refresh overlays, preserve row identity and selection where possible, and maintain current behavior for library-empty versus no-matching-results states after refresh completion.
+
+
+
+**T124-a — Verify mounted quotes refresh behavior and render timing**
+Add deterministic verification coverage for the new quotes loading presentation rules and any extracted presentation helpers, then re-run the existing quotes verification scripts and measure `QuotesListRender` before/after to confirm the mounted-list refresh path materially reduces cold remount cost without regressing paging, filtering, or edit-mode selection behavior.
+
+
+
+**T107-a — Batch import tombstone and dedupe preflight**
+Add database APIs that resolve existing tombstones and existing dedupe keys for a parsed import batch in bulk so `ImportCoordinator` no longer performs one tombstone lookup and one dedupe existence check per parsed highlight.
+
+
+
+**T108-a — Collapse import persistence and inserted-count reporting into one transaction**
+Move live import persistence onto a single database transaction that bulk-upserts books, bulk-inserts only surviving highlights, and returns inserted highlight count directly so import no longer depends on before/after `COUNT(*)` scans.
+
+
+
+**T110-a — Verify DB performance-oriented bulk delete and import paths**
+Add deterministic verification that delete tombstones are batched, import performs bulk tombstone/dedupe preflight and transactionally reports inserted counts, and app-state delete/import callers stop issuing redundant full-library refresh queries.
+
+
+
+**T111-a — Spec out improved delete flows**
+Define the next follow-on wave for improving delete behavior and performance, including any remaining work around delete-path batching, confirmation ergonomics, selection-state handling, and deterministic verification coverage.
+
+
+
+
+
+**T96-a — Spec out filter row overflow**
+Spec out the horizontal overflow issue in the filter row where the controls require side-scrolling with no indication that more content is offscreen.
+
+
+
+
