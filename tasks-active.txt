@@ -10,9 +10,6 @@ Do not leave completed tasks in `tasks-active.txt`. When the header has no tasks
 
 ## Auto-launch On Startup
 
-**T94-a — Add launch-at-login AppState and ServiceManagement plumbing**
-Implement launch-at-login service for KindleWall using `ServiceManagement.SMAppService.mainApp`, with AppState plumbing for current enabled state, refresh, toggle, and user-visible error handling.
-
 **T94-b — Add Settings UI for launch-at-login**
 Add a Settings toggle in the About section for launching KindleWall at login, including helper copy about macOS Login Items and inline error/status messaging from AppState.
 

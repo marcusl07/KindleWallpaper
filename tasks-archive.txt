@@ -798,3 +798,8 @@ Introduce a `BulkHighlightDeletionPlan` plus app-state preparation APIs so quote
 **T135-a — Verify large-selection delete batching and captured confirmation behavior**
 Add deterministic coverage proving quote/book delete flows remain correct for selections large enough to require batching, that confirmation counts/messages are driven by captured delete plans instead of live mutable UI state, and that empty or stale pending plans neither present misleading destructive alerts nor execute destructive work. Re-run the existing delete verification scripts after adding the new coverage.
 
+
+**T94-a — Add launch-at-login AppState and ServiceManagement plumbing**
+Implement launch-at-login service for KindleWall using `ServiceManagement.SMAppService.mainApp`, with AppState plumbing for current enabled state, refresh, toggle, and user-visible error handling.
+
+

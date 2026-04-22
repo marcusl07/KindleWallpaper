@@ -4,6 +4,9 @@ import Foundation
 #if canImport(AppKit)
 import AppKit
 #endif
+#if canImport(ServiceManagement)
+import ServiceManagement
+#endif
 
 private let wallpaperRotationQueue = DispatchQueue(
     label: "KindleWall.AppState.WallpaperRotation",
@@ -317,6 +320,23 @@ final class AppState: ObservableObject {
         }
     }
 
+    enum LaunchAtLoginError: Error, Equatable, LocalizedError {
+        case registerFailed(String)
+        case unregisterFailed(String)
+        case unsupported
+
+        var errorDescription: String? {
+            switch self {
+            case .registerFailed(let message):
+                return message
+            case .unregisterFailed(let message):
+                return message
+            case .unsupported:
+                return "Launch at login is unavailable on this platform."
+            }
+        }
+    }
+
     struct StoredWallpaperAssignmentPersistence {
         let load: () -> [StoredGeneratedWallpaper]
         let replace: ([GeneratedWallpaper]) -> Void
@@ -361,6 +381,9 @@ final class AppState: ObservableObject {
     typealias FetchAvailableHighlightBookTitles = (String, QuotesListFilters) -> [String]
     typealias FetchAvailableHighlightAuthors = (String, QuotesListFilters) -> [String]
     typealias FetchTotalHighlightCount = () -> Int
+    typealias GetLaunchAtLoginEnabled = () -> Bool
+    typealias RefreshLaunchAtLoginEnabled = () -> Bool
+    typealias SetLaunchAtLoginEnabled = (Bool) throws -> Void
     typealias LoadBackgroundPreviewState = () -> BackgroundPreviewState
     typealias SaveBackgroundImageSelection = (URL) throws -> Void
     typealias LoadBackgroundCollectionState = () -> BackgroundCollectionState
@@ -379,6 +402,7 @@ final class AppState: ObservableObject {
     @Published private(set) var activeScheduleMode: RotationScheduleMode
     @Published private(set) var lastChangedAt: Date?
     @Published private(set) var capitalizeHighlightText: Bool
+    @Published private(set) var isLaunchAtLoginEnabled: Bool
     let quotesQueryService: QuotesQueryService
 
     private let userDefaults: UserDefaults
@@ -406,6 +430,9 @@ final class AppState: ObservableObject {
     private let fetchAllBooks: FetchAllBooks
     private let fetchAllHighlights: FetchAllHighlights
     private let fetchTotalHighlightCount: FetchTotalHighlightCount
+    private let getLaunchAtLoginEnabled: GetLaunchAtLoginEnabled
+    private let refreshLaunchAtLoginEnabledAction: RefreshLaunchAtLoginEnabled
+    private let setLaunchAtLoginEnabledAction: SetLaunchAtLoginEnabled
     private let loadBackgroundPreviewStateAction: LoadBackgroundPreviewState
     private let saveBackgroundImageSelectionAction: SaveBackgroundImageSelection
     private let loadBackgroundCollectionStateAction: LoadBackgroundCollectionState
@@ -417,6 +444,7 @@ final class AppState: ObservableObject {
     private let now: Now
     private var isRotationInProgress = false
     private let bookMutationLock = NSLock()
+    private var launchAtLoginError: LaunchAtLoginError?
 
     var importStatus: String {
         latestImportStatus.statusMessage
@@ -428,6 +456,10 @@ final class AppState: ObservableObject {
 
     var importWarningDetails: [String] {
         latestImportStatus.warningDetails
+    }
+
+    var launchAtLoginErrorMessage: String? {
+        launchAtLoginError?.errorDescription
     }
 
     nonisolated private static func enqueueRotationWork(_ work: @escaping () -> Void) {
@@ -482,6 +514,9 @@ final class AppState: ObservableObject {
         fetchAvailableHighlightAuthors: @escaping FetchAvailableHighlightAuthors = { _, _ in [] },
         quotesQueryService: QuotesQueryService? = nil,
         fetchTotalHighlightCount: @escaping FetchTotalHighlightCount = { 0 },
+        getLaunchAtLoginEnabled: @escaping GetLaunchAtLoginEnabled = { false },
+        refreshLaunchAtLoginEnabled: @escaping RefreshLaunchAtLoginEnabled = { false },
+        setLaunchAtLoginEnabled: @escaping SetLaunchAtLoginEnabled = { _ in },
         loadBackgroundPreviewState: LoadBackgroundPreviewState? = nil,
         saveBackgroundImageSelection: @escaping SaveBackgroundImageSelection = { _ in },
         loadBackgroundCollectionState: LoadBackgroundCollectionState? = nil,
@@ -624,6 +659,10 @@ final class AppState: ObservableObject {
         self.fetchAllBooks = fetchAllBooks
         self.fetchAllHighlights = fetchAllHighlights
         self.fetchTotalHighlightCount = fetchTotalHighlightCount
+        self.getLaunchAtLoginEnabled = getLaunchAtLoginEnabled
+        self.refreshLaunchAtLoginEnabledAction = refreshLaunchAtLoginEnabled
+        self.setLaunchAtLoginEnabledAction = setLaunchAtLoginEnabled
+        self.isLaunchAtLoginEnabled = getLaunchAtLoginEnabled()
         self.loadBackgroundPreviewStateAction = resolvedLoadBackgroundPreviewState
         self.saveBackgroundImageSelectionAction = saveBackgroundImageSelection
         self.loadBackgroundCollectionStateAction = resolvedLoadBackgroundCollectionState
@@ -1191,6 +1230,30 @@ final class AppState: ObservableObject {
     func refreshAllState() {
         refreshLibraryState()
         refreshScheduleState()
+        refreshLaunchAtLoginState()
+    }
+
+    func refreshLaunchAtLoginState() {
+        isLaunchAtLoginEnabled = refreshLaunchAtLoginEnabledAction()
+        launchAtLoginError = nil
+    }
+
+    func setLaunchAtLoginEnabled(_ enabled: Bool) {
+        do {
+            try setLaunchAtLoginEnabledAction(enabled)
+            isLaunchAtLoginEnabled = getLaunchAtLoginEnabled()
+            launchAtLoginError = nil
+        } catch let error as LaunchAtLoginError {
+            launchAtLoginError = error
+            isLaunchAtLoginEnabled = getLaunchAtLoginEnabled()
+        } catch {
+            launchAtLoginError = .registerFailed(error.localizedDescription)
+            isLaunchAtLoginEnabled = getLaunchAtLoginEnabled()
+        }
+    }
+
+    func toggleLaunchAtLogin() {
+        setLaunchAtLoginEnabled(!isLaunchAtLoginEnabled)
     }
 
     func loadBackgroundPreviewState() -> BackgroundPreviewState {
@@ -1452,6 +1515,9 @@ extension AppState {
                 fetchHighlightsPage: DatabaseManager.fetchHighlightsPage(searchText:filters:sortedBy:limit:offset:)
             ),
             fetchTotalHighlightCount: DatabaseManager.totalHighlightCount,
+            getLaunchAtLoginEnabled: LaunchAtLoginService.currentEnabled,
+            refreshLaunchAtLoginEnabled: LaunchAtLoginService.refreshEnabled,
+            setLaunchAtLoginEnabled: LaunchAtLoginService.setEnabled(_:),
             loadBackgroundPreviewState: {
                 let result = backgroundStore.loadBackgroundImageCollection()
                 return BackgroundPreviewState(
@@ -1489,3 +1555,38 @@ extension AppState {
     }
 }
 #endif
+
+enum LaunchAtLoginService {
+    static func currentEnabled() -> Bool {
+#if canImport(ServiceManagement)
+        return SMAppService.mainApp.status == .enabled
+#else
+        return false
+#endif
+    }
+
+    static func refreshEnabled() -> Bool {
+        currentEnabled()
+    }
+
+    static func setEnabled(_ enabled: Bool) throws {
+#if canImport(ServiceManagement)
+        let service = SMAppService.mainApp
+        do {
+            if enabled {
+                try service.register()
+            } else {
+                try service.unregister()
+            }
+        } catch {
+            if enabled {
+                throw AppState.LaunchAtLoginError.registerFailed(error.localizedDescription)
+            } else {
+                throw AppState.LaunchAtLoginError.unregisterFailed(error.localizedDescription)
+            }
+        }
+#else
+        throw AppState.LaunchAtLoginError.unsupported
+#endif
+    }
+}
