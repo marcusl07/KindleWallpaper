@@ -18,6 +18,7 @@ enum DatabaseManager {
     }
 
     private static let tombstoneInsertBatchRowLimit = 400
+    private static let deleteSelectionBatchRowLimit = 400
     private static let importPreflightBatchRowLimit = 400
     private static let importBookUpsertBatchRowLimit = 200
     private static let importHighlightInsertBatchRowLimit = 90
@@ -570,12 +571,12 @@ enum DatabaseManager {
                 )
 
                 let capturedHighlightIDs = capturedLiveHighlights.map(\.id.uuidString)
-                try database.execute(
-                    sql: """
-                    DELETE FROM highlights
-                    WHERE id IN (\(sqlPlaceholders(count: capturedHighlightIDs.count)))
-                    """,
-                    arguments: StatementArguments(capturedHighlightIDs)
+                try deleteRows(
+                    from: "highlights",
+                    idColumn: "id",
+                    ids: capturedHighlightIDs,
+                    batchRowLimit: deleteSelectionBatchRowLimit,
+                    database: database
                 )
 
                 return try makeLibrarySnapshot(database: database)
@@ -631,22 +632,20 @@ enum DatabaseManager {
                 )
 
                 let capturedLinkedHighlightIDs = uniqueUUIDStrings(from: plan.linkedHighlightIDs)
-                if !capturedLinkedHighlightIDs.isEmpty {
-                    try database.execute(
-                        sql: """
-                        DELETE FROM highlights
-                        WHERE id IN (\(sqlPlaceholders(count: capturedLinkedHighlightIDs.count)))
-                        """,
-                        arguments: StatementArguments(capturedLinkedHighlightIDs)
-                    )
-                }
+                try deleteRows(
+                    from: "highlights",
+                    idColumn: "id",
+                    ids: capturedLinkedHighlightIDs,
+                    batchRowLimit: deleteSelectionBatchRowLimit,
+                    database: database
+                )
 
-                try database.execute(
-                    sql: """
-                    DELETE FROM books
-                    WHERE id IN (\(sqlPlaceholders(count: capturedBookIDs.count)))
-                    """,
-                    arguments: StatementArguments(capturedBookIDs)
+                try deleteRows(
+                    from: "books",
+                    idColumn: "id",
+                    ids: capturedBookIDs,
+                    batchRowLimit: deleteSelectionBatchRowLimit,
+                    database: database
                 )
 
                 return try makeLibrarySnapshot(database: database)
@@ -1801,17 +1800,13 @@ enum DatabaseManager {
             return []
         }
 
-        let rows = try Row.fetchAll(
-            database,
-            sql: """
-            SELECT id, bookId, quoteText, bookTitle, author, location, dateAdded, lastShownAt, isEnabled
-            FROM highlights
-            WHERE id IN (\(sqlPlaceholders(count: uniqueHighlightIDs.count)))
-            """,
-            arguments: StatementArguments(uniqueHighlightIDs)
+        let capturedHighlightsByID = try fetchHighlightsByID(
+            uniqueHighlightIDs,
+            batchRowLimit: deleteSelectionBatchRowLimit,
+            database: database
         )
 
-        return rows.map(highlight(from:))
+        return uniqueHighlightIDs.compactMap { capturedHighlightsByID[$0] }
     }
 
     private static func fetchLiveBookIDs(matchingIDs ids: [UUID], database: Database) throws -> [UUID] {
@@ -1820,19 +1815,11 @@ enum DatabaseManager {
             return []
         }
 
-        let storedBookIDRows = try Row.fetchAll(
-            database,
-            sql: """
-            SELECT id
-            FROM books
-            WHERE id IN (\(sqlPlaceholders(count: uniqueBookIDs.count)))
-            """,
-            arguments: StatementArguments(uniqueBookIDs)
+        let storedBookIDSet = try fetchExistingBookIDSet(
+            uniqueBookIDs,
+            batchRowLimit: deleteSelectionBatchRowLimit,
+            database: database
         )
-
-        let storedBookIDSet = Set(storedBookIDRows.compactMap { row in
-            row["id"] as String?
-        })
 
         return uniqueBookIDs.compactMap { bookIDString in
             guard storedBookIDSet.contains(bookIDString) else {
@@ -1855,39 +1842,173 @@ enum DatabaseManager {
             return []
         }
 
-        let rows = try Row.fetchAll(
-            database,
-            sql: """
-            SELECT id, bookTitle, author, location, quoteText
-            FROM highlights
-            WHERE bookId IN (\(sqlPlaceholders(count: uniqueBookIDs.count)))
-            ORDER BY
-                bookTitle COLLATE NOCASE ASC,
-                author COLLATE NOCASE ASC,
-                CASE WHEN location IS NULL THEN 1 ELSE 0 END ASC,
-                location COLLATE NOCASE ASC,
-                quoteText COLLATE NOCASE ASC,
-                id ASC
-            """,
-            arguments: StatementArguments(uniqueBookIDs)
-        )
+        var linkedHighlights: [BulkBookDeletionLinkedHighlight] = []
 
-        return rows.map { row in
-            guard
-                let idValue: String = row["id"],
-                let id = UUID(uuidString: idValue)
-            else {
-                fatalError("Invalid highlight id in database row")
+        try forEachStringBatch(
+            uniqueBookIDs,
+            batchRowLimit: deleteSelectionBatchRowLimit
+        ) { bookIDBatch in
+            let rows = try Row.fetchAll(
+                database,
+                sql: """
+                SELECT id, bookTitle, author, location, quoteText
+                FROM highlights
+                WHERE bookId IN (\(sqlPlaceholders(count: bookIDBatch.count)))
+                """,
+                arguments: StatementArguments(bookIDBatch)
+            )
+
+            linkedHighlights.append(contentsOf: rows.map(linkedHighlight(from:)))
+        }
+
+        linkedHighlights.sort(by: bulkBookDeletionLinkedHighlightSort)
+        return linkedHighlights
+    }
+
+    private static func fetchHighlightsByID(
+        _ ids: [String],
+        batchRowLimit: Int,
+        database: Database
+    ) throws -> [String: Highlight] {
+        var capturedHighlightsByID: [String: Highlight] = [:]
+        capturedHighlightsByID.reserveCapacity(ids.count)
+
+        try forEachStringBatch(ids, batchRowLimit: batchRowLimit) { highlightIDBatch in
+            let rows = try Row.fetchAll(
+                database,
+                sql: """
+                SELECT id, bookId, quoteText, bookTitle, author, location, dateAdded, lastShownAt, isEnabled
+                FROM highlights
+                WHERE id IN (\(sqlPlaceholders(count: highlightIDBatch.count)))
+                """,
+                arguments: StatementArguments(highlightIDBatch)
+            )
+
+            for row in rows {
+                let highlight = highlight(from: row)
+                capturedHighlightsByID[highlight.id.uuidString] = highlight
             }
+        }
 
-            return BulkBookDeletionLinkedHighlight(
-                id: id,
-                bookTitle: row["bookTitle"],
-                author: row["author"],
-                location: row["location"],
-                quoteText: row["quoteText"]
+        return capturedHighlightsByID
+    }
+
+    private static func fetchExistingBookIDSet(
+        _ ids: [String],
+        batchRowLimit: Int,
+        database: Database
+    ) throws -> Set<String> {
+        var storedBookIDSet = Set<String>()
+
+        try forEachStringBatch(ids, batchRowLimit: batchRowLimit) { bookIDBatch in
+            let storedBookIDRows = try Row.fetchAll(
+                database,
+                sql: """
+                SELECT id
+                FROM books
+                WHERE id IN (\(sqlPlaceholders(count: bookIDBatch.count)))
+                """,
+                arguments: StatementArguments(bookIDBatch)
+            )
+
+            storedBookIDSet.formUnion(storedBookIDRows.compactMap { row in
+                row["id"] as String?
+            })
+        }
+
+        return storedBookIDSet
+    }
+
+    private static func deleteRows(
+        from tableName: String,
+        idColumn: String,
+        ids: [String],
+        batchRowLimit: Int,
+        database: Database
+    ) throws {
+        guard !ids.isEmpty else {
+            return
+        }
+
+        try forEachStringBatch(ids, batchRowLimit: batchRowLimit) { idBatch in
+            try database.execute(
+                sql: """
+                DELETE FROM \(tableName)
+                WHERE \(idColumn) IN (\(sqlPlaceholders(count: idBatch.count)))
+                """,
+                arguments: StatementArguments(idBatch)
             )
         }
+    }
+
+    private static func forEachStringBatch(
+        _ values: [String],
+        batchRowLimit: Int,
+        body: ([String]) throws -> Void
+    ) throws {
+        guard !values.isEmpty else {
+            return
+        }
+
+        var batchStartIndex = 0
+        while batchStartIndex < values.count {
+            let batchEndIndex = min(batchStartIndex + batchRowLimit, values.count)
+            try body(Array(values[batchStartIndex..<batchEndIndex]))
+            batchStartIndex = batchEndIndex
+        }
+    }
+
+    private static func linkedHighlight(from row: Row) -> BulkBookDeletionLinkedHighlight {
+        guard
+            let idValue: String = row["id"],
+            let id = UUID(uuidString: idValue)
+        else {
+            fatalError("Invalid highlight id in database row")
+        }
+
+        return BulkBookDeletionLinkedHighlight(
+            id: id,
+            bookTitle: row["bookTitle"],
+            author: row["author"],
+            location: row["location"],
+            quoteText: row["quoteText"]
+        )
+    }
+
+    private static func bulkBookDeletionLinkedHighlightSort(
+        _ lhs: BulkBookDeletionLinkedHighlight,
+        _ rhs: BulkBookDeletionLinkedHighlight
+    ) -> Bool {
+        let bookTitleComparison = lhs.bookTitle.localizedCaseInsensitiveCompare(rhs.bookTitle)
+        if bookTitleComparison != .orderedSame {
+            return bookTitleComparison == .orderedAscending
+        }
+
+        let authorComparison = lhs.author.localizedCaseInsensitiveCompare(rhs.author)
+        if authorComparison != .orderedSame {
+            return authorComparison == .orderedAscending
+        }
+
+        switch (lhs.location, rhs.location) {
+        case let (lhsLocation?, rhsLocation?):
+            let locationComparison = lhsLocation.localizedCaseInsensitiveCompare(rhsLocation)
+            if locationComparison != .orderedSame {
+                return locationComparison == .orderedAscending
+            }
+        case (.some, nil):
+            return true
+        case (nil, .some):
+            return false
+        case (nil, nil):
+            break
+        }
+
+        let quoteTextComparison = lhs.quoteText.localizedCaseInsensitiveCompare(rhs.quoteText)
+        if quoteTextComparison != .orderedSame {
+            return quoteTextComparison == .orderedAscending
+        }
+
+        return lhs.id.uuidString < rhs.id.uuidString
     }
 
     private static func uniqueUUIDStrings(from ids: [UUID]) -> [String] {

@@ -780,3 +780,10 @@ Add deterministic coverage for any extracted filter-row overflow presentation/he
 
 
 
+
+**T133-a — Batch large-selection delete capture and execution**
+Refactor delete-related database helpers in `App/Database.swift` so quote/book live-row capture plus the final `DELETE ... WHERE id IN (...)` work in bounded batches for large highlight and book selections, while preserving exact captured-row semantics, tombstone behavior, and single-transaction rollback safety.
+
+
+
+
