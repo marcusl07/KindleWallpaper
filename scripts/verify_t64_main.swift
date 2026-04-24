@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 
 private func fail(_ message: String) -> Never {
     fputs("verify_t64_main failed: \(message)\n", stderr)
@@ -390,6 +391,53 @@ private final class ManualRestoreScheduler {
 }
 
 @MainActor
+private final class ManualDisplayReconfigurationRegistrar {
+    private final class RegistrationToken: NSObject {}
+
+    private(set) var registerCallCount = 0
+    private(set) var unregisterCallCount = 0
+    private var activeTokens: [RegistrationToken] = []
+    private var handler: (@MainActor (CGDirectDisplayID, CGDisplayChangeSummaryFlags) -> Void)?
+
+    var activeRegistrationCount: Int {
+        activeTokens.count
+    }
+
+    func register(
+        handler: @escaping @MainActor (CGDirectDisplayID, CGDisplayChangeSummaryFlags) -> Void
+    ) -> AnyObject? {
+        registerCallCount += 1
+        self.handler = handler
+        let token = RegistrationToken()
+        activeTokens.append(token)
+        return token
+    }
+
+    func unregister(_ registration: AnyObject) {
+        guard let token = registration as? RegistrationToken else {
+            fail("Expected unregister to receive the original registration token")
+        }
+
+        unregisterCallCount += 1
+        activeTokens.removeAll { $0 === token }
+        if activeTokens.isEmpty {
+            handler = nil
+        }
+    }
+
+    func fire(
+        displayID: CGDirectDisplayID = 1,
+        flags: CGDisplayChangeSummaryFlags = []
+    ) {
+        guard let handler else {
+            fail("Expected a registered display callback before firing test events")
+        }
+
+        handler(displayID, flags)
+    }
+}
+
+@MainActor
 private func makeTopologyTestingAppState(
     reapplyCurrentWallpaperForTopology: @escaping AppState.ReapplyCurrentWallpaperForTopology
 ) -> AppState {
@@ -755,6 +803,7 @@ private func testDisplayTopologyCoordinatorDebouncesWakeThenReconfiguration() {
     let displayNotificationName = Notification.Name("verify-t64-display")
     let wakeCenter = NotificationCenter()
     let displayCenter = NotificationCenter()
+    let registrar = ManualDisplayReconfigurationRegistrar()
     let scheduler = ManualRestoreScheduler()
     var reapplyCallCount = 0
     let appState = makeTopologyTestingAppState {
@@ -769,22 +818,32 @@ private func testDisplayTopologyCoordinatorDebouncesWakeThenReconfiguration() {
         displayReconfigurationNotificationCenter: displayCenter,
         displayReconfigurationNotificationName: displayNotificationName,
         debounceInterval: 0.25,
+        confirmationDelay: 2.0,
+        registerDisplayReconfigurationCallback: registrar.register(handler:),
+        unregisterDisplayReconfigurationCallback: registrar.unregister(_:),
         scheduleRestore: scheduler.schedule(generation:delay:operation:)
     )
 
     coordinator.start()
     wakeCenter.post(name: wakeNotificationName, object: nil)
     displayCenter.post(name: displayNotificationName, object: nil)
+    registrar.fire()
 
-    expectEqual(scheduler.entries.count, 2, "Expected wake plus reconfiguration to schedule two debounced restore attempts")
+    expectEqual(scheduler.entries.count, 6, "Expected each topology signal to schedule a fast pass plus confirmation pass")
     expectEqual(scheduler.entries[0].delay, 0.25, "Expected wake restore scheduling to use the configured debounce interval")
-    expectEqual(scheduler.entries[1].delay, 0.25, "Expected display reconfiguration scheduling to use the configured debounce interval")
+    expectEqual(scheduler.entries[1].delay, 2.0, "Expected wake confirmation scheduling to use the configured confirmation delay")
+    expectEqual(scheduler.entries[4].delay, 0.25, "Expected the latest signal to keep the fast restore delay")
+    expectEqual(scheduler.entries[5].delay, 2.0, "Expected the latest signal to keep the confirmation delay")
 
     scheduler.fire(at: 0)
-    expectEqual(reapplyCallCount, 0, "Expected the wake-triggered restore to be dropped after a later reconfiguration arrives")
-
     scheduler.fire(at: 1)
-    expectEqual(reapplyCallCount, 1, "Expected wake-then-reconfigure bursts to coalesce into one restore pass")
+    scheduler.fire(at: 2)
+    scheduler.fire(at: 3)
+    expectEqual(reapplyCallCount, 0, "Expected earlier generations to be dropped after later topology signals arrive")
+
+    scheduler.fire(at: 4)
+    scheduler.fire(at: 5)
+    expectEqual(reapplyCallCount, 2, "Expected wake plus AppKit/CoreGraphics bursts to collapse into one fast pass and one confirmation pass")
 }
 
 @MainActor
@@ -803,6 +862,7 @@ private func testDisplayTopologyCoordinatorDebouncesRepeatedReconfigurationBurst
         displayReconfigurationNotificationCenter: NotificationCenter(),
         displayReconfigurationNotificationName: Notification.Name("unused-display"),
         debounceInterval: 0.5,
+        confirmationDelay: 1.5,
         scheduleRestore: scheduler.schedule(generation:delay:operation:)
     )
 
@@ -810,14 +870,17 @@ private func testDisplayTopologyCoordinatorDebouncesRepeatedReconfigurationBurst
     coordinator.handleDisplayReconfigurationNotification()
     coordinator.handleDisplayReconfigurationNotification()
 
-    expectEqual(scheduler.entries.count, 3, "Expected each reconfiguration event to replace the pending debounced restore")
+    expectEqual(scheduler.entries.count, 6, "Expected each reconfiguration event to reschedule both restore passes")
 
     scheduler.fire(at: 0)
     scheduler.fire(at: 1)
-    expectEqual(reapplyCallCount, 0, "Expected superseded reconfiguration events not to restore early")
-
     scheduler.fire(at: 2)
-    expectEqual(reapplyCallCount, 1, "Expected a burst of repeated reconfiguration events to restore once after topology settles")
+    scheduler.fire(at: 3)
+    expectEqual(reapplyCallCount, 0, "Expected superseded reconfiguration generations not to restore early")
+
+    scheduler.fire(at: 4)
+    scheduler.fire(at: 5)
+    expectEqual(reapplyCallCount, 2, "Expected a burst of repeated reconfiguration events to restore with one fast pass and one confirmation pass")
 }
 
 @MainActor
@@ -836,16 +899,87 @@ private func testDisplayTopologyCoordinatorStopInvalidatesPendingRestore() {
         displayReconfigurationNotificationCenter: NotificationCenter(),
         displayReconfigurationNotificationName: Notification.Name("unused-display"),
         debounceInterval: 0.5,
+        confirmationDelay: 1.5,
         scheduleRestore: scheduler.schedule(generation:delay:operation:)
     )
 
     coordinator.handleWakeNotification()
-    expectEqual(scheduler.entries.count, 1, "Expected wake handling to schedule a debounced restore")
+    expectEqual(scheduler.entries.count, 2, "Expected wake handling to schedule both restore passes")
 
     coordinator.stop()
     scheduler.fire(at: 0)
+    scheduler.fire(at: 1)
 
     expectEqual(reapplyCallCount, 0, "Expected stop() to invalidate already scheduled restore passes")
+}
+
+@MainActor
+private func testDisplayTopologyCoordinatorIgnoresCoreGraphicsBeginPhase() {
+    let scheduler = ManualRestoreScheduler()
+    let coordinator = DisplayTopologyCoordinator(
+        notificationCenter: NotificationCenter(),
+        wakeNotificationName: Notification.Name("unused-wake"),
+        displayReconfigurationNotificationCenter: NotificationCenter(),
+        displayReconfigurationNotificationName: Notification.Name("unused-display"),
+        debounceInterval: 0.25,
+        confirmationDelay: 1.0,
+        scheduleRestore: scheduler.schedule(generation:delay:operation:)
+    )
+
+    coordinator.handleCoreGraphicsDisplayReconfiguration(flags: .beginConfigurationFlag)
+    expectEqual(scheduler.entries.count, 0, "Expected begin-phase CoreGraphics callbacks not to schedule restore work")
+
+    coordinator.handleCoreGraphicsDisplayReconfiguration(flags: [])
+    expectEqual(scheduler.entries.count, 2, "Expected settled CoreGraphics callbacks to schedule both restore passes")
+}
+
+@MainActor
+private func testDisplayTopologyCoordinatorRegistersAndUnregistersCoreGraphicsCallback() {
+    let registrar = ManualDisplayReconfigurationRegistrar()
+    let coordinator = DisplayTopologyCoordinator(
+        notificationCenter: NotificationCenter(),
+        wakeNotificationName: Notification.Name("unused-wake"),
+        displayReconfigurationNotificationCenter: NotificationCenter(),
+        displayReconfigurationNotificationName: Notification.Name("unused-display"),
+        registerDisplayReconfigurationCallback: registrar.register(handler:),
+        unregisterDisplayReconfigurationCallback: registrar.unregister(_:)
+    )
+
+    coordinator.start()
+    expectEqual(registrar.registerCallCount, 1, "Expected start() to register the CoreGraphics reconfiguration callback")
+    expectEqual(registrar.activeRegistrationCount, 1, "Expected CoreGraphics callback registration to stay active until stop()")
+
+    coordinator.stop()
+    expectEqual(registrar.unregisterCallCount, 1, "Expected stop() to unregister the CoreGraphics reconfiguration callback")
+    expectEqual(registrar.activeRegistrationCount, 0, "Expected CoreGraphics callback registration to be removed on stop()")
+}
+
+@MainActor
+private func testDisplayTopologyCoordinatorConfirmationPassRunsAfterAlreadyApplied() {
+    let scheduler = ManualRestoreScheduler()
+    var reapplyOutcomes: [AppState.TopologyWallpaperReapplyOutcome] = []
+    let appState = makeTopologyTestingAppState {
+        let outcome: AppState.TopologyWallpaperReapplyOutcome = reapplyOutcomes.isEmpty ? .alreadyApplied : .reapplied
+        reapplyOutcomes.append(outcome)
+        return outcome
+    }
+
+    let coordinator = DisplayTopologyCoordinator(
+        appState: appState,
+        notificationCenter: NotificationCenter(),
+        wakeNotificationName: Notification.Name("unused-wake"),
+        displayReconfigurationNotificationCenter: NotificationCenter(),
+        displayReconfigurationNotificationName: Notification.Name("unused-display"),
+        debounceInterval: 0.25,
+        confirmationDelay: 1.0,
+        scheduleRestore: scheduler.schedule(generation:delay:operation:)
+    )
+
+    coordinator.handleDisplayReconfigurationNotification()
+    scheduler.fire(at: 0)
+    scheduler.fire(at: 1)
+
+    expectEqual(reapplyOutcomes, [.alreadyApplied, .reapplied], "Expected the confirmation pass to rerun even after the fast pass reports alreadyApplied")
 }
 
 @MainActor
@@ -1331,6 +1465,7 @@ private func testDisplayTopologyCoordinatorDisplayChangesPreferPersistedPrimaryW
     let displayNotificationName = Notification.Name("verify-t64-display-change-display")
     let wakeCenter = NotificationCenter()
     let displayCenter = NotificationCenter()
+    let registrar = ManualDisplayReconfigurationRegistrar()
 
     let appState = AppState(
         pickNextHighlight: { nil },
@@ -1369,6 +1504,9 @@ private func testDisplayTopologyCoordinatorDisplayChangesPreferPersistedPrimaryW
         displayReconfigurationNotificationCenter: displayCenter,
         displayReconfigurationNotificationName: displayNotificationName,
         debounceInterval: 0.25,
+        confirmationDelay: 1.0,
+        registerDisplayReconfigurationCallback: registrar.register(handler:),
+        unregisterDisplayReconfigurationCallback: registrar.unregister(_:),
         scheduleRestore: scheduler.schedule(generation:delay:operation:)
     )
 
@@ -1377,12 +1515,17 @@ private func testDisplayTopologyCoordinatorDisplayChangesPreferPersistedPrimaryW
 
     coordinator.start()
     displayCenter.post(name: displayNotificationName, object: nil)
+    registrar.fire()
 
-    expectEqual(scheduler.entries.count, 1, "Expected a display reconfiguration event to schedule one debounced topology reapply")
+    expectEqual(scheduler.entries.count, 4, "Expected AppKit plus CoreGraphics display events to collapse into one generation with two restore passes")
     expectEqual(scheduler.entries[0].delay, 0.25, "Expected display reconfiguration scheduling to use the configured debounce interval")
+    expectEqual(scheduler.entries[1].delay, 1.0, "Expected display reconfiguration confirmation scheduling to use the configured confirmation delay")
 
     scheduler.fire(at: 0)
-    expectEqual(reapplyOutcomes, [.reapplied], "Expected the settled display-change topology reapply to report an explicit reapply outcome")
+    scheduler.fire(at: 1)
+    scheduler.fire(at: 2)
+    scheduler.fire(at: 3)
+    expectEqual(reapplyOutcomes, [.reapplied, .alreadyApplied], "Expected the settled display-change topology reapply to run once immediately and once for confirmation")
     expectEqual(appliedImagesByScreen.count, 2, "Expected display-change topology reapply to rewrite every screen whose live wallpaper drifted away from the resolved shared source")
     expectEqual(
         appliedImagesByScreen["screen-a"],
@@ -1443,6 +1586,9 @@ await MainActor.run {
     testDisplayTopologyCoordinatorDebouncesWakeThenReconfiguration()
     testDisplayTopologyCoordinatorDebouncesRepeatedReconfigurationBursts()
     testDisplayTopologyCoordinatorStopInvalidatesPendingRestore()
+    testDisplayTopologyCoordinatorIgnoresCoreGraphicsBeginPhase()
+    testDisplayTopologyCoordinatorRegistersAndUnregistersCoreGraphicsCallback()
+    testDisplayTopologyCoordinatorConfirmationPassRunsAfterAlreadyApplied()
     testAppStateTopologyReapplyForwardsStructuredOutcome()
     testAppStateRotationUsesReplacePersistenceOnly()
     testAppStateRotationFailureSkipsPersistenceOperations()
