@@ -17,168 +17,203 @@ private func expectEqual<T: Equatable>(_ actual: T, _ expected: T, _ message: St
     }
 }
 
-private func makeTemporaryDirectory(prefix: String) -> URL {
-    let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-        .appendingPathComponent("\(prefix)-\(UUID().uuidString)", isDirectory: true)
-    do {
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    } catch {
-        fail("Unable to create temporary directory: \(error)")
+@MainActor
+private func makeUserDefaults(prefix: String) -> UserDefaults {
+    let suiteName = "\(prefix)-\(UUID().uuidString)"
+    guard let userDefaults = UserDefaults(suiteName: suiteName) else {
+        fail("Unable to create isolated UserDefaults suite")
     }
-    return directory
+    userDefaults.removePersistentDomain(forName: suiteName)
+    userDefaults.set(suiteName, forKey: "__verifySuiteName")
+    return userDefaults
 }
 
-private func makeResolvedScreen(
-    screen: String,
-    identifier: String
-) -> WallpaperSetter.ResolvedScreen<String> {
-    WallpaperSetter.ResolvedScreen(
-        screen: screen,
-        identifier: identifier,
-        pixelWidth: 1,
-        pixelHeight: 1
-    )
-}
+private func clearUserDefaults(_ userDefaults: UserDefaults) {
+    guard let suiteName = userDefaults.string(forKey: "__verifySuiteName"), !suiteName.isEmpty else {
+        return
+    }
 
-private func testReapplyStoredWallpaperForAllScreens() {
-    let directory = makeTemporaryDirectory(prefix: "kindlewall-t61-all")
-    defer { try? FileManager.default.removeItem(at: directory) }
-
-    let wallpaperURL = directory.appendingPathComponent("all.png", isDirectory: false)
-    FileManager.default.createFile(atPath: wallpaperURL.path, contents: Data("all".utf8))
-
-    let screens = [
-        makeResolvedScreen(screen: "screen-a", identifier: "display-a"),
-        makeResolvedScreen(screen: "screen-b", identifier: "display-b")
-    ]
-
-    var applied: [(String, URL)] = []
-    let outcome = WallpaperSetter.reapplyStoredWallpapers(
-        [
-            StoredGeneratedWallpaper(
-                targetIdentifier: StoredGeneratedWallpaper.allScreensTargetIdentifier,
-                fileURL: wallpaperURL
-            )
-        ],
-        resolvedScreens: screens,
-        setDesktopImage: { url, screen in
-            applied.append((screen, url))
-        }
-    )
-
-    expectEqual(outcome, .fullRestore, "Expected single stored wallpaper to reapply across all screens")
-    expectEqual(applied.count, 2, "Expected wallpaper to be applied to every connected screen")
-    expectEqual(applied[0].0, "screen-a", "Expected first screen to receive stored wallpaper")
-    expectEqual(applied[0].1.standardizedFileURL, wallpaperURL.standardizedFileURL, "Expected stored wallpaper URL to be reused")
-    expectEqual(applied[1].0, "screen-b", "Expected second screen to receive stored wallpaper")
-    expectEqual(applied[1].1.standardizedFileURL, wallpaperURL.standardizedFileURL, "Expected stored wallpaper URL to be reused on every screen")
-}
-
-private func testReapplyStoredWallpaperForTargetedScreens() {
-    let directory = makeTemporaryDirectory(prefix: "kindlewall-t61-targeted")
-    defer { try? FileManager.default.removeItem(at: directory) }
-
-    let firstURL = directory.appendingPathComponent("display-a.png", isDirectory: false)
-    let secondURL = directory.appendingPathComponent("display-c.png", isDirectory: false)
-    FileManager.default.createFile(atPath: firstURL.path, contents: Data("a".utf8))
-    FileManager.default.createFile(atPath: secondURL.path, contents: Data("c".utf8))
-
-    let screens = [
-        makeResolvedScreen(screen: "screen-a", identifier: "display-a"),
-        makeResolvedScreen(screen: "screen-b", identifier: "display-b"),
-        makeResolvedScreen(screen: "screen-c", identifier: "display-c")
-    ]
-
-    var applied: [(String, URL)] = []
-    let outcome = WallpaperSetter.reapplyStoredWallpapers(
-        [
-            StoredGeneratedWallpaper(targetIdentifier: "display-a", fileURL: firstURL),
-            StoredGeneratedWallpaper(targetIdentifier: "display-c", fileURL: secondURL)
-        ],
-        resolvedScreens: screens,
-        setDesktopImage: { url, screen in
-            applied.append((screen, url))
-        }
-    )
-
-    expectEqual(outcome, .fullRestore, "Expected targeted stored wallpapers to reapply successfully")
-    expectEqual(applied.count, 2, "Expected only matching screens to receive targeted wallpapers")
-    expectEqual(applied[0].0, "screen-a", "Expected first targeted screen assignment to be preserved")
-    expectEqual(applied[0].1.standardizedFileURL, firstURL.standardizedFileURL, "Expected first targeted wallpaper URL to be reused")
-    expectEqual(applied[1].0, "screen-c", "Expected second targeted screen assignment to be preserved")
-    expectEqual(applied[1].1.standardizedFileURL, secondURL.standardizedFileURL, "Expected second targeted wallpaper URL to be reused")
-}
-
-private func testReapplyStoredWallpaperReturnsFalseWhenUnavailable() {
-    let screens = [
-        makeResolvedScreen(screen: "screen-a", identifier: "display-a")
-    ]
-
-    let noWallpaperResult = WallpaperSetter.reapplyStoredWallpapers(
-        [],
-        resolvedScreens: screens,
-        setDesktopImage: { _, _ in
-            fail("Expected no wallpaper reapply work when storage is empty")
-        }
-    )
-    expectEqual(noWallpaperResult, .noStoredWallpapers, "Expected empty stored wallpaper list to no-op")
-
-    let directory = makeTemporaryDirectory(prefix: "kindlewall-t61-noscreens")
-    defer { try? FileManager.default.removeItem(at: directory) }
-    let wallpaperURL = directory.appendingPathComponent("all.png", isDirectory: false)
-    FileManager.default.createFile(atPath: wallpaperURL.path, contents: Data("all".utf8))
-
-    let noScreenResult = WallpaperSetter.reapplyStoredWallpapers(
-        [
-            StoredGeneratedWallpaper(
-                targetIdentifier: StoredGeneratedWallpaper.allScreensTargetIdentifier,
-                fileURL: wallpaperURL
-            )
-        ],
-        resolvedScreens: [WallpaperSetter.ResolvedScreen<String>](),
-        setDesktopImage: { (_: URL, _: String) in
-            fail("Expected no wallpaper reapply work when no screens are connected")
-        }
-    )
-    expectEqual(noScreenResult, .noConnectedScreens, "Expected missing connected screens to no-op")
+    userDefaults.removePersistentDomain(forName: suiteName)
 }
 
 @MainActor
-private func testAppStateReapplyUsesDedicatedClosure() {
-    var reapplyCallCount = 0
-    var markHighlightShownCount = 0
-
-    let appState = AppState(
-        pickNextHighlight: {
-            fail("Expected wake reapply not to request a new highlight")
-        },
+private func makeAppState(
+    userDefaults: UserDefaults,
+    reapplyStoredWallpaper: @escaping AppState.ReapplyStoredWallpaper = { .noStoredWallpapers },
+    reapplyCurrentWallpaperForTopology: @escaping AppState.ReapplyCurrentWallpaperForTopology = { .noCurrentWallpaper }
+) -> AppState {
+    AppState(
+        userDefaults: userDefaults,
+        pickNextHighlight: { nil },
         generateWallpaper: { _, _ in
-            fail("Expected wake reapply not to generate a new wallpaper")
+            URL(fileURLWithPath: "/tmp/verify_t61_unused.png")
         },
-        setWallpaper: { _ in
-            fail("Expected wake reapply not to use the rotation apply path")
-        },
+        setWallpaper: { _ in },
+        reapplyStoredWallpaper: reapplyStoredWallpaper,
+        reapplyCurrentWallpaperForTopology: reapplyCurrentWallpaperForTopology,
+        markHighlightShown: { _ in },
+        getLaunchAtLoginEnabled: { false },
+        refreshLaunchAtLoginEnabled: { false }
+    )
+}
+
+@MainActor
+private func testLaunchRecoveryRunsOnceOnStartupAndUsesTopologyAwarePath() {
+    let userDefaults = makeUserDefaults(prefix: "verify-t61-startup")
+    defer { clearUserDefaults(userDefaults) }
+
+    var storedReapplyCallCount = 0
+    var topologyReapplyCallCount = 0
+    var events: [String] = []
+
+    let appState = makeAppState(
+        userDefaults: userDefaults,
         reapplyStoredWallpaper: {
-            reapplyCallCount += 1
+            storedReapplyCallCount += 1
             return .fullRestore
         },
-        markHighlightShown: { _ in
-            markHighlightShownCount += 1
+        reapplyCurrentWallpaperForTopology: {
+            topologyReapplyCallCount += 1
+            events.append("recover")
+            return .reapplied
         }
     )
 
-    let result = appState.reapplyStoredWallpaperIfAvailable()
-    expectEqual(result, .fullRestore, "Expected AppState wake reapply to return the restore result")
-    expectEqual(reapplyCallCount, 1, "Expected AppState wake reapply to delegate exactly once")
-    expectEqual(markHighlightShownCount, 0, "Expected wake reapply not to advance the rotation state")
+    var probe = AppLaunchLifecycleTestProbe(
+        setActivationPolicy: {
+            events.append("policy")
+        },
+        installStatusItem: {
+            events.append("install")
+        },
+        startDisplayTopologyCoordinator: {
+            events.append("start")
+        }
+    )
+
+    let prelaunchResult = probe.configure(appState: appState)
+    expectEqual(prelaunchResult, nil, "Expected configure before launch completion not to recover")
+    expectEqual(events, [], "Expected prelaunch configure not to run launch actions")
+
+    let launchResult = probe.applicationDidFinishLaunching(appState: appState)
+
+    expectEqual(launchResult, .reapplied, "Expected launch recovery to forward the topology reapply outcome")
+    expect(probe.hasFinishedLaunching, "Expected launch lifecycle to record startup completion")
+    expect(probe.didRunLaunchRecovery, "Expected launch recovery to be marked as complete")
+    expectEqual(storedReapplyCallCount, 0, "Expected startup recovery not to use the legacy stored-wallpaper path")
+    expectEqual(topologyReapplyCallCount, 1, "Expected startup recovery to invoke topology reapply exactly once")
+    expectEqual(events, ["policy", "install", "recover", "start"], "Expected coordinator startup to happen after launch recovery")
+
+    let reconfigureResult = probe.configure(appState: appState)
+    expectEqual(reconfigureResult, nil, "Expected configure after startup not to re-run launch recovery")
+    expectEqual(topologyReapplyCallCount, 1, "Expected launch recovery to stay one-shot per app launch")
 }
 
-testReapplyStoredWallpaperForAllScreens()
-testReapplyStoredWallpaperForTargetedScreens()
-testReapplyStoredWallpaperReturnsFalseWhenUnavailable()
+@MainActor
+private func testLaunchRecoveryWaitsForInjectedAppStateAndStillRunsOnce() {
+    var topologyReapplyCallCount = 0
+    var events: [String] = []
+
+    var probe = AppLaunchLifecycleTestProbe(
+        setActivationPolicy: {
+            events.append("policy")
+        },
+        installStatusItem: {
+            events.append("install")
+        },
+        startDisplayTopologyCoordinator: {
+            events.append("start")
+        }
+    )
+
+    let initialResult = probe.applicationDidFinishLaunching(appState: nil)
+    expectEqual(initialResult, nil, "Expected launch recovery to no-op until AppState is configured")
+    expect(probe.hasFinishedLaunching, "Expected launch completion state to persist without AppState")
+    expect(!probe.didRunLaunchRecovery, "Expected launch recovery to remain pending without AppState")
+
+    let userDefaults = makeUserDefaults(prefix: "verify-t61-late-app-state")
+    defer { clearUserDefaults(userDefaults) }
+
+    let appState = makeAppState(
+        userDefaults: userDefaults,
+        reapplyCurrentWallpaperForTopology: {
+            topologyReapplyCallCount += 1
+            events.append("recover")
+            return .alreadyApplied
+        }
+    )
+
+    let configureResult = probe.configure(appState: appState)
+    expectEqual(configureResult, .alreadyApplied, "Expected post-launch configure to run the pending recovery once")
+    expect(probe.didRunLaunchRecovery, "Expected pending launch recovery to complete after AppState injection")
+    expectEqual(topologyReapplyCallCount, 1, "Expected delayed startup recovery to run exactly once")
+    expectEqual(events, ["policy", "install", "start", "install", "recover", "start"], "Expected recovery to run before the post-configure coordinator start")
+
+    let secondConfigureResult = probe.configure(appState: appState)
+    expectEqual(secondConfigureResult, nil, "Expected subsequent configure calls not to re-run launch recovery")
+    expectEqual(topologyReapplyCallCount, 1, "Expected delayed launch recovery to remain one-shot")
+}
+
+@MainActor
+private func testLaunchRecoveryRunsAcrossScheduleModesWithoutLaunchAtLogin() {
+    let modes: [RotationScheduleMode] = [.manual, .daily, .everyInterval, .onLaunch]
+
+    for mode in modes {
+        let userDefaults = makeUserDefaults(prefix: "verify-t61-mode-\(mode.rawValue)")
+        defer { clearUserDefaults(userDefaults) }
+
+        userDefaults.rotationScheduleMode = mode
+
+        var topologyReapplyCallCount = 0
+        let appState = makeAppState(
+            userDefaults: userDefaults,
+            reapplyCurrentWallpaperForTopology: {
+                topologyReapplyCallCount += 1
+                return .reapplied
+            }
+        )
+
+        var probe = AppLaunchLifecycleTestProbe()
+        let result = probe.applicationDidFinishLaunching(appState: appState)
+
+        expectEqual(result, .reapplied, "Expected launch recovery to run in \(mode.rawValue) mode")
+        expectEqual(topologyReapplyCallCount, 1, "Expected launch recovery to ignore schedule mode in \(mode.rawValue) mode")
+        expect(!appState.isLaunchAtLoginEnabled, "Expected launch-at-login to remain disabled in verification setup")
+    }
+}
+
+@MainActor
+private func testLaunchRecoveryForwardsStructuredOutcomes() {
+    let outcomes: [AppState.TopologyWallpaperReapplyOutcome] = [
+        .alreadyApplied,
+        .noCurrentWallpaper,
+        .noConnectedScreens,
+        .applyFailure
+    ]
+
+    for outcome in outcomes {
+        let userDefaults = makeUserDefaults(prefix: "verify-t61-outcome-\(String(describing: outcome))")
+        defer { clearUserDefaults(userDefaults) }
+
+        let appState = makeAppState(
+            userDefaults: userDefaults,
+            reapplyCurrentWallpaperForTopology: {
+                outcome
+            }
+        )
+
+        var probe = AppLaunchLifecycleTestProbe()
+        let result = probe.applicationDidFinishLaunching(appState: appState)
+
+        expectEqual(result, outcome, "Expected launch recovery to forward \(outcome) without crashing startup")
+    }
+}
 
 await MainActor.run {
-    testAppStateReapplyUsesDedicatedClosure()
+    testLaunchRecoveryRunsOnceOnStartupAndUsesTopologyAwarePath()
+    testLaunchRecoveryWaitsForInjectedAppStateAndStillRunsOnce()
+    testLaunchRecoveryRunsAcrossScheduleModesWithoutLaunchAtLogin()
+    testLaunchRecoveryForwardsStructuredOutcomes()
 }
 
 print("verify_t61_main passed")
