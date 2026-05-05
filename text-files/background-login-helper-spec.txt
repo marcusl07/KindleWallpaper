@@ -1,0 +1,345 @@
+# KindleWall Background Login Helper Spec
+
+## Goal
+
+Keep KindleWall wallpapers stable across monitor plug/unplug, wake, and display remapping even when the main menu app is closed.
+
+The helper must not generate new quote wallpapers or mutate quote rotation state. It only restores the latest already-generated wallpaper files.
+
+## Exact Identifiers
+
+- Main app bundle id: `com.marcuslo.KindleWall`
+- Helper bundle id: `com.marcuslo.KindleWall.DisplayHelper`
+- App Group id: `group.com.marcuslo.KindleWall`
+
+If signing rejects the App Group because project signing is not configured, stop and surface that as a signing setup task. Do not invent a different App Group id.
+
+## Architecture
+
+Add a small login helper app/agent.
+
+- Main app: UI, quote import, wallpaper generation, settings, schedule control.
+- Helper: no UI, launches at login/session start, observes display/wake changes, reapplies the last saved KindleWall wallpaper.
+- Shared storage: both processes read/write persisted wallpaper assignments through the same store abstraction.
+
+The helper should stay resident but idle. It should wake only for launch, wake notifications, and display topology notifications.
+
+## Shared Storage
+
+Commit to App Group storage now.
+
+- `UserDefaults`: move generated wallpaper assignment persistence to `UserDefaults(suiteName: "group.com.marcuslo.KindleWall")`.
+- Generated wallpaper files: store generated wallpapers in the App Group container under `generated-wallpapers/`.
+
+Resolved generated wallpaper directory:
+
+```text
+<Application Group Container>/generated-wallpapers/
+```
+
+The generated wallpaper cleanup code must protect all paths currently loaded from shared persisted assignments.
+
+## Assignment Store
+
+Centralize all persisted wallpaper reads behind one store, for example:
+
+```swift
+WallpaperAssignmentStore.load()
+```
+
+Read order:
+
+1. Try App Group assignments.
+2. If present and valid, return them.
+3. If migration marker is incomplete, return old `.standard` assignments as fallback.
+4. Otherwise return empty.
+
+Only the migration routine writes App Group assignments from old `.standard`. Normal restore code should not know about two stores.
+
+Persisted assignment data:
+
+- target identifier
+- image file path
+- pixel width
+- pixel height
+- backing scale factor
+- screen origin
+- shared/all-screens marker
+
+Existing key:
+
+```text
+reusableGeneratedWallpaperPathsByTarget
+```
+
+Migration marker in App Group defaults:
+
+```text
+wallpaperAssignmentsAppGroupMigrationCompleted = true
+```
+
+## Migration
+
+Migration must be transactional at the preference level.
+
+Rules:
+
+1. Read old `.standard` assignments.
+2. Build a complete migrated assignment set in memory first.
+3. Copy each existing source file into the App Group generated wallpaper directory.
+4. Only after all copy operations for valid entries succeed, write the new App Group defaults key.
+5. Only after the App Group key is written and can be read back successfully, mark migration complete.
+
+Keep the old `.standard` key intact for rollback/fallback. Do not delete or rewrite it in v1.
+
+If migration partially fails, discard the in-memory migrated result and leave both stores untouched.
+
+Missing old files:
+
+- Skip missing files when building the migrated set.
+- Do not delete old files.
+- Do not delete old `.standard` defaults.
+- If every old assignment is missing, write no App Group assignment and do not mark migration complete unless the implementation explicitly treats "nothing valid to migrate" as a successful empty migration.
+
+Migration retry points:
+
+- main app launch
+- helper launch
+- immediately after a successful wallpaper rotation writes new shared assignments, if migration is still incomplete
+
+Do not retry migration on every display/topology event. The helper's topology path should be read/apply only, aside from loader sanitation.
+
+If migration fails, log once per process launch and leave fallback behavior active.
+
+## Topology Restorer
+
+Extract a reusable service from the current live `AppState` topology-reapply wiring.
+
+Example shape:
+
+```swift
+struct WallpaperTopologyRestorer {
+    let loadStoredWallpapers: () -> [StoredGeneratedWallpaper]
+    let resolvedScreens: () -> [WallpaperSetter.ResolvedScreen<NSScreen>]
+    let preferredSourceScreen: () -> NSScreen?
+    let sameScreen: (NSScreen, NSScreen) -> Bool
+    let currentDesktopImageURL: (NSScreen) -> URL?
+    let setDesktopImage: (URL, NSScreen) throws -> Void
+
+    func reapply() -> AppState.TopologyWallpaperReapplyOutcome
+}
+```
+
+The restorer must prefer persisted KindleWall assignments over the live macOS desktop wallpaper.
+
+The existing static API `DisplayIdentityResolver.resolvedConnectedScreens()` is available in this repo and can be called by the helper.
+
+## Helper Wiring
+
+The helper owns a small live factory. It does not call `AppState.live()`.
+
+Example:
+
+```swift
+enum DisplayHelperRuntime {
+    static func makeRestorer() -> WallpaperTopologyRestorer {
+        let sharedDefaults = UserDefaults(suiteName: "group.com.marcuslo.KindleWall")!
+        return WallpaperTopologyRestorer(
+            loadStoredWallpapers: {
+                WallpaperAssignmentStore(userDefaults: sharedDefaults).load()
+            },
+            resolvedScreens: {
+                DisplayIdentityResolver.resolvedConnectedScreens()
+            },
+            preferredSourceScreen: {
+                nil
+            },
+            sameScreen: { lhs, rhs in
+                lhs === rhs
+            },
+            currentDesktopImageURL: { screen in
+                NSWorkspace.shared.desktopImageURL(for: screen)
+            },
+            setDesktopImage: { url, screen in
+                try NSWorkspace.shared.setDesktopImageURL(url, for: screen, options: [:])
+            }
+        )
+    }
+}
+```
+
+Use `nil` for `preferredSourceScreen` in the UI-less helper. `NSScreen.main` means the screen containing the key window, which is semantically wrong for a helper with no UI.
+
+The main app may still pass `NSScreen.main` because it has UI context:
+
+```swift
+preferredSourceScreen: {
+    NSScreen.main
+}
+```
+
+## Helper Responsibilities
+
+On helper launch:
+
+1. Attempt bounded migration if needed.
+2. Load persisted generated wallpaper assignments through `WallpaperAssignmentStore`.
+3. Resolve connected screens via `DisplayIdentityResolver`.
+4. Reapply the current KindleWall wallpaper using `WallpaperTopologyRestorer`.
+5. Start display/wake observers.
+6. Stay resident and idle.
+
+On display/wake event:
+
+1. Debounce for 1 second.
+2. Run topology reapply.
+3. Run a confirmation pass after 3 seconds.
+
+The helper must not:
+
+- rotate quotes
+- generate new wallpapers
+- mark highlights shown
+- update `lastChangedAt`
+- change schedule settings
+- change selected backgrounds
+
+The helper is restoration-only, with one narrow exception: it may allow the shared assignment loader to sanitize missing or invalid persisted entries if that behavior already exists in the loader.
+
+## Display Event Timing
+
+Keep the existing display coordinator constants:
+
+```swift
+fast pass: 1.0s
+confirmation pass: 3.0s
+```
+
+Rationale: macOS display/wake changes often arrive in bursts, and desktop image assignment can drift again shortly after the first display notification. The 1-second pass repairs quickly; the 3-second confirmation catches delayed macOS wallpaper reassignment. These are intentional compatibility timings copied from the current in-app coordinator, not arbitrary tuning knobs.
+
+## File Race Mitigation
+
+Do not rely on filenames being "unique enough" as the safety mechanism.
+
+Invariants:
+
+- Helper snapshots stored wallpaper URLs immediately before each reapply pass.
+- Main app cleanup protects every URL currently present in shared persisted assignments.
+- Helper never deletes generated wallpaper files.
+- Failed `setDesktopImageURL` due to a missing file is logged and retried only on the next launch/wake/display event.
+
+Add a named cleanup grace constant:
+
+```swift
+static let generatedWallpaperCleanupGraceInterval: TimeInterval = 10 * 60
+```
+
+Main app cleanup must not delete generated wallpaper files newer than this interval, even if they are not in the latest assignment list.
+
+Rationale: this protects against cleanup racing with display reapply during or shortly after a rotation. The helper's normal reapply passes happen within about 3 seconds, but 10 minutes is intentionally conservative because rotation, display wake, file copy, and defaults propagation can be interleaved. It is not derived from a current cleanup cadence; it is a safety margin for cross-process coordination without locks.
+
+Do not tune this unless there is measured storage pressure or a demonstrated stale-file retention issue.
+
+## Launch At Login And Settings
+
+Use `SMAppService` with a bundled helper:
+
+```swift
+SMAppService.loginItem(identifier: "com.marcuslo.KindleWall.DisplayHelper")
+```
+
+Add one explicit setting:
+
+```text
+Keep wallpaper stable in background
+```
+
+This controls helper registration only.
+
+| Background setting | Helper registration | Main app login behavior |
+| --- | --- | --- |
+| off | unregister helper | do not change main app |
+| on | register helper | do not change main app |
+
+The existing `Launch at Login` setting remains mapped only to `SMAppService.mainApp`.
+
+The two toggles are independent:
+
+- `Launch at Login`: opens the menu app at login.
+- `Keep wallpaper stable in background`: runs the helper at login/session start.
+
+If both are on, both may run. If only the helper is on, wallpaper recovery works without the menu app.
+
+## Main App And Helper Concurrency
+
+Rules:
+
+- Main app is the only process that writes new generated wallpaper assignments after a rotation.
+- Helper only reads assignments and reapplies images.
+- Helper may sanitize missing files through the shared loader.
+- Last writer wins for `UserDefaults`, but writes are scoped:
+  - main app writes full assignment replacement/merge after rotation
+  - helper only removes invalid persisted entries through loader sanitation
+- No file locking required for v1 because the helper does not write image files and cleanup has explicit protection rules.
+
+When both processes are running, neither should try to stop or yield to the other. Duplicate restore passes are acceptable because the restorer no-ops when the target screen already points at the intended file.
+
+## Failure Handling
+
+Helper behavior:
+
+- no stored wallpapers: no-op
+- no connected screens: no-op
+- missing wallpaper files: allow shared loader sanitation; otherwise log and no-op
+- set wallpaper failure: log and retry only on the next launch/wake/display event
+- migration failure: log once per process launch and keep fallback reads active
+
+No tight retry loops.
+
+## Tests
+
+Unit tests:
+
+- Restorer prefers persisted wallpaper over live macOS fallback.
+- Restorer with nil preferred screen falls back deterministically to first resolved screen.
+- Helper path does not rotate, generate, mark highlights, or update schedule state.
+- Helper sanitation removes missing persisted entries only through the loader.
+- Migration all-success writes App Group defaults and completion marker.
+- Migration partial failure writes nothing to App Group and leaves old `.standard` key intact.
+- Migration skips missing old files without deleting old files.
+- Cleanup protects shared persisted files.
+- Cleanup protects recently generated files by grace window.
+- Main app and helper can both call the restorer without changing persisted assignments.
+- Toggle state mapping covers helper only, main app only, both, and neither.
+
+Manual integration verification for v1:
+
+1. Main app rotates wallpaper and writes App Group assignments.
+2. Quit main app.
+3. Launch helper.
+4. Plug/unplug external monitor or simulate display callback.
+5. Verify helper reads App Group assignments and reapplies wallpaper.
+
+Automated cross-process coverage needs a test harness with:
+
+- a temporary App Group-like container directory
+- isolated shared `UserDefaults` suite
+- one writer path using the main-app assignment store
+- one reader path using the helper runtime/store
+- a scheme or executable test target that exercises both code paths against the same temporary backing store
+
+Until that harness exists, cross-process App Group behavior is manual verification for v1, and unit tests cover the shared store/restorer logic in process.
+
+## Implementation Order
+
+1. Add `WallpaperAssignmentStore` and App Group storage constants.
+2. Add transactional migration from old `.standard` storage to App Group storage.
+3. Extract `WallpaperTopologyRestorer`.
+4. Switch the main app topology recovery to use the restorer and shared assignment store.
+5. Update generated wallpaper output to write into the App Group container.
+6. Add cleanup protection for shared persisted files and recent generated files.
+7. Add helper target.
+8. Wire helper runtime, display coordinator, and login item registration.
+9. Add settings toggle and independent `SMAppService` state handling.
+10. Add unit tests.
+11. Perform manual integration verification.
