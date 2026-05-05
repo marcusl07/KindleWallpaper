@@ -16,5 +16,49 @@ Add a Settings toggle in the About section for launching KindleWall at login, in
 **T95-a — Verify launch-at-login behavior end to end**
 Verify KindleWall launch-at-login behavior on macOS, including enable, disable, restart/login behavior, accessory-app launch behavior, and compatibility with the existing On app launch wallpaper rotation mode.
 
-## DB Performance
+## Background Display Helper
 
+**T96-a — Add shared wallpaper assignment store**
+Add App Group storage constants for `group.com.marcuslo.KindleWall` and introduce a `WallpaperAssignmentStore` abstraction for persisted generated wallpaper assignments. The store should preserve the existing assignment payload shape (`reusableGeneratedWallpaperPathsByTarget`) and centralize reads/writes for `StoredGeneratedWallpaper` records without changing main app behavior yet.
+
+Expected primary write files: `App/ScheduleSettings.swift`, new shared store file under `App/`.
+
+**T97-a — Add transactional App Group assignment migration**
+Implement migration from old `.standard` generated wallpaper assignments into App Group defaults. Build the complete migrated assignment set in memory, copy existing wallpaper files into the App Group `generated-wallpapers/` directory, write and read back the App Group assignment key, then mark `wallpaperAssignmentsAppGroupMigrationCompleted = true`. Leave old `.standard` assignments and files intact, skip missing source files, and leave both stores untouched on partial failure.
+
+Expected primary write files: `App/ScheduleSettings.swift`, shared assignment store/migration file, verification script.
+
+**T98-a — Extract topology wallpaper restorer**
+Move the current topology reapply logic out of `AppState` into a reusable `WallpaperTopologyRestorer` with injectable closures for stored assignment loading, resolved screens, preferred source screen, screen identity, current desktop URL, and setting desktop images. The restorer must prefer persisted KindleWall assignments over live macOS desktop wallpaper fallback and support `preferredSourceScreen == nil`.
+
+Expected primary write files: `App/AppState.swift`, `App/DisplayIdentityResolver.swift`, new restorer file, verification script.
+
+**T99-a — Rewire main app to shared store and restorer**
+Update the main app live wiring to load persisted wallpaper assignments through `WallpaperAssignmentStore` and reapply topology through `WallpaperTopologyRestorer`. Main app launch recovery, display topology recovery, and stored wallpaper restore behavior should remain equivalent from the user's perspective.
+
+Expected primary write files: `App/AppState.swift`, `App/KindleWallApp.swift`, `App/DisplayTopologyCoordinator.swift`, verification script.
+
+**T100-a — Write generated wallpapers into App Group container**
+Change generated wallpaper output to use the App Group container's `generated-wallpapers/` directory. Ensure the generator and main app persistence write assignments pointing at App Group files, and retry migration after a successful wallpaper rotation if the migration marker is still incomplete.
+
+Expected primary write files: `App/WallpaperGenerator.swift`, `App/AppState.swift`, shared assignment store/migration file, verification script.
+
+**T101-a — Protect helper-shared wallpaper files during cleanup**
+Add `generatedWallpaperCleanupGraceInterval = 10 * 60` and update generated wallpaper cleanup so it never deletes files currently present in shared persisted assignments or files newer than the grace interval. Keep helper behavior read-only; only the main app cleanup path should delete generated files.
+
+Expected primary write files: `App/WallpaperGenerator.swift`, `App/WallpaperHistoryPruner.swift`, shared assignment store file, verification script.
+
+**T102-a — Add DisplayHelper target and runtime**
+Add a bundled helper target with bundle id `com.marcuslo.KindleWall.DisplayHelper`. The helper must have no UI, must not call `AppState.live()`, and on launch should attempt bounded migration, load assignments through `WallpaperAssignmentStore`, reapply via `WallpaperTopologyRestorer`, start display/wake observers, and stay resident idle. Use `nil` for preferred source screen.
+
+Expected primary write files: `project.yml`, helper source files under a new helper directory, shared store/restorer files, `App/DisplayTopologyCoordinator.swift`, generated Xcode project files.
+
+**T103-a — Add background stability login setting**
+Add an independent Settings toggle labeled `Keep wallpaper stable in background` that controls `SMAppService.loginItem(identifier: "com.marcuslo.KindleWall.DisplayHelper")`. Keep the existing `Launch at Login` toggle mapped only to `SMAppService.mainApp`; both toggles must be independently readable, refreshable, settable, and report inline status/errors.
+
+Expected primary write files: `App/AppState.swift`, `App/SettingsView.swift`, helper login service file or shared login service code, verification script.
+
+**T104-a — Verify helper storage, restorer, cleanup, and login behavior**
+Add focused automated coverage for assignment migration success/failure, missing source files, restorer source selection, nil preferred screen behavior, cleanup protection, and helper/main login toggle mapping. Then perform manual integration verification: rotate wallpaper in the main app, quit it, launch the helper, trigger display/wake behavior, and confirm the helper reapplies App Group persisted wallpapers without rotating quotes or mutating schedule state.
+
+Expected primary write files: verification scripts and any test support files only, unless gaps in previous tasks require narrowly scoped fixes.
