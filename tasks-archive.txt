@@ -803,3 +803,7 @@ Add deterministic coverage proving quote/book delete flows remain correct for se
 Implement launch-at-login service for KindleWall using `ServiceManagement.SMAppService.mainApp`, with AppState plumbing for current enabled state, refresh, toggle, and user-visible error handling.
 
 
+**T96-a — Add shared wallpaper assignment store**
+Add App Group storage constants for `group.com.marcuslo.KindleWall` and introduce a `WallpaperAssignmentStore` abstraction for persisted generated wallpaper assignments. The store should preserve the existing assignment payload shape (`reusableGeneratedWallpaperPathsByTarget`) and centralize reads/writes for `StoredGeneratedWallpaper` records without changing main app behavior yet.
+
+Expected primary write files: `App/ScheduleSettings.swift`, new shared store file under `App/`.

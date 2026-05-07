@@ -18,11 +18,6 @@ Verify KindleWall launch-at-login behavior on macOS, including enable, disable, 
 
 ## Background Display Helper
 
-**T96-a — Add shared wallpaper assignment store**
-Add App Group storage constants for `group.com.marcuslo.KindleWall` and introduce a `WallpaperAssignmentStore` abstraction for persisted generated wallpaper assignments. The store should preserve the existing assignment payload shape (`reusableGeneratedWallpaperPathsByTarget`) and centralize reads/writes for `StoredGeneratedWallpaper` records without changing main app behavior yet.
-
-Expected primary write files: `App/ScheduleSettings.swift`, new shared store file under `App/`.
-
 **T97-a — Add transactional App Group assignment migration**
 Implement migration from old `.standard` generated wallpaper assignments into App Group defaults. Build the complete migrated assignment set in memory, copy existing wallpaper files into the App Group `generated-wallpapers/` directory, write and read back the App Group assignment key, then mark `wallpaperAssignmentsAppGroupMigrationCompleted = true`. Leave old `.standard` assignments and files intact, skip missing source files, and leave both stores untouched on partial failure.
 
