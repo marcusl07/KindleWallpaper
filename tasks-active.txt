@@ -8,6 +8,11 @@ Before starting a task, identify the expected write files. If another task in th
 Prefer completing the full current wave before starting the next numeric stem unless a section explicitly says otherwise.
 Do not leave completed tasks in `tasks-active.txt`. When the header has no tasks below it delete the header.
 
+## Background Display Helper Signing Setup
+
+**T105-a — Configure App Group signing for helper runtime verification**
+Configure development signing/provisioning for both `com.marcuslo.KindleWall` and `com.marcuslo.KindleWall.DisplayHelper` with the App Group entitlement `group.com.marcuslo.KindleWall`, then rerun the signed `xcodebuild` and helper runtime verification.
+
 ## Auto-launch On Startup
 
 **T94-b — Add Settings UI for launch-at-login**
