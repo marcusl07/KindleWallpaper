@@ -31,6 +31,7 @@ swiftc \
   -module-cache-path "$TMP_DIR/module-cache" \
   -D DISPLAY_HELPER \
   "$ROOT_DIR/scripts/verify_t102_main.swift" \
+  "$ROOT_DIR/App/AppSupportPaths.swift" \
   "$ROOT_DIR/App/ScheduleSettings.swift" \
   "$ROOT_DIR/App/WallpaperAssignmentStore.swift" \
   "$ROOT_DIR/App/WallpaperSetter.swift" \
@@ -47,6 +48,7 @@ swiftc \
   -parse-as-library \
   -typecheck \
   "$ROOT_DIR/DisplayHelper/DisplayHelperApp.swift" \
+  "$ROOT_DIR/App/AppSupportPaths.swift" \
   "$ROOT_DIR/App/ScheduleSettings.swift" \
   "$ROOT_DIR/App/WallpaperAssignmentStore.swift" \
   "$ROOT_DIR/App/WallpaperSetter.swift" \

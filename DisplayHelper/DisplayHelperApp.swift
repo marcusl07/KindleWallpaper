@@ -17,7 +17,6 @@ final class DisplayHelperRuntime {
     private var displayTopologyCoordinator: DisplayTopologyCoordinator?
 
     func start() {
-        attemptMigration()
         _ = makeRestorer().reapply()
         let coordinator = DisplayTopologyCoordinator(
             restoreAction: { [weak self] in
@@ -31,25 +30,11 @@ final class DisplayHelperRuntime {
         coordinator.start()
     }
 
-    private func attemptMigration() {
-        guard
-            let appGroupDefaults = KindleWallSharedStorage.appGroupUserDefaults(),
-            let generatedWallpapersDirectoryURL = KindleWallSharedStorage.generatedWallpapersContainerURL()
-        else {
-            return
-        }
-
-        _ = try? UserDefaults.standard.migrateWallpaperAssignmentsToAppGroupIfNeeded(
-            appGroupDefaults: appGroupDefaults,
-            appGroupGeneratedWallpapersDirectoryURL: generatedWallpapersDirectoryURL
-        )
-    }
-
     private func makeRestorer() -> WallpaperTopologyRestorer<NSScreen> {
-        let sharedDefaults = KindleWallSharedStorage.appGroupUserDefaults() ?? .standard
+        let sharedDefaults = KindleWallSharedStorage.sharedUserDefaults()
         return WallpaperTopologyRestorer(
             loadStoredWallpapers: {
-                sharedDefaults.loadReusableGeneratedWallpapersWithLegacyFallback(from: .standard)
+                sharedDefaults.loadReusableGeneratedWallpapers()
             },
             resolvedScreens: {
                 DisplayIdentityResolver.resolvedConnectedScreens()

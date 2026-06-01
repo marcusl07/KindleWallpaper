@@ -21,17 +21,30 @@ require_pattern() {
 "$ROOT_DIR/scripts/verify_t102.sh"
 "$ROOT_DIR/scripts/verify_t103.sh"
 
-require_pattern "$ROOT_DIR/App/WallpaperAssignmentStore.swift" 'appGroupDefaults\.set\(true,[[:space:]]*forKey:[[:space:]]*Self\.wallpaperAssignmentsAppGroupMigrationCompletedKey\)' "App Group migration marker write"
-require_pattern "$ROOT_DIR/App/AppState.swift" 'sharedDefaults\.replaceReusableGeneratedWallpapers' "main app writes wallpaper assignments through shared App Group defaults"
-require_pattern "$ROOT_DIR/App/AppState.swift" 'loadReusableGeneratedWallpapersWithLegacyFallback' "main app restores wallpaper assignments through App Group defaults with legacy fallback"
-require_pattern "$ROOT_DIR/App/AppState.swift" 'retryWallpaperAssignmentMigrationIfNeeded' "main app retries incomplete assignment migration after successful rotations"
-require_pattern "$ROOT_DIR/DisplayHelper/DisplayHelperApp.swift" 'migrateWallpaperAssignmentsToAppGroupIfNeeded' "helper launch bounded migration attempt"
-require_pattern "$ROOT_DIR/DisplayHelper/DisplayHelperApp.swift" 'loadReusableGeneratedWallpapersWithLegacyFallback' "helper restores wallpaper assignments with legacy fallback"
+require_pattern "$ROOT_DIR/App/WallpaperAssignmentStore.swift" 'sharedDefaultsSuiteName[[:space:]]*=[[:space:]]*"com\.marcuslo\.KindleWall"' "main app defaults domain"
+require_pattern "$ROOT_DIR/App/WallpaperAssignmentStore.swift" 'UserDefaults\(suiteName:[[:space:]]*sharedDefaultsSuiteName\)' "unsigned shared defaults suite"
+require_pattern "$ROOT_DIR/App/WallpaperAssignmentStore.swift" 'generatedWallpapersDirectoryURL' "local generated wallpaper directory"
+require_pattern "$ROOT_DIR/App/AppState.swift" 'sharedDefaults\.replaceReusableGeneratedWallpapers' "main app writes wallpaper assignments through unsigned shared defaults"
+require_pattern "$ROOT_DIR/App/AppState.swift" 'sharedDefaults\.loadReusableGeneratedWallpapers' "main app restores wallpaper assignments through unsigned shared defaults"
+require_pattern "$ROOT_DIR/App/AppState.swift" 'KindleWallSharedStorage\.sharedContainerURL' "main app generates wallpapers under local Application Support"
+require_pattern "$ROOT_DIR/DisplayHelper/DisplayHelperApp.swift" 'KindleWallSharedStorage\.sharedUserDefaults' "helper reads standard shared defaults"
+require_pattern "$ROOT_DIR/DisplayHelper/DisplayHelperApp.swift" 'loadReusableGeneratedWallpapers' "helper restores wallpaper assignments"
 require_pattern "$ROOT_DIR/DisplayHelper/DisplayHelperApp.swift" 'DisplayTopologyCoordinator' "helper display/wake observer runtime"
+
+if rg -q 'App Group|appGroup|wallpaperAssignmentsAppGroupMigrationCompleted|migrateWallpaperAssignmentsToAppGroupIfNeeded|loadReusableGeneratedWallpapersWithLegacyFallback' "$ROOT_DIR/App" "$ROOT_DIR/DisplayHelper"; then
+  echo "Verification failed: runtime sources must not depend on App Group migration/fallback paths" >&2
+  exit 1
+fi
+
+if rg -q 'CODE_SIGN_ENTITLEMENTS|entitlements|group\.com\.marcuslo\.KindleWall' "$ROOT_DIR/project.yml"; then
+  echo "Verification failed: project.yml must not require App Group entitlements" >&2
+  exit 1
+fi
 
 swiftc \
   -module-cache-path "$TMP_DIR/module-cache" \
   "$ROOT_DIR/scripts/verify_t104_main.swift" \
+  "$ROOT_DIR/App/AppSupportPaths.swift" \
   "$ROOT_DIR/App/ScheduleSettings.swift" \
   "$ROOT_DIR/App/WallpaperAssignmentStore.swift" \
   "$ROOT_DIR/App/WallpaperSetter.swift" \

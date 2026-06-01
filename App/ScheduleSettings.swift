@@ -223,15 +223,6 @@ extension UserDefaults {
         }
     }
 
-    var wallpaperAssignmentsAppGroupMigrationCompleted: Bool {
-        get {
-            bool(forKey: WallpaperAssignmentStore.wallpaperAssignmentsAppGroupMigrationCompletedKey)
-        }
-        set {
-            set(newValue, forKey: WallpaperAssignmentStore.wallpaperAssignmentsAppGroupMigrationCompletedKey)
-        }
-    }
-
     func replaceReusableGeneratedWallpapers(_ wallpapers: [StoredGeneratedWallpaper]) {
         WallpaperAssignmentStore(userDefaults: self).replace(wallpapers)
     }
@@ -248,26 +239,6 @@ extension UserDefaults {
         fileManager: FileManager = .default
     ) -> [StoredGeneratedWallpaper] {
         WallpaperAssignmentStore(userDefaults: self, fileManager: fileManager).load()
-    }
-
-    func loadReusableGeneratedWallpapersWithLegacyFallback(
-        from legacyDefaults: UserDefaults,
-        fileManager: FileManager = .default
-    ) -> [StoredGeneratedWallpaper] {
-        WallpaperAssignmentStore(userDefaults: self, fileManager: fileManager)
-            .loadWithLegacyFallback(from: legacyDefaults)
-    }
-
-    func migrateWallpaperAssignmentsToAppGroupIfNeeded(
-        appGroupDefaults: UserDefaults,
-        appGroupGeneratedWallpapersDirectoryURL: URL,
-        fileManager: FileManager = .default
-    ) throws -> Bool {
-        try WallpaperAssignmentStore(userDefaults: self, fileManager: fileManager).migrateLegacyAssignments(
-            from: self,
-            appGroupDefaults: appGroupDefaults,
-            appGroupGeneratedWallpapersDirectoryURL: appGroupGeneratedWallpapersDirectoryURL
-        )
     }
 
     private func integerIfPresent(forKey key: String) -> Int? {

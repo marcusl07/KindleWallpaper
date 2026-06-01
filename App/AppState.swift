@@ -1307,36 +1307,15 @@ extension AppState {
     }
 
     static func live(userDefaults: UserDefaults = .standard) -> AppState {
-        let sharedDefaults = KindleWallSharedStorage.appGroupUserDefaults() ?? userDefaults
-        let appGroupContainerURL = KindleWallSharedStorage.appGroupContainerURL()
-        let generatedWallpapersContainerURL = KindleWallSharedStorage.generatedWallpapersContainerURL()
-        if let generatedWallpapersContainerURL {
-            try? userDefaults.migrateWallpaperAssignmentsToAppGroupIfNeeded(
-                appGroupDefaults: sharedDefaults,
-                appGroupGeneratedWallpapersDirectoryURL: generatedWallpapersContainerURL
-            )
-        }
+        let sharedDefaults = KindleWallSharedStorage.sharedUserDefaults()
         let loadSharedGeneratedWallpapers: () -> [StoredGeneratedWallpaper] = {
-            sharedDefaults.loadReusableGeneratedWallpapersWithLegacyFallback(from: userDefaults)
-        }
-        let retryMigrationIfNeeded: () -> Void = {
-            guard
-                !sharedDefaults.wallpaperAssignmentsAppGroupMigrationCompleted,
-                let generatedWallpapersContainerURL
-            else {
-                return
-            }
-
-            _ = try? userDefaults.migrateWallpaperAssignmentsToAppGroupIfNeeded(
-                appGroupDefaults: sharedDefaults,
-                appGroupGeneratedWallpapersDirectoryURL: generatedWallpapersContainerURL
-            )
+            sharedDefaults.loadReusableGeneratedWallpapers()
         }
 
         let backgroundStore = BackgroundImageStore(userDefaults: userDefaults)
         let wallpaperGenerator = WallpaperGenerator(
             appSupportDirectoryProvider: {
-                appGroupContainerURL ?? AppSupportPaths.kindleWallDirectory(fileManager: .default)
+                KindleWallSharedStorage.sharedContainerURL()
             },
             protectedGeneratedWallpapersProvider: {
                 loadSharedGeneratedWallpapers().map(\.fileURL)
@@ -1469,7 +1448,6 @@ extension AppState {
                     }
                 )
             },
-            retryWallpaperAssignmentMigrationIfNeeded: retryMigrationIfNeeded,
             markHighlightShown: DatabaseManager.markHighlightShown(id:),
             insertHighlight: DatabaseManager.insertHighlightIfNew(_:),
             updateHighlight: { highlight in

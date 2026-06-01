@@ -30,7 +30,6 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.marcuslo.KindleWall
         PRODUCT_NAME: KindleWall
         GENERATE_INFOPLIST_FILE: NO
-        CODE_SIGN_ENTITLEMENTS: App/KindleWall.entitlements
     dependencies:
       - package: GRDB
         product: GRDB
@@ -51,6 +50,7 @@ targets:
     deploymentTarget: "13.0"
     sources:
       - DisplayHelper
+      - path: App/AppSupportPaths.swift
       - path: App/ScheduleSettings.swift
       - path: App/WallpaperAssignmentStore.swift
       - path: App/WallpaperSetter.swift
@@ -66,5 +66,4 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.marcuslo.KindleWall.DisplayHelper
         PRODUCT_NAME: DisplayHelper
         GENERATE_INFOPLIST_FILE: NO
-        CODE_SIGN_ENTITLEMENTS: DisplayHelper/DisplayHelper.entitlements
         OTHER_SWIFT_FLAGS: "$(inherited) -D DISPLAY_HELPER"

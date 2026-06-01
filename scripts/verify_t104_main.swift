@@ -42,7 +42,7 @@ enum VerifyT104 {
             }
         )
 
-        assertEqual(outcome, WallpaperTopologyReapplyOutcome.reapplied, "Expected helper-compatible restorer to reapply from persisted App Group assignment")
+        assertEqual(outcome, WallpaperTopologyReapplyOutcome.reapplied, "Expected helper-compatible restorer to reapply from persisted shared assignment")
         assertEqual(appliedURLs, [persistedURL, persistedURL], "Expected persisted KindleWall wallpaper to win over live desktop state for every screen")
 
         print("verify_t104_main passed")

@@ -1,26 +1,25 @@
 import Foundation
 
 enum KindleWallSharedStorage {
-    static let appGroupIdentifier = "group.com.marcuslo.KindleWall"
+    static let sharedDefaultsSuiteName = "com.marcuslo.KindleWall"
     static let generatedWallpapersDirectoryName = "generated-wallpapers"
 
-    static func appGroupUserDefaults() -> UserDefaults? {
-        UserDefaults(suiteName: appGroupIdentifier)
+    static func sharedUserDefaults() -> UserDefaults {
+        UserDefaults(suiteName: sharedDefaultsSuiteName) ?? .standard
     }
 
-    static func appGroupContainerURL(fileManager: FileManager = .default) -> URL? {
-        fileManager.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier)
+    static func sharedContainerURL(fileManager: FileManager = .default) -> URL {
+        AppSupportPaths.kindleWallDirectory(fileManager: fileManager)
     }
 
-    static func generatedWallpapersContainerURL(fileManager: FileManager = .default) -> URL? {
-        appGroupContainerURL(fileManager: fileManager)?
+    static func generatedWallpapersDirectoryURL(fileManager: FileManager = .default) -> URL {
+        sharedContainerURL(fileManager: fileManager)
             .appendingPathComponent(generatedWallpapersDirectoryName, isDirectory: true)
     }
 }
 
 struct WallpaperAssignmentStore {
     static let assignmentKey = "reusableGeneratedWallpaperPathsByTarget"
-    static let wallpaperAssignmentsAppGroupMigrationCompletedKey = "wallpaperAssignmentsAppGroupMigrationCompleted"
 
     private enum StoredWallpaperKeys {
         static let path = "path"
@@ -70,42 +69,6 @@ struct WallpaperAssignmentStore {
 
     func clear() {
         userDefaults.removeObject(forKey: Self.assignmentKey)
-    }
-
-    func migrateLegacyAssignments(
-        from legacyDefaults: UserDefaults,
-        appGroupDefaults: UserDefaults,
-        appGroupGeneratedWallpapersDirectoryURL: URL
-    ) throws -> Bool {
-        guard appGroupDefaults.bool(forKey: Self.wallpaperAssignmentsAppGroupMigrationCompletedKey) == false else {
-            return false
-        }
-
-        guard let legacyAssignments = legacyDefaults.dictionary(forKey: Self.assignmentKey), !legacyAssignments.isEmpty else {
-            appGroupDefaults.set(true, forKey: Self.wallpaperAssignmentsAppGroupMigrationCompletedKey)
-            return true
-        }
-
-        let migratedWallpapers = try Self.buildMigratedWallpapers(
-            from: legacyAssignments,
-            fileManager: fileManager,
-            appGroupGeneratedWallpapersDirectoryURL: appGroupGeneratedWallpapersDirectoryURL
-        )
-
-        guard !migratedWallpapers.isEmpty else {
-            appGroupDefaults.set(true, forKey: Self.wallpaperAssignmentsAppGroupMigrationCompletedKey)
-            return true
-        }
-
-        let migratedPaths = Self.persistedWallpaperPaths(from: migratedWallpapers)
-        appGroupDefaults.set(migratedPaths, forKey: Self.assignmentKey)
-        guard appGroupDefaults.dictionary(forKey: Self.assignmentKey) as NSDictionary? == NSDictionary(dictionary: migratedPaths) else {
-            appGroupDefaults.removeObject(forKey: Self.assignmentKey)
-            throw MigrationError.appGroupAssignmentVerificationFailed
-        }
-
-        appGroupDefaults.set(true, forKey: Self.wallpaperAssignmentsAppGroupMigrationCompletedKey)
-        return true
     }
 
     func load() -> [StoredGeneratedWallpaper] {
@@ -162,21 +125,6 @@ struct WallpaperAssignmentStore {
         return validWallpapers.sorted { lhs, rhs in
             lhs.targetIdentifier < rhs.targetIdentifier
         }
-    }
-
-    func loadWithLegacyFallback(from legacyDefaults: UserDefaults) -> [StoredGeneratedWallpaper] {
-        let appGroupWallpapers = load()
-        guard appGroupWallpapers.isEmpty else {
-            return appGroupWallpapers
-        }
-        guard !userDefaults.bool(forKey: Self.wallpaperAssignmentsAppGroupMigrationCompletedKey) else {
-            return []
-        }
-
-        return WallpaperAssignmentStore(
-            userDefaults: legacyDefaults,
-            fileManager: fileManager
-        ).load()
     }
 
     private func persistReusableGeneratedWallpaperPaths(_ persistedPaths: [String: Any]) {
@@ -236,63 +184,6 @@ struct WallpaperAssignmentStore {
             }.filter { !$0.0.isEmpty },
             uniquingKeysWith: { _, latest in latest }
         )
-    }
-
-    private static func buildMigratedWallpapers(
-        from legacyAssignments: [String: Any],
-        fileManager: FileManager,
-        appGroupGeneratedWallpapersDirectoryURL: URL
-    ) throws -> [StoredGeneratedWallpaper] {
-        try fileManager.createDirectory(
-            at: appGroupGeneratedWallpapersDirectoryURL,
-            withIntermediateDirectories: true
-        )
-
-        var migratedWallpapers: [StoredGeneratedWallpaper] = []
-        migratedWallpapers.reserveCapacity(legacyAssignments.count)
-
-        for (targetIdentifier, rawPathValue) in legacyAssignments {
-            guard let persistedWallpaper = persistedStoredWallpaper(from: rawPathValue) else {
-                continue
-            }
-
-            let normalizedTargetIdentifier = targetIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
-            let normalizedPath = persistedWallpaper.path.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard
-                !normalizedTargetIdentifier.isEmpty,
-                !normalizedPath.isEmpty
-            else {
-                continue
-            }
-
-            let sourceURL = URL(fileURLWithPath: normalizedPath).standardizedFileURL
-            guard fileManager.fileExists(atPath: sourceURL.path) else {
-                continue
-            }
-
-            let destinationURL = appGroupGeneratedWallpapersDirectoryURL
-                .appendingPathComponent(sourceURL.lastPathComponent, isDirectory: false)
-            if fileManager.fileExists(atPath: destinationURL.path) {
-                try fileManager.removeItem(at: destinationURL)
-            }
-            try fileManager.copyItem(at: sourceURL, to: destinationURL)
-
-            migratedWallpapers.append(
-                StoredGeneratedWallpaper(
-                    targetIdentifier: normalizedTargetIdentifier,
-                    fileURL: destinationURL.standardizedFileURL,
-                    pixelWidth: persistedWallpaper.pixelWidth,
-                    pixelHeight: persistedWallpaper.pixelHeight,
-                    backingScaleFactor: persistedWallpaper.backingScaleFactor,
-                    originX: persistedWallpaper.originX,
-                    originY: persistedWallpaper.originY
-                )
-            )
-        }
-
-        return migratedWallpapers.sorted { lhs, rhs in
-            lhs.targetIdentifier < rhs.targetIdentifier
-        }
     }
 
     private static func persistedStoredWallpaper(from rawValue: Any) -> PersistedStoredWallpaper? {
@@ -371,9 +262,5 @@ struct WallpaperAssignmentStore {
         }
 
         return nil
-    }
-
-    enum MigrationError: Error {
-        case appGroupAssignmentVerificationFailed
     }
 }

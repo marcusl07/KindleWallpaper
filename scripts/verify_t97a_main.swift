@@ -19,207 +19,132 @@ private func assertEqual<T: Equatable>(_ actual: T, _ expected: T, _ message: St
 
 private struct Fixture {
     let rootURL: URL
-    let legacyDefaults: UserDefaults
-    let appGroupDefaults: UserDefaults
-    let appGroupGeneratedWallpapersDirectoryURL: URL
-    let legacySuiteName: String
-    let appGroupSuiteName: String
+    let defaults: UserDefaults
+    let suiteName: String
 
     static func make() throws -> Fixture {
         let fileManager = FileManager.default
-        let rootURL = fileManager.temporaryDirectory.appendingPathComponent("kindlewall-t97a-\(UUID().uuidString)", isDirectory: true)
+        let rootURL = fileManager.temporaryDirectory
+            .appendingPathComponent("kindlewall-t97a-\(UUID().uuidString)", isDirectory: true)
         try fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
 
-        let legacySuiteName = "verify_t97a.legacy.\(UUID().uuidString)"
-        let appGroupSuiteName = "verify_t97a.appgroup.\(UUID().uuidString)"
-        guard
-            let legacyDefaults = UserDefaults(suiteName: legacySuiteName),
-            let appGroupDefaults = UserDefaults(suiteName: appGroupSuiteName)
-        else {
+        let suiteName = "verify_t97a.shared.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
             throw NSError(domain: "verify_t97a", code: 1)
         }
+        defaults.removePersistentDomain(forName: suiteName)
 
-        legacyDefaults.removePersistentDomain(forName: legacySuiteName)
-        appGroupDefaults.removePersistentDomain(forName: appGroupSuiteName)
-
-        return Fixture(
-            rootURL: rootURL,
-            legacyDefaults: legacyDefaults,
-            appGroupDefaults: appGroupDefaults,
-            appGroupGeneratedWallpapersDirectoryURL: rootURL.appendingPathComponent("generated-wallpapers", isDirectory: true),
-            legacySuiteName: legacySuiteName,
-            appGroupSuiteName: appGroupSuiteName
-        )
+        return Fixture(rootURL: rootURL, defaults: defaults, suiteName: suiteName)
     }
 
     func cleanup() {
-        legacyDefaults.removePersistentDomain(forName: legacySuiteName)
-        appGroupDefaults.removePersistentDomain(forName: appGroupSuiteName)
+        defaults.removePersistentDomain(forName: suiteName)
         try? FileManager.default.removeItem(at: rootURL)
     }
 }
 
 private func makeWallpaper(path: URL, target: String) -> StoredGeneratedWallpaper {
-    StoredGeneratedWallpaper(targetIdentifier: target, fileURL: path)
+    StoredGeneratedWallpaper(
+        targetIdentifier: target,
+        fileURL: path,
+        pixelWidth: 100,
+        pixelHeight: 200,
+        backingScaleFactor: 2,
+        originX: 10,
+        originY: 20
+    )
 }
 
-private func testSuccessfulMigrationCopiesFilesAndMarksCompletion() throws {
+private func testSharedStoragePathsAreUnsignedLocalAppSupport() {
+    let sharedContainerURL = KindleWallSharedStorage.sharedContainerURL()
+    let generatedDirectoryURL = KindleWallSharedStorage.generatedWallpapersDirectoryURL()
+
+    assertTrue(
+        sharedContainerURL.path.hasSuffix("/Library/Application Support/KindleWall"),
+        "Expected shared storage under local Application Support"
+    )
+    assertEqual(
+        generatedDirectoryURL.lastPathComponent,
+        "generated-wallpapers",
+        "Expected generated wallpaper directory name to stay stable"
+    )
+    assertEqual(
+        generatedDirectoryURL.deletingLastPathComponent().standardizedFileURL,
+        sharedContainerURL.standardizedFileURL,
+        "Expected generated wallpapers to live below the shared container"
+    )
+    assertEqual(
+        KindleWallSharedStorage.sharedDefaultsSuiteName,
+        "com.marcuslo.KindleWall",
+        "Expected helper and main app to share the main app defaults domain"
+    )
+    let markerKey = "verify-shared-defaults-\(UUID().uuidString)"
+    KindleWallSharedStorage.sharedUserDefaults().set("ok", forKey: markerKey)
+    assertEqual(
+        UserDefaults(suiteName: KindleWallSharedStorage.sharedDefaultsSuiteName)?.string(forKey: markerKey),
+        "ok",
+        "Expected shared defaults to round trip through the unsigned local suite"
+    )
+    KindleWallSharedStorage.sharedUserDefaults().removeObject(forKey: markerKey)
+}
+
+private func testAssignmentRoundTripAndFiltering() throws {
     let fixture = try Fixture.make()
     defer { fixture.cleanup() }
 
-    let sourceDirectory = fixture.rootURL.appendingPathComponent("legacy-source", isDirectory: true)
-    try FileManager.default.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
-
-    let firstSource = sourceDirectory.appendingPathComponent("first.png")
-    let secondSource = sourceDirectory.appendingPathComponent("second.png")
+    let firstSource = fixture.rootURL.appendingPathComponent("first.png")
+    let secondSource = fixture.rootURL.appendingPathComponent("second.png")
+    let missingSource = fixture.rootURL.appendingPathComponent("missing.png")
     try Data("first".utf8).write(to: firstSource)
     try Data("second".utf8).write(to: secondSource)
 
-    fixture.legacyDefaults.replaceReusableGeneratedWallpapers([
+    fixture.defaults.replaceReusableGeneratedWallpapers([
+        makeWallpaper(path: secondSource, target: " display-b "),
         makeWallpaper(path: firstSource, target: "display-a"),
+        makeWallpaper(path: missingSource, target: "display-c"),
+        makeWallpaper(path: firstSource, target: " ")
+    ])
+
+    let loaded = fixture.defaults.loadReusableGeneratedWallpapers(fileManager: .default)
+    assertEqual(loaded.map(\.targetIdentifier), ["display-a", "display-b"], "Expected valid assignments to be sorted and filtered")
+    assertEqual(loaded.map(\.fileURL), [firstSource.standardizedFileURL, secondSource.standardizedFileURL], "Expected persisted paths to survive round trip")
+    assertEqual(loaded.first?.pixelWidth, 100, "Expected display metadata to persist")
+    assertEqual(loaded.first?.pixelHeight, 200, "Expected display metadata to persist")
+    assertEqual(loaded.first?.backingScaleFactor, 2, "Expected display metadata to persist")
+    assertEqual(loaded.first?.originX, 10, "Expected display metadata to persist")
+    assertEqual(loaded.first?.originY, 20, "Expected display metadata to persist")
+
+    let persistedPayload = fixture.defaults.dictionary(forKey: WallpaperAssignmentStore.assignmentKey)
+    assertEqual(persistedPayload?.keys.sorted(), ["display-a", "display-b"], "Expected invalid entries to be pruned from defaults")
+}
+
+private func testMergePreservesExistingAssignments() throws {
+    let fixture = try Fixture.make()
+    defer { fixture.cleanup() }
+
+    let firstSource = fixture.rootURL.appendingPathComponent("first.png")
+    let secondSource = fixture.rootURL.appendingPathComponent("second.png")
+    try Data("first".utf8).write(to: firstSource)
+    try Data("second".utf8).write(to: secondSource)
+
+    fixture.defaults.replaceReusableGeneratedWallpapers([
+        makeWallpaper(path: firstSource, target: "display-a")
+    ])
+    fixture.defaults.mergeReusableGeneratedWallpapers([
         makeWallpaper(path: secondSource, target: "display-b")
     ])
 
-    let legacyAssignmentsBefore = fixture.legacyDefaults.dictionary(forKey: WallpaperAssignmentStore.assignmentKey)
+    let loaded = fixture.defaults.loadReusableGeneratedWallpapers(fileManager: .default)
+    assertEqual(loaded.map(\.targetIdentifier), ["display-a", "display-b"], "Expected merge to preserve existing assignments")
 
-    let didMigrate = try fixture.legacyDefaults.migrateWallpaperAssignmentsToAppGroupIfNeeded(
-        appGroupDefaults: fixture.appGroupDefaults,
-        appGroupGeneratedWallpapersDirectoryURL: fixture.appGroupGeneratedWallpapersDirectoryURL
-    )
-
-    assertTrue(didMigrate, "Expected migration to run")
-    assertTrue(fixture.appGroupDefaults.wallpaperAssignmentsAppGroupMigrationCompleted, "Expected App Group completion flag to be set")
-
-    let migratedAssignments = fixture.appGroupDefaults.loadReusableGeneratedWallpapers(fileManager: .default)
-    assertEqual(migratedAssignments.count, 2, "Expected all existing assignments to migrate")
-    assertEqual(migratedAssignments.map(\.targetIdentifier), ["display-a", "display-b"], "Expected migrated assignments to remain sorted")
-
-    for wallpaper in migratedAssignments {
-        assertTrue(FileManager.default.fileExists(atPath: wallpaper.fileURL.path), "Expected migrated wallpaper file to exist")
-        let contents = try Data(contentsOf: wallpaper.fileURL)
-        assertTrue(contents == Data(wallpaper.targetIdentifier == "display-a" ? "first".utf8 : "second".utf8), "Expected copied file contents to match source")
-    }
-
-    let rereadAssignments = fixture.appGroupDefaults.loadReusableGeneratedWallpapers(fileManager: .default)
-    assertEqual(rereadAssignments, migratedAssignments, "Expected App Group assignments to survive a read-back round trip")
-    assertEqual(
-        fixture.legacyDefaults.dictionary(forKey: WallpaperAssignmentStore.assignmentKey) as NSDictionary?,
-        legacyAssignmentsBefore as NSDictionary?,
-        "Expected legacy assignment payload to remain unchanged"
-    )
-}
-
-private func testMigrationSkipsMissingSourcesAndStillSucceeds() throws {
-    let fixture = try Fixture.make()
-    defer { fixture.cleanup() }
-
-    let sourceDirectory = fixture.rootURL.appendingPathComponent("legacy-missing", isDirectory: true)
-    try FileManager.default.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
-    let existingSource = sourceDirectory.appendingPathComponent("existing.png")
-    let missingSource = sourceDirectory.appendingPathComponent("missing.png")
-    try Data("existing".utf8).write(to: existingSource)
-
-    fixture.legacyDefaults.replaceReusableGeneratedWallpapers([
-        makeWallpaper(path: existingSource, target: "display-a"),
-        makeWallpaper(path: missingSource, target: "display-b")
-    ])
-
-    _ = try fixture.legacyDefaults.migrateWallpaperAssignmentsToAppGroupIfNeeded(
-        appGroupDefaults: fixture.appGroupDefaults,
-        appGroupGeneratedWallpapersDirectoryURL: fixture.appGroupGeneratedWallpapersDirectoryURL
-    )
-
-    let migratedAssignments = fixture.appGroupDefaults.loadReusableGeneratedWallpapers(fileManager: .default)
-    assertEqual(migratedAssignments.count, 1, "Expected missing source files to be skipped")
-    assertEqual(migratedAssignments.first?.targetIdentifier, "display-a", "Expected the existing assignment to migrate")
-    assertTrue(FileManager.default.fileExists(atPath: migratedAssignments.first!.fileURL.path), "Expected the migrated file to exist")
-    assertTrue(
-        fixture.legacyDefaults.dictionary(forKey: WallpaperAssignmentStore.assignmentKey) != nil,
-        "Expected legacy store to remain untouched"
-    )
-}
-
-private func testLegacyFallbackReadOrder() throws {
-    let fixture = try Fixture.make()
-    defer { fixture.cleanup() }
-
-    let sourceDirectory = fixture.rootURL.appendingPathComponent("legacy-fallback", isDirectory: true)
-    try FileManager.default.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
-    let legacySource = sourceDirectory.appendingPathComponent("legacy.png")
-    let appGroupSource = sourceDirectory.appendingPathComponent("app-group.png")
-    try Data("legacy".utf8).write(to: legacySource)
-    try Data("app-group".utf8).write(to: appGroupSource)
-
-    fixture.legacyDefaults.replaceReusableGeneratedWallpapers([
-        makeWallpaper(path: legacySource, target: "legacy-display")
-    ])
-
-    let fallbackAssignments = fixture.appGroupDefaults.loadReusableGeneratedWallpapersWithLegacyFallback(
-        from: fixture.legacyDefaults
-    )
-    assertEqual(fallbackAssignments.map(\.targetIdentifier), ["legacy-display"], "Expected legacy assignments when App Group is empty and migration is incomplete")
-
-    fixture.appGroupDefaults.replaceReusableGeneratedWallpapers([
-        makeWallpaper(path: appGroupSource, target: "app-group-display")
-    ])
-
-    let appGroupAssignments = fixture.appGroupDefaults.loadReusableGeneratedWallpapersWithLegacyFallback(
-        from: fixture.legacyDefaults
-    )
-    assertEqual(appGroupAssignments.map(\.targetIdentifier), ["app-group-display"], "Expected App Group assignments to take precedence over legacy assignments")
-
-    fixture.appGroupDefaults.clearReusableGeneratedWallpapers()
-    fixture.appGroupDefaults.wallpaperAssignmentsAppGroupMigrationCompleted = true
-
-    let completedEmptyAssignments = fixture.appGroupDefaults.loadReusableGeneratedWallpapersWithLegacyFallback(
-        from: fixture.legacyDefaults
-    )
-    assertTrue(completedEmptyAssignments.isEmpty, "Expected no legacy fallback after App Group migration is complete")
-}
-
-private func testPartialFailureLeavesBothStoresUntouched() throws {
-    let fixture = try Fixture.make()
-    defer { fixture.cleanup() }
-
-    let sourceDirectory = fixture.rootURL.appendingPathComponent("legacy-failure", isDirectory: true)
-    try FileManager.default.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
-    let firstSource = sourceDirectory.appendingPathComponent("first.png")
-    try Data("first".utf8).write(to: firstSource)
-
-    fixture.legacyDefaults.replaceReusableGeneratedWallpapers([
-        makeWallpaper(path: firstSource, target: "display-a")
-    ])
-
-    let blockingContainer = fixture.rootURL.appendingPathComponent("blocked-container", isDirectory: false)
-    try Data("blocker".utf8).write(to: blockingContainer, options: .atomic)
-
-    do {
-        _ = try fixture.legacyDefaults.migrateWallpaperAssignmentsToAppGroupIfNeeded(
-            appGroupDefaults: fixture.appGroupDefaults,
-            appGroupGeneratedWallpapersDirectoryURL: blockingContainer.appendingPathComponent("generated-wallpapers", isDirectory: true)
-        )
-        fail("Expected migration to fail when the App Group wallpaper directory cannot be created")
-    } catch {
-        // Expected
-    }
-
-    assertTrue(!fixture.appGroupDefaults.wallpaperAssignmentsAppGroupMigrationCompleted, "Expected App Group completion flag to remain unset")
-    assertEqual(
-        fixture.appGroupDefaults.loadReusableGeneratedWallpapers(fileManager: .default).count,
-        0,
-        "Expected App Group assignments to remain untouched on failure"
-    )
-    assertTrue(
-        fixture.legacyDefaults.dictionary(forKey: WallpaperAssignmentStore.assignmentKey) != nil,
-        "Expected legacy assignments to remain untouched on failure"
-    )
+    fixture.defaults.clearReusableGeneratedWallpapers()
+    assertTrue(fixture.defaults.loadReusableGeneratedWallpapers(fileManager: .default).isEmpty, "Expected clear to remove all assignments")
 }
 
 do {
-    try testSuccessfulMigrationCopiesFilesAndMarksCompletion()
-    try testMigrationSkipsMissingSourcesAndStillSucceeds()
-    try testLegacyFallbackReadOrder()
-    try testPartialFailureLeavesBothStoresUntouched()
+    testSharedStoragePathsAreUnsignedLocalAppSupport()
+    try testAssignmentRoundTripAndFiltering()
+    try testMergePreservesExistingAssignments()
     print("verify_t97a_main passed")
 } catch {
     fail("Unexpected error: \(error)")

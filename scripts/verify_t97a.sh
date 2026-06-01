@@ -18,19 +18,26 @@ require_pattern() {
   fi
 }
 
-require_pattern "$SCHEDULE_SETTINGS_FILE" 'wallpaperAssignmentsAppGroupMigrationCompleted' "migration completion flag"
-require_pattern "$SCHEDULE_SETTINGS_FILE" 'migrateWallpaperAssignmentsToAppGroupIfNeeded' "App Group migration entrypoint"
-require_pattern "$ASSIGNMENT_STORE_FILE" 'migrateLegacyAssignments' "legacy assignment migration helper"
-require_pattern "$ASSIGNMENT_STORE_FILE" 'appGroupAssignmentVerificationFailed' "App Group read-back verification"
-require_pattern "$ASSIGNMENT_STORE_FILE" 'generatedWallpapersDirectoryName' "shared generated wallpaper directory constant"
+require_pattern "$ASSIGNMENT_STORE_FILE" 'sharedDefaultsSuiteName[[:space:]]*=[[:space:]]*"com\.marcuslo\.KindleWall"' "main app defaults domain"
+require_pattern "$ASSIGNMENT_STORE_FILE" 'UserDefaults\(suiteName:[[:space:]]*sharedDefaultsSuiteName\)' "unsigned shared defaults suite"
+require_pattern "$ASSIGNMENT_STORE_FILE" 'sharedContainerURL' "local shared storage container"
+require_pattern "$ASSIGNMENT_STORE_FILE" 'generatedWallpapersDirectoryURL' "local generated wallpaper directory"
+require_pattern "$ASSIGNMENT_STORE_FILE" 'generatedWallpapersDirectoryName[[:space:]]*=[[:space:]]*"generated-wallpapers"' "shared generated wallpaper directory constant"
+
+if rg -q 'App Group|appGroup|wallpaperAssignmentsAppGroupMigrationCompleted|migrateWallpaperAssignmentsToAppGroupIfNeeded|loadReusableGeneratedWallpapersWithLegacyFallback' "$SCHEDULE_SETTINGS_FILE" "$ASSIGNMENT_STORE_FILE"; then
+  echo "Verification failed: assignment storage must not depend on App Group migration/fallback paths" >&2
+  exit 1
+fi
 
 cp "$ROOT_DIR/scripts/verify_t97a_main.swift" "$TMP_DIR/main.swift"
+cp "$ROOT_DIR/App/AppSupportPaths.swift" "$TMP_DIR/AppSupportPaths.swift"
 cp "$ROOT_DIR/App/ScheduleSettings.swift" "$TMP_DIR/ScheduleSettings.swift"
 cp "$ROOT_DIR/App/WallpaperAssignmentStore.swift" "$TMP_DIR/WallpaperAssignmentStore.swift"
 
 swiftc \
   -module-cache-path "$TMP_DIR/module-cache" \
   "$TMP_DIR/main.swift" \
+  "$TMP_DIR/AppSupportPaths.swift" \
   "$TMP_DIR/ScheduleSettings.swift" \
   "$TMP_DIR/WallpaperAssignmentStore.swift" \
   -o "$TMP_DIR/verify_t97a_main"
