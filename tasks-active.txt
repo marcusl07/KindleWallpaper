@@ -7,11 +7,3 @@ If two tasks may both touch the same shared infrastructure file, such as `App/Da
 Before starting a task, identify the expected write files. If another task in the same wave overlaps those files, stop and move one of the tasks to a different wave before implementation.
 Prefer completing the full current wave before starting the next numeric stem unless a section explicitly says otherwise.
 Do not leave completed tasks in `tasks-active.txt`. When the header has no tasks below it delete the header.
-
-## Auto-launch On Startup
-
-**T94-b — Add Settings UI for launch-at-login**
-Add a Settings toggle in the About section for launching KindleWall at login, including helper copy about macOS Login Items and inline error/status messaging from AppState.
-
-**T95-a — Verify launch-at-login behavior end to end**
-Verify KindleWall launch-at-login behavior on macOS, including enable, disable, restart/login behavior, accessory-app launch behavior, and compatibility with the existing On app launch wallpaper rotation mode.

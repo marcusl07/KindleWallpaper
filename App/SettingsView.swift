@@ -198,6 +198,7 @@ struct SettingsView: View {
                 "Managed by macOS Login Items.",
                 tone: .secondary
             )
+            settingsMessageRow(launchAtLoginStatusMessage, tone: .secondary)
             if let error = appState.launchAtLoginErrorMessage {
                 settingsMessageRow(error, tone: .error)
             }
@@ -312,6 +313,13 @@ struct SettingsView: View {
                 appState.setLaunchAtLoginEnabled(enabled)
             }
         )
+    }
+
+    private var launchAtLoginStatusMessage: String {
+        if appState.isLaunchAtLoginEnabled {
+            return "KindleWall will open automatically when you log in."
+        }
+        return "KindleWall will not open automatically when you log in."
     }
 
     private var backgroundDisplayHelperBinding: Binding<Bool> {

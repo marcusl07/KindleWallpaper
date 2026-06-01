@@ -42,10 +42,12 @@ swiftc \
   "$ROOT_DIR/App/ScheduleSettings.swift" \
   "$APP_STATE_FILE" \
   "$ROOT_DIR/App/AppSupportPaths.swift" \
+  "$ROOT_DIR/App/WallpaperAssignmentStore.swift" \
   "$ROOT_DIR/App/BackgroundImageStore.swift" \
   "$ROOT_DIR/App/BackgroundImageLoader.swift" \
   "$ROOT_DIR/App/DebouncedTaskScheduler.swift" \
   "$ROOT_DIR/App/WallpaperSetter.swift" \
+  "$ROOT_DIR/App/WallpaperTopologyRestorer.swift" \
   "$ROOT_DIR/App/DisplayIdentityResolver.swift" \
   "$DISPLAY_TOPOLOGY_COORDINATOR_FILE" \
   "$ROOT_DIR/App/SettingsView.swift" \
@@ -65,10 +67,12 @@ swiftc \
   "$ROOT_DIR/App/ScheduleSettings.swift" \
   "$APP_STATE_FILE" \
   "$ROOT_DIR/App/AppSupportPaths.swift" \
+  "$ROOT_DIR/App/WallpaperAssignmentStore.swift" \
   "$ROOT_DIR/App/BackgroundImageStore.swift" \
   "$ROOT_DIR/App/BackgroundImageLoader.swift" \
   "$ROOT_DIR/App/DebouncedTaskScheduler.swift" \
   "$ROOT_DIR/App/WallpaperSetter.swift" \
+  "$ROOT_DIR/App/WallpaperTopologyRestorer.swift" \
   "$ROOT_DIR/App/DisplayIdentityResolver.swift" \
   "$DISPLAY_TOPOLOGY_COORDINATOR_FILE" \
   "$ROOT_DIR/App/SettingsView.swift" \

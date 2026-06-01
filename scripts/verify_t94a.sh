@@ -28,7 +28,9 @@ require_pattern "$APP_STATE_FILE" 'LaunchAtLoginService' "launch-at-login servic
 cp "$ROOT_DIR/scripts/verify_t94a_main.swift" "$TMP_DIR/main.swift"
 cp "$ROOT_DIR/scripts/verify_t94a_support.swift" "$TMP_DIR/verify_t94a_support.swift"
 cp "$ROOT_DIR/App/AppState.swift" "$TMP_DIR/AppState.swift"
+cp "$ROOT_DIR/App/AppSupportPaths.swift" "$TMP_DIR/AppSupportPaths.swift"
 cp "$ROOT_DIR/App/ScheduleSettings.swift" "$TMP_DIR/ScheduleSettings.swift"
+cp "$ROOT_DIR/App/WallpaperAssignmentStore.swift" "$TMP_DIR/WallpaperAssignmentStore.swift"
 cp "$ROOT_DIR/Models/Book.swift" "$TMP_DIR/Book.swift"
 cp "$ROOT_DIR/Models/BulkBookDeletionPlan.swift" "$TMP_DIR/BulkBookDeletionPlan.swift"
 cp "$ROOT_DIR/Models/Highlight.swift" "$TMP_DIR/Highlight.swift"
@@ -39,7 +41,9 @@ swiftc \
   "$TMP_DIR/main.swift" \
   "$TMP_DIR/verify_t94a_support.swift" \
   "$TMP_DIR/AppState.swift" \
+  "$TMP_DIR/AppSupportPaths.swift" \
   "$TMP_DIR/ScheduleSettings.swift" \
+  "$TMP_DIR/WallpaperAssignmentStore.swift" \
   "$TMP_DIR/Book.swift" \
   "$TMP_DIR/BulkBookDeletionPlan.swift" \
   "$TMP_DIR/Highlight.swift" \

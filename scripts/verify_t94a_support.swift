@@ -4,6 +4,27 @@ enum QuotesListSortMode {
     case mostRecentlyAdded
 }
 
+enum WallpaperTopologyReapplyOutcome: Equatable {
+    case reapplied
+    case alreadyApplied
+    case noConnectedScreens
+    case noCurrentWallpaper
+    case applyFailure
+}
+
+struct WallpaperTopologyRestorer<Screen> {
+    static func reapply(
+        resolvedScreens: [WallpaperSetter.ResolvedScreen<Screen>],
+        storedWallpapers: [StoredGeneratedWallpaper] = [],
+        preferredSourceScreen: Screen?,
+        sameScreen: (Screen, Screen) -> Bool,
+        currentDesktopImageURL: @escaping WallpaperSetter.CurrentDesktopImageURL<Screen>,
+        setDesktopImage: (URL, Screen) throws -> Void
+    ) -> WallpaperTopologyReapplyOutcome {
+        .noCurrentWallpaper
+    }
+}
+
 struct QuotesListFilters: Equatable {
     init() {}
 }

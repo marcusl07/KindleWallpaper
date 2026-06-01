@@ -807,3 +807,11 @@ Implement launch-at-login service for KindleWall using `ServiceManagement.SMAppS
 Add App Group storage constants for `group.com.marcuslo.KindleWall` and introduce a `WallpaperAssignmentStore` abstraction for persisted generated wallpaper assignments. The store should preserve the existing assignment payload shape (`reusableGeneratedWallpaperPathsByTarget`) and centralize reads/writes for `StoredGeneratedWallpaper` records without changing main app behavior yet.
 
 Expected primary write files: `App/ScheduleSettings.swift`, new shared store file under `App/`.
+
+**T94-b — Add Settings UI for launch-at-login**
+Add a Settings toggle in the About section for launching KindleWall at login, including helper copy about macOS Login Items and inline error/status messaging from AppState.
+
+
+
+**T95-a — Verify launch-at-login behavior end to end**
+Verify KindleWall launch-at-login behavior on macOS, including enable, disable, restart/login behavior, accessory-app launch behavior, and compatibility with the existing On app launch wallpaper rotation mode.

@@ -26,6 +26,8 @@ cp "$ROOT_DIR/scripts/verify_t91_main.swift" "$TMP_DIR/main.swift"
 
 swiftc \
   -module-cache-path "$TMP_DIR/module-cache" \
+  "$ROOT_DIR/App/AppSupportPaths.swift" \
+  "$ROOT_DIR/App/WallpaperAssignmentStore.swift" \
   "$ROOT_DIR/App/ScheduleSettings.swift" \
   "$ROOT_DIR/App/WallpaperScheduler.swift" \
   "$TMP_DIR/main.swift" \
