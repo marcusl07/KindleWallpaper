@@ -17,9 +17,10 @@ require_pattern() {
   fi
 }
 
-require_pattern "$SETTINGS_FILE" '@State[[:space:]]+private[[:space:]]+var[[:space:]]+searchText[[:space:]]*=' "raw quotes search state"
 require_pattern "$SETTINGS_FILE" '@State[[:space:]]+private[[:space:]]+var[[:space:]]+effectiveSearchText[[:space:]]*=' "committed effective quotes search state"
-require_pattern "$SETTINGS_FILE" '\.searchable\(text:[[:space:]]*\$searchText' "raw searchable binding"
+require_pattern "$SETTINGS_FILE" 'QuotesLibrarySearchField' "native quotes search field"
+require_pattern "$SETTINGS_FILE" 'onTextChanged:[[:space:]]*scheduleSearchRefresh\(rawSearchText:\)' "native search field change routing"
+require_pattern "$SETTINGS_FILE" 'scheduleSearchRefresh\(rawSearchText:[[:space:]]*String\)' "raw search text passed without SwiftUI state binding"
 require_pattern "$SETTINGS_FILE" 'QuotesListSearchPresentationModel\.commitSearchRefresh' "search commit presentation helper"
 require_pattern "$SETTINGS_FILE" 'searchTextOverride:[[:space:]]*commitState\.effectiveSearchText' "search-triggered refresh using committed search text"
 require_pattern "$SETTINGS_FILE" 'QuotesListSearchPresentationModel\.hasActiveQuery' "effective-search presentation state"

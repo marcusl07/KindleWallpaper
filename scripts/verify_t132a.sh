@@ -18,8 +18,9 @@ require_pattern() {
   fi
 }
 
-require_pattern "$SETTINGS_FILE" '@State[[:space:]]+private[[:space:]]+var[[:space:]]+searchText[[:space:]]*=' "raw quotes search state"
 require_pattern "$SETTINGS_FILE" '@State[[:space:]]+private[[:space:]]+var[[:space:]]+effectiveSearchText[[:space:]]*=' "effective debounced quotes search state"
+require_pattern "$SETTINGS_FILE" 'QuotesLibrarySearchField' "native quotes search field"
+require_pattern "$SETTINGS_FILE" 'scheduleSearchRefresh\(rawSearchText:[[:space:]]*String\)' "raw search text argument"
 require_pattern "$SETTINGS_FILE" 'pendingSearchRefreshTask[[:space:]]*=[[:space:]]*searchRefreshDebounceScheduler\.schedule' "debounced search scheduling"
 require_pattern "$SETTINGS_FILE" 'let[[:space:]]+commitState[[:space:]]*=[[:space:]]*QuotesListSearchPresentationModel\.commitSearchRefresh' "effective search commit state"
 require_pattern "$SETTINGS_FILE" 'let[[:space:]]+currentSearchText[[:space:]]*=[[:space:]]*refreshQueryState\.searchText' "refresh query capture from committed search state"

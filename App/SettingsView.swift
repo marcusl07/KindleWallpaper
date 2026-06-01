@@ -1075,6 +1075,55 @@ private struct QuotesListRowView: View, Equatable {
     }
 }
 
+private struct QuotesLibrarySearchField: NSViewRepresentable {
+    let committedSearchText: String
+    let placeholder: String
+    let onTextChanged: (String) -> Void
+
+    func makeNSView(context: Context) -> NSSearchField {
+        let searchField = NSSearchField(frame: .zero)
+        searchField.placeholderString = placeholder
+        searchField.stringValue = committedSearchText
+        searchField.delegate = context.coordinator
+        searchField.sendsSearchStringImmediately = true
+        searchField.focusRingType = .default
+        searchField.controlSize = .large
+        return searchField
+    }
+
+    func updateNSView(_ searchField: NSSearchField, context: Context) {
+        searchField.placeholderString = placeholder
+        context.coordinator.onTextChanged = onTextChanged
+
+        guard searchField.currentEditor() == nil,
+              searchField.stringValue != committedSearchText else {
+            return
+        }
+
+        searchField.stringValue = committedSearchText
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onTextChanged: onTextChanged)
+    }
+
+    final class Coordinator: NSObject, NSSearchFieldDelegate {
+        var onTextChanged: (String) -> Void
+
+        init(onTextChanged: @escaping (String) -> Void) {
+            self.onTextChanged = onTextChanged
+        }
+
+        func controlTextDidChange(_ notification: Notification) {
+            guard let searchField = notification.object as? NSSearchField else {
+                return
+            }
+
+            onTextChanged(searchField.stringValue)
+        }
+    }
+}
+
 private enum QuotesListPagingConstants {
     static let pageSize = 100
     static let loadMoreThreshold = 20
@@ -1337,7 +1386,6 @@ private struct QuotesListView: View {
     private static let filterScrollCoordinateSpaceName = "QuotesFilterControlsScrollView"
 
     @EnvironmentObject private var appState: AppState
-    @State private var searchText = ""
     @State private var effectiveSearchText = ""
     @State private var sortMode: QuotesListSortMode = .mostRecentlyAdded
     @State private var filters = QuotesListFilters()
@@ -1429,7 +1477,6 @@ private struct QuotesListView: View {
             .frame(width: 0, height: 0)
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .searchable(text: $searchText, prompt: "Search quotes, books, or authors")
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button(role: .destructive, action: deleteSelectedHighlights) {
@@ -1475,9 +1522,6 @@ private struct QuotesListView: View {
         }
         .onChange(of: sortMode) { _ in
             refreshHighlights(reason: .sortChanged)
-        }
-        .onChange(of: searchText) { _ in
-            scheduleSearchRefresh()
         }
         .onChange(of: filters.selectedBookTitle) { _ in
             refreshHighlights(reason: .bookFilterChanged)
@@ -1577,6 +1621,13 @@ private struct QuotesListView: View {
 
         return VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .center, spacing: 12) {
+                QuotesLibrarySearchField(
+                    committedSearchText: effectiveSearchText,
+                    placeholder: "Search quotes, books, or authors",
+                    onTextChanged: scheduleSearchRefresh(rawSearchText:)
+                )
+                .frame(minWidth: 260, idealWidth: 320, maxWidth: 420)
+
                 Picker("Sort", selection: $sortMode) {
                     ForEach(QuotesListSortMode.allCases) { mode in
                         Text(mode.title)
@@ -2038,14 +2089,14 @@ private struct QuotesListView: View {
         cancelPendingMeasurements()
     }
 
-    private func scheduleSearchRefresh() {
+    private func scheduleSearchRefresh(rawSearchText: String) {
         pendingSearchRefreshTask = searchRefreshDebounceScheduler.schedule(
             after: searchRefreshDebounceInterval,
             replacing: pendingSearchRefreshTask
         ) {
             pendingSearchRefreshTask = nil
             let commitState = QuotesListSearchPresentationModel.commitSearchRefresh(
-                rawSearchText: searchText,
+                rawSearchText: rawSearchText,
                 effectiveSearchText: effectiveSearchText
             )
             effectiveSearchText = commitState.effectiveSearchText
@@ -2685,6 +2736,28 @@ enum QuotesListViewTestProbe {
         QuotesListSearchPresentationModel.pagingSearchText(
             effectiveSearchText: effectiveSearchText
         )
+    }
+
+    static func simulateNativeSearchInput(
+        typedValues: [String],
+        onTextChanged: @escaping (String) -> Void
+    ) -> [String] {
+        let coordinator = QuotesLibrarySearchField.Coordinator(onTextChanged: onTextChanged)
+        let searchField = NSSearchField(frame: .zero)
+        var renderedValues: [String] = []
+
+        for value in typedValues {
+            searchField.stringValue = value
+            coordinator.controlTextDidChange(
+                Notification(
+                    name: NSControl.textDidChangeNotification,
+                    object: searchField
+                )
+            )
+            renderedValues.append(searchField.stringValue)
+        }
+
+        return renderedValues
     }
 
     static func simulateRefresh(
