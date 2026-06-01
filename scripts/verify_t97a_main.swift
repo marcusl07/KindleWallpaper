@@ -88,7 +88,7 @@ private func testSuccessfulMigrationCopiesFilesAndMarksCompletion() throws {
     )
 
     assertTrue(didMigrate, "Expected migration to run")
-    assertTrue(fixture.legacyDefaults.wallpaperAssignmentsAppGroupMigrationCompleted, "Expected completion flag to be set")
+    assertTrue(fixture.appGroupDefaults.wallpaperAssignmentsAppGroupMigrationCompleted, "Expected App Group completion flag to be set")
 
     let migratedAssignments = fixture.appGroupDefaults.loadReusableGeneratedWallpapers(fileManager: .default)
     assertEqual(migratedAssignments.count, 2, "Expected all existing assignments to migrate")
@@ -165,7 +165,7 @@ private func testPartialFailureLeavesBothStoresUntouched() throws {
         // Expected
     }
 
-    assertTrue(!fixture.legacyDefaults.wallpaperAssignmentsAppGroupMigrationCompleted, "Expected completion flag to remain unset")
+    assertTrue(!fixture.appGroupDefaults.wallpaperAssignmentsAppGroupMigrationCompleted, "Expected App Group completion flag to remain unset")
     assertEqual(
         fixture.appGroupDefaults.loadReusableGeneratedWallpapers(fileManager: .default).count,
         0,

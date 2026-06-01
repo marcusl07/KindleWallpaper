@@ -33,5 +33,36 @@ targets:
     dependencies:
       - package: GRDB
         product: GRDB
+      - target: DisplayHelper
+        embed: false
     scheme:
       testTargets: []
+    postBuildScripts:
+      - name: Embed DisplayHelper Login Item
+        script: |
+          set -euo pipefail
+          LOGIN_ITEMS_DIR="$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Library/LoginItems"
+          mkdir -p "$LOGIN_ITEMS_DIR"
+          ditto "$BUILT_PRODUCTS_DIR/DisplayHelper.app" "$LOGIN_ITEMS_DIR/DisplayHelper.app"
+  DisplayHelper:
+    type: application
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - DisplayHelper
+      - path: App/ScheduleSettings.swift
+      - path: App/WallpaperAssignmentStore.swift
+      - path: App/WallpaperSetter.swift
+      - path: App/DisplayIdentityResolver.swift
+      - path: App/WallpaperTopologyRestorer.swift
+      - path: App/DisplayTopologyCoordinator.swift
+    info:
+      path: DisplayHelper/Info.plist
+      properties:
+        LSUIElement: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.marcuslo.KindleWall.DisplayHelper
+        PRODUCT_NAME: DisplayHelper
+        GENERATE_INFOPLIST_FILE: NO
+        OTHER_SWIFT_FLAGS: "$(inherited) -D DISPLAY_HELPER"

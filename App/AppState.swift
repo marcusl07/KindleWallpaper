@@ -298,13 +298,7 @@ final class AppState: ObservableObject {
         case applyError
     }
 
-    enum TopologyWallpaperReapplyOutcome: Equatable {
-        case reapplied
-        case alreadyApplied
-        case noConnectedScreens
-        case noCurrentWallpaper
-        case applyFailure
-    }
+    typealias TopologyWallpaperReapplyOutcome = WallpaperTopologyReapplyOutcome
 
     enum WallpaperRotationOutcome: Equatable {
         case success
@@ -403,6 +397,7 @@ final class AppState: ObservableObject {
     @Published private(set) var lastChangedAt: Date?
     @Published private(set) var capitalizeHighlightText: Bool
     @Published private(set) var isLaunchAtLoginEnabled: Bool
+    @Published private(set) var isBackgroundDisplayHelperEnabled: Bool
     let quotesQueryService: QuotesQueryService
 
     private let userDefaults: UserDefaults
@@ -433,6 +428,9 @@ final class AppState: ObservableObject {
     private let getLaunchAtLoginEnabled: GetLaunchAtLoginEnabled
     private let refreshLaunchAtLoginEnabledAction: RefreshLaunchAtLoginEnabled
     private let setLaunchAtLoginEnabledAction: SetLaunchAtLoginEnabled
+    private let getBackgroundDisplayHelperEnabled: GetLaunchAtLoginEnabled
+    private let refreshBackgroundDisplayHelperEnabledAction: RefreshLaunchAtLoginEnabled
+    private let setBackgroundDisplayHelperEnabledAction: SetLaunchAtLoginEnabled
     private let loadBackgroundPreviewStateAction: LoadBackgroundPreviewState
     private let saveBackgroundImageSelectionAction: SaveBackgroundImageSelection
     private let loadBackgroundCollectionStateAction: LoadBackgroundCollectionState
@@ -445,6 +443,7 @@ final class AppState: ObservableObject {
     private var isRotationInProgress = false
     private let bookMutationLock = NSLock()
     private var launchAtLoginError: LaunchAtLoginError?
+    private var backgroundDisplayHelperError: LaunchAtLoginError?
 
     var importStatus: String {
         latestImportStatus.statusMessage
@@ -460,6 +459,10 @@ final class AppState: ObservableObject {
 
     var launchAtLoginErrorMessage: String? {
         launchAtLoginError?.errorDescription
+    }
+
+    var backgroundDisplayHelperErrorMessage: String? {
+        backgroundDisplayHelperError?.errorDescription
     }
 
     nonisolated private static func enqueueRotationWork(_ work: @escaping () -> Void) {
@@ -517,6 +520,9 @@ final class AppState: ObservableObject {
         getLaunchAtLoginEnabled: @escaping GetLaunchAtLoginEnabled = { false },
         refreshLaunchAtLoginEnabled: @escaping RefreshLaunchAtLoginEnabled = { false },
         setLaunchAtLoginEnabled: @escaping SetLaunchAtLoginEnabled = { _ in },
+        getBackgroundDisplayHelperEnabled: @escaping GetLaunchAtLoginEnabled = { false },
+        refreshBackgroundDisplayHelperEnabled: @escaping RefreshLaunchAtLoginEnabled = { false },
+        setBackgroundDisplayHelperEnabled: @escaping SetLaunchAtLoginEnabled = { _ in },
         loadBackgroundPreviewState: LoadBackgroundPreviewState? = nil,
         saveBackgroundImageSelection: @escaping SaveBackgroundImageSelection = { _ in },
         loadBackgroundCollectionState: LoadBackgroundCollectionState? = nil,
@@ -663,6 +669,10 @@ final class AppState: ObservableObject {
         self.refreshLaunchAtLoginEnabledAction = refreshLaunchAtLoginEnabled
         self.setLaunchAtLoginEnabledAction = setLaunchAtLoginEnabled
         self.isLaunchAtLoginEnabled = getLaunchAtLoginEnabled()
+        self.getBackgroundDisplayHelperEnabled = getBackgroundDisplayHelperEnabled
+        self.refreshBackgroundDisplayHelperEnabledAction = refreshBackgroundDisplayHelperEnabled
+        self.setBackgroundDisplayHelperEnabledAction = setBackgroundDisplayHelperEnabled
+        self.isBackgroundDisplayHelperEnabled = getBackgroundDisplayHelperEnabled()
         self.loadBackgroundPreviewStateAction = resolvedLoadBackgroundPreviewState
         self.saveBackgroundImageSelectionAction = saveBackgroundImageSelection
         self.loadBackgroundCollectionStateAction = resolvedLoadBackgroundCollectionState
@@ -949,97 +959,14 @@ final class AppState: ObservableObject {
         currentDesktopImageURL: @escaping WallpaperSetter.CurrentDesktopImageURL<Screen>,
         setDesktopImage: (URL, Screen) throws -> Void
     ) -> TopologyWallpaperReapplyOutcome {
-        guard !resolvedScreens.isEmpty else {
-            return .noConnectedScreens
-        }
-
-        let sourceScreens = topologyWallpaperSourceScreens(
+        WallpaperTopologyRestorer<Screen>.reapply(
             resolvedScreens: resolvedScreens,
-            preferredSourceScreen: preferredSourceScreen,
-            sameScreen: sameScreen
-        )
-
-        guard let imageURL = topologyWallpaperSourceURL(
             storedWallpapers: storedWallpapers,
-            sourceScreens: sourceScreens,
-            currentDesktopImageURL: currentDesktopImageURL
-        ) else {
-            return .noCurrentWallpaper
-        }
-
-        do {
-            let appliedCount = try WallpaperSetter.applySharedWallpaper(
-                imageURL: imageURL,
-                resolvedScreens: resolvedScreens,
-                currentDesktopImageURL: currentDesktopImageURL,
-                setDesktopImage: setDesktopImage
-            )
-            return appliedCount == 0 ? .alreadyApplied : .reapplied
-        } catch {
-            return .applyFailure
-        }
-    }
-
-    nonisolated private static func topologyWallpaperSourceURL<Screen>(
-        storedWallpapers: [StoredGeneratedWallpaper],
-        sourceScreens: [WallpaperSetter.ResolvedScreen<Screen>],
-        currentDesktopImageURL: WallpaperSetter.CurrentDesktopImageURL<Screen>
-    ) -> URL? {
-        let preferredResolvedScreen = sourceScreens.first
-        let firstResolvedScreen = sourceScreens.last ?? preferredResolvedScreen
-
-        let persistedSourceIdentifiers = [
-            preferredResolvedScreen?.identifier,
-            firstResolvedScreen?.identifier
-        ].compactMap { $0 }
-
-        for identifier in persistedSourceIdentifiers {
-            if let fileURL = storedWallpapers.first(where: { $0.targetIdentifier == identifier })?.fileURL {
-                return fileURL
-            }
-        }
-
-        if let sharedFileURL = storedWallpapers.first(where: {
-            $0.targetIdentifier == StoredGeneratedWallpaper.allScreensTargetIdentifier
-        })?.fileURL {
-            return sharedFileURL
-        }
-
-        for screen in sourceScreens.map(\.screen) {
-            if let imageURL = currentDesktopImageURL(screen) {
-                return imageURL
-            }
-        }
-
-        return nil
-    }
-
-    nonisolated private static func topologyWallpaperSourceScreens<Screen>(
-        resolvedScreens: [WallpaperSetter.ResolvedScreen<Screen>],
-        preferredSourceScreen: Screen?,
-        sameScreen: (Screen, Screen) -> Bool
-    ) -> [WallpaperSetter.ResolvedScreen<Screen>] {
-        var sourceScreens: [WallpaperSetter.ResolvedScreen<Screen>] = []
-        sourceScreens.reserveCapacity(2)
-
-        if
-            let preferredSourceScreen,
-            let preferredResolvedScreen = resolvedScreens.first(where: { sameScreen($0.screen, preferredSourceScreen) })
-        {
-            sourceScreens.append(preferredResolvedScreen)
-        }
-
-        if let firstResolvedScreen = resolvedScreens.first {
-            let alreadyIncludedFirstScreen = sourceScreens.contains { candidate in
-                sameScreen(candidate.screen, firstResolvedScreen.screen)
-            }
-
-            if !alreadyIncludedFirstScreen {
-                sourceScreens.append(firstResolvedScreen)
-            }
-        }
-
-        return sourceScreens
+            preferredSourceScreen: preferredSourceScreen,
+            sameScreen: sameScreen,
+            currentDesktopImageURL: currentDesktopImageURL,
+            setDesktopImage: setDesktopImage
+        )
     }
 
     private func persistAppliedWallpaperAssignments(_ wallpapers: [GeneratedWallpaper]) {
@@ -1235,7 +1162,9 @@ final class AppState: ObservableObject {
 
     func refreshLaunchAtLoginState() {
         isLaunchAtLoginEnabled = refreshLaunchAtLoginEnabledAction()
+        isBackgroundDisplayHelperEnabled = refreshBackgroundDisplayHelperEnabledAction()
         launchAtLoginError = nil
+        backgroundDisplayHelperError = nil
     }
 
     func setLaunchAtLoginEnabled(_ enabled: Bool) {
@@ -1254,6 +1183,24 @@ final class AppState: ObservableObject {
 
     func toggleLaunchAtLogin() {
         setLaunchAtLoginEnabled(!isLaunchAtLoginEnabled)
+    }
+
+    func setBackgroundDisplayHelperEnabled(_ enabled: Bool) {
+        do {
+            try setBackgroundDisplayHelperEnabledAction(enabled)
+            isBackgroundDisplayHelperEnabled = getBackgroundDisplayHelperEnabled()
+            backgroundDisplayHelperError = nil
+        } catch let error as LaunchAtLoginError {
+            backgroundDisplayHelperError = error
+            isBackgroundDisplayHelperEnabled = getBackgroundDisplayHelperEnabled()
+        } catch {
+            backgroundDisplayHelperError = .registerFailed(error.localizedDescription)
+            isBackgroundDisplayHelperEnabled = getBackgroundDisplayHelperEnabled()
+        }
+    }
+
+    func toggleBackgroundDisplayHelper() {
+        setBackgroundDisplayHelperEnabled(!isBackgroundDisplayHelperEnabled)
     }
 
     func loadBackgroundPreviewState() -> BackgroundPreviewState {
@@ -1353,10 +1300,23 @@ extension AppState {
     }
 
     static func live(userDefaults: UserDefaults = .standard) -> AppState {
+        let sharedDefaults = KindleWallSharedStorage.appGroupUserDefaults() ?? userDefaults
+        let appGroupContainerURL = KindleWallSharedStorage.appGroupContainerURL()
+        let generatedWallpapersContainerURL = KindleWallSharedStorage.generatedWallpapersContainerURL()
+        if let generatedWallpapersContainerURL {
+            try? userDefaults.migrateWallpaperAssignmentsToAppGroupIfNeeded(
+                appGroupDefaults: sharedDefaults,
+                appGroupGeneratedWallpapersDirectoryURL: generatedWallpapersContainerURL
+            )
+        }
+
         let backgroundStore = BackgroundImageStore(userDefaults: userDefaults)
         let wallpaperGenerator = WallpaperGenerator(
+            appSupportDirectoryProvider: {
+                appGroupContainerURL ?? AppSupportPaths.kindleWallDirectory(fileManager: .default)
+            },
             protectedGeneratedWallpapersProvider: {
-                userDefaults.loadReusableGeneratedWallpapers().map(\.fileURL)
+                sharedDefaults.loadReusableGeneratedWallpapers().map(\.fileURL)
             }
         )
 
@@ -1437,24 +1397,24 @@ extension AppState {
             },
             storedWallpaperAssignmentPersistence: StoredWallpaperAssignmentPersistence(
                 load: {
-                    userDefaults.loadReusableGeneratedWallpapers()
+                    sharedDefaults.loadReusableGeneratedWallpapers()
                 },
                 replace: { generatedWallpapers in
-                    userDefaults.replaceReusableGeneratedWallpapers(
+                    sharedDefaults.replaceReusableGeneratedWallpapers(
                         Self.storedGeneratedWallpapers(from: generatedWallpapers)
                     )
                 },
                 merge: { generatedWallpapers in
-                    userDefaults.mergeReusableGeneratedWallpapers(
+                    sharedDefaults.mergeReusableGeneratedWallpapers(
                         Self.storedGeneratedWallpapers(from: generatedWallpapers)
                     )
                 },
                 clear: {
-                    userDefaults.clearReusableGeneratedWallpapers()
+                    sharedDefaults.clearReusableGeneratedWallpapers()
                 }
             ),
             reapplyStoredWallpaper: {
-                let storedWallpapers = userDefaults.loadReusableGeneratedWallpapers()
+                let storedWallpapers = sharedDefaults.loadReusableGeneratedWallpapers()
                 guard !storedWallpapers.isEmpty else {
                     return .noStoredWallpapers
                 }
@@ -1472,7 +1432,7 @@ extension AppState {
             },
             reapplyCurrentWallpaperForTopology: {
                 let resolvedScreens = DisplayIdentityResolver.resolvedConnectedScreens()
-                let storedWallpapers = userDefaults.loadReusableGeneratedWallpapers()
+                let storedWallpapers = sharedDefaults.loadReusableGeneratedWallpapers()
                 return AppState.reapplyCurrentWallpaperForTopology(
                     resolvedScreens: resolvedScreens,
                     storedWallpapers: storedWallpapers,
@@ -1518,6 +1478,9 @@ extension AppState {
             getLaunchAtLoginEnabled: LaunchAtLoginService.currentEnabled,
             refreshLaunchAtLoginEnabled: LaunchAtLoginService.refreshEnabled,
             setLaunchAtLoginEnabled: LaunchAtLoginService.setEnabled(_:),
+            getBackgroundDisplayHelperEnabled: BackgroundDisplayHelperLoginService.currentEnabled,
+            refreshBackgroundDisplayHelperEnabled: BackgroundDisplayHelperLoginService.refreshEnabled,
+            setBackgroundDisplayHelperEnabled: BackgroundDisplayHelperLoginService.setEnabled(_:),
             loadBackgroundPreviewState: {
                 let result = backgroundStore.loadBackgroundImageCollection()
                 return BackgroundPreviewState(
@@ -1572,6 +1535,43 @@ enum LaunchAtLoginService {
     static func setEnabled(_ enabled: Bool) throws {
 #if canImport(ServiceManagement)
         let service = SMAppService.mainApp
+        do {
+            if enabled {
+                try service.register()
+            } else {
+                try service.unregister()
+            }
+        } catch {
+            if enabled {
+                throw AppState.LaunchAtLoginError.registerFailed(error.localizedDescription)
+            } else {
+                throw AppState.LaunchAtLoginError.unregisterFailed(error.localizedDescription)
+            }
+        }
+#else
+        throw AppState.LaunchAtLoginError.unsupported
+#endif
+    }
+}
+
+enum BackgroundDisplayHelperLoginService {
+    static let helperBundleIdentifier = "com.marcuslo.KindleWall.DisplayHelper"
+
+    static func currentEnabled() -> Bool {
+#if canImport(ServiceManagement)
+        return SMAppService.loginItem(identifier: helperBundleIdentifier).status == .enabled
+#else
+        return false
+#endif
+    }
+
+    static func refreshEnabled() -> Bool {
+        currentEnabled()
+    }
+
+    static func setEnabled(_ enabled: Bool) throws {
+#if canImport(ServiceManagement)
+        let service = SMAppService.loginItem(identifier: helperBundleIdentifier)
         do {
             if enabled {
                 try service.register()

@@ -30,6 +30,7 @@ struct WallpaperGenerator {
         static let generatedWallpapersDirectoryName = "generated-wallpapers"
         static let generatedWallpaperPrefix = "wallpaper_"
         static let defaultRetainedGeneratedFiles = 5
+        static let generatedWallpaperCleanupGraceInterval: TimeInterval = 10 * 60
         static let quoteFontSize: CGFloat = 36
         static let attributionFontSize: CGFloat = 20
         static let textSpacing: CGFloat = 24
@@ -42,6 +43,7 @@ struct WallpaperGenerator {
     private let backgroundImageLoader: BackgroundImageLoader
     private let retainedGeneratedFileCount: Int
     private let protectedGeneratedWallpapersProvider: () -> [URL]
+    private let currentDateProvider: () -> Date
 
     init(
         fileManager: FileManager = .default,
@@ -62,7 +64,8 @@ struct WallpaperGenerator {
         },
         backgroundImageLoader: BackgroundImageLoader = .shared,
         retainedGeneratedFileCount: Int = Constants.defaultRetainedGeneratedFiles,
-        protectedGeneratedWallpapersProvider: @escaping () -> [URL] = { [] }
+        protectedGeneratedWallpapersProvider: @escaping () -> [URL] = { [] },
+        currentDateProvider: @escaping () -> Date = Date.init
     ) {
         self.fileManager = fileManager
         self.appSupportDirectoryProvider = appSupportDirectoryProvider
@@ -71,6 +74,7 @@ struct WallpaperGenerator {
         self.backgroundImageLoader = backgroundImageLoader
         self.retainedGeneratedFileCount = max(retainedGeneratedFileCount, 1)
         self.protectedGeneratedWallpapersProvider = protectedGeneratedWallpapersProvider
+        self.currentDateProvider = currentDateProvider
     }
 
     func generateWallpaper(highlight: Highlight, backgroundURL: URL?) -> URL {
@@ -377,8 +381,13 @@ struct WallpaperGenerator {
             let protectedFileIdentifierSet = Set(
                 protectedFileURLs.compactMap(fileResourceIdentifier(for:))
             )
+            let cleanupCutoffDate = currentDateProvider()
+                .addingTimeInterval(-Constants.generatedWallpaperCleanupGraceInterval)
             let unprotectedFiles = sortedFiles.filter { fileURL in
                 if protectedFilePathSet.contains(canonicalFilePath(for: fileURL)) {
+                    return false
+                }
+                if resourceTimestamp(for: fileURL) > cleanupCutoffDate {
                     return false
                 }
                 guard !protectedFileIdentifierSet.isEmpty else {

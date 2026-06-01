@@ -193,6 +193,24 @@ struct SettingsView: View {
 
     private var aboutSection: some View {
         Section("About") {
+            Toggle("Launch at Login", isOn: launchAtLoginBinding)
+            settingsMessageRow(
+                "Managed by macOS Login Items.",
+                tone: .secondary
+            )
+            if let error = appState.launchAtLoginErrorMessage {
+                settingsMessageRow(error, tone: .error)
+            }
+
+            Toggle("Keep wallpaper stable in background", isOn: backgroundDisplayHelperBinding)
+            settingsMessageRow(
+                "Starts the display helper at login so wallpapers can be restored after wake or monitor changes.",
+                tone: .secondary
+            )
+            if let error = appState.backgroundDisplayHelperErrorMessage {
+                settingsMessageRow(error, tone: .error)
+            }
+
             settingsValueRow(label: "App", value: "KindleWall")
             settingsValueRow(label: "Version", value: appVersionDisplay)
         }
@@ -281,6 +299,28 @@ struct SettingsView: View {
             },
             set: { enabled in
                 appState.setCapitalizeHighlightText(enabled)
+            }
+        )
+    }
+
+    private var launchAtLoginBinding: Binding<Bool> {
+        Binding(
+            get: {
+                appState.isLaunchAtLoginEnabled
+            },
+            set: { enabled in
+                appState.setLaunchAtLoginEnabled(enabled)
+            }
+        )
+    }
+
+    private var backgroundDisplayHelperBinding: Binding<Bool> {
+        Binding(
+            get: {
+                appState.isBackgroundDisplayHelperEnabled
+            },
+            set: { enabled in
+                appState.setBackgroundDisplayHelperEnabled(enabled)
             }
         )
     }

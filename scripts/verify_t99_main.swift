@@ -50,6 +50,43 @@ enum WallpaperSetter {
     }
 }
 
+enum WallpaperTopologyReapplyOutcome: Equatable {
+    case reapplied
+    case alreadyApplied
+    case noConnectedScreens
+    case noCurrentWallpaper
+    case applyFailure
+}
+
+struct WallpaperTopologyRestorer<Screen> {
+    static func reapply(
+        resolvedScreens: [WallpaperSetter.ResolvedScreen<Screen>],
+        storedWallpapers: [StoredGeneratedWallpaper] = [],
+        preferredSourceScreen: Screen?,
+        sameScreen: (Screen, Screen) -> Bool,
+        currentDesktopImageURL: @escaping WallpaperSetter.CurrentDesktopImageURL<Screen>,
+        setDesktopImage: (URL, Screen) throws -> Void
+    ) -> WallpaperTopologyReapplyOutcome {
+        .alreadyApplied
+    }
+}
+
+struct WallpaperAssignmentStore {
+    static let assignmentKey = "reusableGeneratedWallpaperPathsByTarget"
+    static let wallpaperAssignmentsAppGroupMigrationCompletedKey = "wallpaperAssignmentsAppGroupMigrationCompleted"
+
+    init(userDefaults: UserDefaults, fileManager: FileManager = .default) {}
+    func replace(_ wallpapers: [StoredGeneratedWallpaper]) {}
+    func merge(_ wallpapers: [StoredGeneratedWallpaper]) {}
+    func clear() {}
+    func load() -> [StoredGeneratedWallpaper] { [] }
+    func migrateLegacyAssignments(
+        from legacyDefaults: UserDefaults,
+        appGroupDefaults: UserDefaults,
+        appGroupGeneratedWallpapersDirectoryURL: URL
+    ) throws -> Bool { false }
+}
+
 private func fail(_ message: String) -> Never {
     fputs("verify_t99_main failed: \(message)\n", stderr)
     exit(1)

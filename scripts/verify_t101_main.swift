@@ -1,64 +1,9 @@
+import AppKit
 import Foundation
-
-enum WallpaperSetter {
-    enum RestoreOutcome: Equatable {
-        case fullRestore
-        case partialRestore
-        case noStoredWallpapers
-        case noConnectedScreens
-        case applyFailure
-    }
-
-    struct ResolvedScreen<Screen> {
-        let screen: Screen
-        let identifier: String
-        let pixelWidth: Int
-        let pixelHeight: Int
-        let backingScaleFactor: CGFloat
-        let originX: Int
-        let originY: Int
-
-        init(
-            screen: Screen,
-            identifier: String,
-            pixelWidth: Int = 0,
-            pixelHeight: Int = 0,
-            backingScaleFactor: CGFloat = 1,
-            originX: Int = 0,
-            originY: Int = 0
-        ) {
-            self.screen = screen
-            self.identifier = identifier
-            self.pixelWidth = pixelWidth
-            self.pixelHeight = pixelHeight
-            self.backingScaleFactor = backingScaleFactor
-            self.originX = originX
-            self.originY = originY
-        }
-    }
-
-    typealias CurrentDesktopImageURL<Screen> = (Screen) -> URL?
-
-    @discardableResult
-    static func applySharedWallpaper<Screen>(
-        imageURL: URL,
-        resolvedScreens: [ResolvedScreen<Screen>],
-        currentDesktopImageURL: CurrentDesktopImageURL<Screen>? = nil,
-        setDesktopImage: (URL, Screen) throws -> Void
-    ) rethrows -> Int {
-        0
-    }
-}
 
 private func fail(_ message: String) -> Never {
     fputs("verify_t101_main failed: \(message)\n", stderr)
     exit(1)
-}
-
-private func assertEqual<T: Equatable>(_ lhs: T, _ rhs: T, _ message: String) {
-    if lhs != rhs {
-        fail("\(message). Expected \(rhs), got \(lhs)")
-    }
 }
 
 private func assertTrue(_ value: Bool, _ message: String) {
@@ -67,86 +12,115 @@ private func assertTrue(_ value: Bool, _ message: String) {
     }
 }
 
-private func makeBook(
-    id: UUID,
-    title: String,
-    author: String,
-    isEnabled: Bool = true,
-    highlightCount: Int = 0
-) -> Book {
-    Book(
-        id: id,
-        title: title,
-        author: author,
-        isEnabled: isEnabled,
-        highlightCount: highlightCount
-    )
+private func makeTemporaryDirectory() -> URL {
+    let url = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("kindlewall-t101-\(UUID().uuidString)", isDirectory: true)
+    do {
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    } catch {
+        fail("Failed to create temp directory: \(error)")
+    }
+    return url
 }
 
-private func testReconciledSelectionDropsMissingBooksAndKeepsValidOnes() {
-    let firstID = UUID(uuidString: "00000000-0000-0000-0000-000000000201")!
-    let secondID = UUID(uuidString: "00000000-0000-0000-0000-000000000202")!
-    let thirdID = UUID(uuidString: "00000000-0000-0000-0000-000000000203")!
+private func writePNG(at url: URL) {
+    let image = NSImage(size: NSSize(width: 2, height: 2))
+    image.lockFocus()
+    NSColor.black.setFill()
+    NSRect(x: 0, y: 0, width: 2, height: 2).fill()
+    image.unlockFocus()
 
-    let reconciled = BooksListViewTestProbe.reconciledSelection(
-        [firstID, secondID],
-        validBookIDs: [secondID, thirdID]
-    )
+    guard
+        let tiff = image.tiffRepresentation,
+        let bitmap = NSBitmapImageRep(data: tiff),
+        let png = bitmap.representation(using: .png, properties: [:])
+    else {
+        fail("Failed to make PNG fixture")
+    }
 
-    assertEqual(reconciled, [secondID], "Expected book selection reconciliation to keep only still-valid IDs")
+    do {
+        try png.write(to: url)
+    } catch {
+        fail("Failed to write PNG fixture: \(error)")
+    }
 }
 
-private func testBulkDeleteUsesExplicitSelectionAcrossFullLibrary() {
-    let firstID = UUID(uuidString: "00000000-0000-0000-0000-000000000204")!
-    let secondID = UUID(uuidString: "00000000-0000-0000-0000-000000000205")!
-    let thirdID = UUID(uuidString: "00000000-0000-0000-0000-000000000206")!
-    let books = [
-        makeBook(id: firstID, title: "First", author: "Author 1", highlightCount: 3),
-        makeBook(id: secondID, title: "Second", author: "Author 2", highlightCount: 5),
-        makeBook(id: thirdID, title: "Third", author: "Author 3", highlightCount: 8)
-    ]
-
-    let deletedIDs = BooksListViewTestProbe.bulkDeleteBookIDs(
-        from: books,
-        selectedBookIDs: [firstID, thirdID]
-    )
-
-    assertEqual(
-        deletedIDs,
-        [firstID, thirdID],
-        "Expected book bulk delete to operate only on explicitly selected rows"
-    )
+private func setModificationDate(_ date: Date, for url: URL) {
+    do {
+        try FileManager.default.setAttributes(
+            [.modificationDate: date, .creationDate: date],
+            ofItemAtPath: url.path
+        )
+    } catch {
+        fail("Failed to set fixture dates: \(error)")
+    }
 }
 
-private func testBulkDeleteButtonDisabledState() {
-    let selectedID = UUID(uuidString: "00000000-0000-0000-0000-000000000207")!
+@main
+enum VerifyT101 {
+    static func main() {
+        let root = makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
 
-    assertTrue(
-        BooksListViewTestProbe.bulkDeleteButtonDisabled(
-            isEditing: false,
-            selectedBookIDs: [selectedID]
-        ),
-        "Expected bulk-delete toolbar action to stay disabled outside book edit mode"
-    )
-    assertTrue(
-        BooksListViewTestProbe.bulkDeleteButtonDisabled(
-            isEditing: true,
-            selectedBookIDs: []
-        ),
-        "Expected bulk-delete toolbar action to be disabled when no books are selected"
-    )
-    assertEqual(
-        BooksListViewTestProbe.bulkDeleteButtonDisabled(
-            isEditing: true,
-            selectedBookIDs: [selectedID]
-        ),
-        false,
-        "Expected bulk-delete toolbar action to enable once book edit mode has a selection"
-    )
+        let generatedDirectory = root.appendingPathComponent("generated-wallpapers", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: generatedDirectory, withIntermediateDirectories: true)
+        } catch {
+            fail("Failed to create generated directory: \(error)")
+        }
+
+        let now = Date(timeIntervalSince1970: 2_000)
+        let oldDate = now.addingTimeInterval(-3_600)
+        let recentDate = now.addingTimeInterval(-120)
+
+        let staleOld = generatedDirectory.appendingPathComponent("wallpaper_old_stale.png")
+        let retainedOld = generatedDirectory.appendingPathComponent("wallpaper_old_retained.png")
+        let recent = generatedDirectory.appendingPathComponent("wallpaper_recent_grace.png")
+        let protected = generatedDirectory.appendingPathComponent("wallpaper_shared_assignment.png")
+
+        for url in [staleOld, retainedOld, recent, protected] {
+            writePNG(at: url)
+        }
+        setModificationDate(oldDate, for: staleOld)
+        setModificationDate(oldDate, for: retainedOld)
+        setModificationDate(recentDate, for: recent)
+        setModificationDate(oldDate, for: protected)
+
+        let generator = WallpaperGenerator(
+            appSupportDirectoryProvider: { root },
+            mainScreenPixelSizeProvider: { CGSize(width: 2, height: 2) },
+            mainScreenScaleProvider: { 1 },
+            retainedGeneratedFileCount: 1,
+            protectedGeneratedWallpapersProvider: { [protected] },
+            currentDateProvider: { now }
+        )
+
+        let highlight = Highlight(
+            id: UUID(),
+            bookId: nil,
+            quoteText: "Quote",
+            bookTitle: "Book",
+            author: "Author",
+            location: nil,
+            dateAdded: nil,
+            lastShownAt: nil,
+            isEnabled: true
+        )
+
+        _ = generator.generateWallpapers(
+            highlight: highlight,
+            backgroundURL: nil,
+            targets: [
+                WallpaperGenerator.RenderTarget(identifier: "display-a", pixelWidth: 2, pixelHeight: 2)
+            ],
+            rotationID: "new"
+        )
+
+        assertTrue(FileManager.default.fileExists(atPath: recent.path), "Expected files newer than the cleanup grace interval to survive")
+        assertTrue(FileManager.default.fileExists(atPath: protected.path), "Expected shared persisted assignment files to survive cleanup")
+        assertTrue(FileManager.default.fileExists(atPath: retainedOld.path), "Expected retention count to keep the newest unprotected stale file after the generated file")
+        assertTrue(!FileManager.default.fileExists(atPath: staleOld.path), "Expected old unprotected generated files beyond retention to be deleted")
+
+        print("verify_t101_main passed")
+    }
 }
-
-testReconciledSelectionDropsMissingBooksAndKeepsValidOnes()
-testBulkDeleteUsesExplicitSelectionAcrossFullLibrary()
-testBulkDeleteButtonDisabledState()
-
-print("verify_t101_main passed")

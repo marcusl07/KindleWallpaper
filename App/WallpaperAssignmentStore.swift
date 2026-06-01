@@ -7,6 +7,15 @@ enum KindleWallSharedStorage {
     static func appGroupUserDefaults() -> UserDefaults? {
         UserDefaults(suiteName: appGroupIdentifier)
     }
+
+    static func appGroupContainerURL(fileManager: FileManager = .default) -> URL? {
+        fileManager.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier)
+    }
+
+    static func generatedWallpapersContainerURL(fileManager: FileManager = .default) -> URL? {
+        appGroupContainerURL(fileManager: fileManager)?
+            .appendingPathComponent(generatedWallpapersDirectoryName, isDirectory: true)
+    }
 }
 
 struct WallpaperAssignmentStore {
@@ -68,12 +77,12 @@ struct WallpaperAssignmentStore {
         appGroupDefaults: UserDefaults,
         appGroupGeneratedWallpapersDirectoryURL: URL
     ) throws -> Bool {
-        guard legacyDefaults.bool(forKey: Self.wallpaperAssignmentsAppGroupMigrationCompletedKey) == false else {
+        guard appGroupDefaults.bool(forKey: Self.wallpaperAssignmentsAppGroupMigrationCompletedKey) == false else {
             return false
         }
 
         guard let legacyAssignments = legacyDefaults.dictionary(forKey: Self.assignmentKey), !legacyAssignments.isEmpty else {
-            legacyDefaults.set(true, forKey: Self.wallpaperAssignmentsAppGroupMigrationCompletedKey)
+            appGroupDefaults.set(true, forKey: Self.wallpaperAssignmentsAppGroupMigrationCompletedKey)
             return true
         }
 
@@ -84,7 +93,7 @@ struct WallpaperAssignmentStore {
         )
 
         guard !migratedWallpapers.isEmpty else {
-            legacyDefaults.set(true, forKey: Self.wallpaperAssignmentsAppGroupMigrationCompletedKey)
+            appGroupDefaults.set(true, forKey: Self.wallpaperAssignmentsAppGroupMigrationCompletedKey)
             return true
         }
 
@@ -95,7 +104,7 @@ struct WallpaperAssignmentStore {
             throw MigrationError.appGroupAssignmentVerificationFailed
         }
 
-        legacyDefaults.set(true, forKey: Self.wallpaperAssignmentsAppGroupMigrationCompletedKey)
+        appGroupDefaults.set(true, forKey: Self.wallpaperAssignmentsAppGroupMigrationCompletedKey)
         return true
     }
 

@@ -8,6 +8,7 @@ import CoreGraphics
 
 @MainActor
 final class DisplayTopologyCoordinator {
+    typealias RestoreAction = @MainActor () -> WallpaperTopologyReapplyOutcome
     typealias DebouncedRestoreScheduler = @MainActor (
         _ generation: UInt64,
         _ delay: TimeInterval,
@@ -22,7 +23,7 @@ final class DisplayTopologyCoordinator {
     ) -> AnyObject?
     typealias UnregisterDisplayReconfigurationCallback = @MainActor (_ registration: AnyObject) -> Void
 
-    private weak var appState: AppState?
+    private var restoreAction: RestoreAction?
     private let wakeNotificationCenter: NotificationCenter
     private let wakeNotificationName: Notification.Name
     private let displayReconfigurationNotificationCenter: NotificationCenter
@@ -38,7 +39,7 @@ final class DisplayTopologyCoordinator {
     private var restoreGeneration: UInt64 = 0
 
     init(
-        appState: AppState? = nil,
+        restoreAction: RestoreAction? = nil,
         notificationCenter: NotificationCenter,
         wakeNotificationName: Notification.Name,
         displayReconfigurationNotificationCenter: NotificationCenter,
@@ -49,7 +50,7 @@ final class DisplayTopologyCoordinator {
         unregisterDisplayReconfigurationCallback: @escaping UnregisterDisplayReconfigurationCallback = DisplayTopologyCoordinator.unregisterDisplayReconfigurationCallback,
         scheduleRestore: @escaping DebouncedRestoreScheduler = DisplayTopologyCoordinator.scheduleRestore
     ) {
-        self.appState = appState
+        self.restoreAction = restoreAction
         self.wakeNotificationCenter = notificationCenter
         self.wakeNotificationName = wakeNotificationName
         self.displayReconfigurationNotificationCenter = displayReconfigurationNotificationCenter
@@ -63,12 +64,12 @@ final class DisplayTopologyCoordinator {
 
     #if canImport(AppKit)
     convenience init(
-        appState: AppState? = nil,
+        restoreAction: RestoreAction? = nil,
         debounceInterval: TimeInterval = DisplayTopologyCoordinator.defaultRestoreDebounceInterval,
         confirmationDelay: TimeInterval = DisplayTopologyCoordinator.defaultConfirmationRestoreDelay
     ) {
         self.init(
-            appState: appState,
+            restoreAction: restoreAction,
             notificationCenter: NSWorkspace.shared.notificationCenter,
             wakeNotificationName: NSWorkspace.didWakeNotification,
             displayReconfigurationNotificationCenter: .default,
@@ -85,8 +86,8 @@ final class DisplayTopologyCoordinator {
         }
     }
 
-    func setAppState(_ appState: AppState) {
-        self.appState = appState
+    func setRestoreAction(_ restoreAction: RestoreAction?) {
+        self.restoreAction = restoreAction
     }
 
     func start() {
@@ -184,14 +185,14 @@ final class DisplayTopologyCoordinator {
                 return
             }
 
-            self.appState?.reapplyCurrentWallpaperForTopologyChange()
+            _ = self.restoreAction?()
         }
         scheduleRestore(generation, confirmationDelay) { [weak self] scheduledGeneration in
             guard let self, self.restoreGeneration == scheduledGeneration else {
                 return
             }
 
-            self.appState?.reapplyCurrentWallpaperForTopologyChange()
+            _ = self.restoreAction?()
         }
     }
 
@@ -279,3 +280,27 @@ private final class CoreGraphicsDisplayCallbackRegistration: NSObject {
         self.handler = handler
     }
 }
+
+#if !DISPLAY_HELPER
+extension DisplayTopologyCoordinator {
+    convenience init(
+        appState: AppState? = nil,
+        debounceInterval: TimeInterval = DisplayTopologyCoordinator.defaultRestoreDebounceInterval,
+        confirmationDelay: TimeInterval = DisplayTopologyCoordinator.defaultConfirmationRestoreDelay
+    ) {
+        self.init(
+            restoreAction: appState.map { appState in
+                { appState.reapplyCurrentWallpaperForTopologyChange() }
+            },
+            debounceInterval: debounceInterval,
+            confirmationDelay: confirmationDelay
+        )
+    }
+
+    func setAppState(_ appState: AppState) {
+        setRestoreAction {
+            appState.reapplyCurrentWallpaperForTopologyChange()
+        }
+    }
+}
+#endif
