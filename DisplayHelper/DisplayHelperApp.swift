@@ -49,7 +49,7 @@ final class DisplayHelperRuntime {
         let sharedDefaults = KindleWallSharedStorage.appGroupUserDefaults() ?? .standard
         return WallpaperTopologyRestorer(
             loadStoredWallpapers: {
-                sharedDefaults.loadReusableGeneratedWallpapers()
+                sharedDefaults.loadReusableGeneratedWallpapersWithLegacyFallback(from: .standard)
             },
             resolvedScreens: {
                 DisplayIdentityResolver.resolvedConnectedScreens()

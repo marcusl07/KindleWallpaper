@@ -250,6 +250,14 @@ extension UserDefaults {
         WallpaperAssignmentStore(userDefaults: self, fileManager: fileManager).load()
     }
 
+    func loadReusableGeneratedWallpapersWithLegacyFallback(
+        from legacyDefaults: UserDefaults,
+        fileManager: FileManager = .default
+    ) -> [StoredGeneratedWallpaper] {
+        WallpaperAssignmentStore(userDefaults: self, fileManager: fileManager)
+            .loadWithLegacyFallback(from: legacyDefaults)
+    }
+
     func migrateWallpaperAssignmentsToAppGroupIfNeeded(
         appGroupDefaults: UserDefaults,
         appGroupGeneratedWallpapersDirectoryURL: URL,

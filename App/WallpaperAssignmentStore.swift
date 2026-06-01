@@ -164,6 +164,21 @@ struct WallpaperAssignmentStore {
         }
     }
 
+    func loadWithLegacyFallback(from legacyDefaults: UserDefaults) -> [StoredGeneratedWallpaper] {
+        let appGroupWallpapers = load()
+        guard appGroupWallpapers.isEmpty else {
+            return appGroupWallpapers
+        }
+        guard !userDefaults.bool(forKey: Self.wallpaperAssignmentsAppGroupMigrationCompletedKey) else {
+            return []
+        }
+
+        return WallpaperAssignmentStore(
+            userDefaults: legacyDefaults,
+            fileManager: fileManager
+        ).load()
+    }
+
     private func persistReusableGeneratedWallpaperPaths(_ persistedPaths: [String: Any]) {
         guard !persistedPaths.isEmpty else {
             userDefaults.removeObject(forKey: Self.assignmentKey)

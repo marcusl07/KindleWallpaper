@@ -57,6 +57,7 @@
 		1D7702F347CAD3C65FDA7851 /* ClippingsParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClippingsParser.swift; sourceTree = "<group>"; };
 		2A5767AD8F86113DAE586BEF /* DisplayTopologyCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTopologyCoordinator.swift; sourceTree = "<group>"; };
 		2FADE0DD24FB03285ADB7BCA /* WallpaperAssignmentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperAssignmentStore.swift; sourceTree = "<group>"; };
+		340CF85B688CC43B677F8070 /* DisplayHelper.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DisplayHelper.entitlements; sourceTree = "<group>"; };
 		4E0532262BD7F480B8D9EED8 /* BackgroundImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundImageLoader.swift; sourceTree = "<group>"; };
 		5C88B20A7755CD6200EE4E3F /* WallpaperSetter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperSetter.swift; sourceTree = "<group>"; };
 		5DF13C66AA67590AFF96E390 /* ImportCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportCoordinator.swift; sourceTree = "<group>"; };
@@ -79,6 +80,7 @@
 		C88BA03AB2C2B7841ADC4755 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		CCC30AE2587D563491B3028B /* AppSupportPaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSupportPaths.swift; sourceTree = "<group>"; };
 		E7722C3B4FB0A66E04C7BB28 /* ScheduleSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleSettings.swift; sourceTree = "<group>"; };
+		EF4BB34D772E9D88708C77CC /* KindleWall.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = KindleWall.entitlements; sourceTree = "<group>"; };
 		F30FF8ED41FBB6C774BCADD5 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		F34813885EBA019C840EE522 /* DisplayHelperApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayHelperApp.swift; sourceTree = "<group>"; };
 		F54F09281BB5A7F45138D7C0 /* DisplayHelper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DisplayHelper.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -129,6 +131,7 @@
 				2A5767AD8F86113DAE586BEF /* DisplayTopologyCoordinator.swift */,
 				5DF13C66AA67590AFF96E390 /* ImportCoordinator.swift */,
 				931DFDD6D12D8887EA968760 /* Info.plist */,
+				EF4BB34D772E9D88708C77CC /* KindleWall.entitlements */,
 				67306A31618FE6581F9F81F4 /* KindleWallApp.swift */,
 				C88BA03AB2C2B7841ADC4755 /* MenuBarView.swift */,
 				E7722C3B4FB0A66E04C7BB28 /* ScheduleSettings.swift */,
@@ -158,6 +161,7 @@
 		4A3DD1B74F9E7C444D3974DC /* DisplayHelper */ = {
 			isa = PBXGroup;
 			children = (
+				340CF85B688CC43B677F8070 /* DisplayHelper.entitlements */,
 				F34813885EBA019C840EE522 /* DisplayHelperApp.swift */,
 				7AAC474AAFAE0B81E2855524 /* Info.plist */,
 			);
@@ -335,6 +339,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = DisplayHelper/DisplayHelper.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = DisplayHelper/Info.plist;
@@ -354,6 +359,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = DisplayHelper/DisplayHelper.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = DisplayHelper/Info.plist;
@@ -437,6 +443,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/KindleWall.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = App/Info.plist;
@@ -512,6 +519,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/KindleWall.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = App/Info.plist;

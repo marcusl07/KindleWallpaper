@@ -356,6 +356,7 @@ final class AppState: ObservableObject {
     typealias GenerateWallpapers = (Highlight, URL?, [WallpaperTarget]) -> [GeneratedWallpaper]
     typealias ReapplyStoredWallpaper = () -> WallpaperRestoreOutcome
     typealias ReapplyCurrentWallpaperForTopology = () -> TopologyWallpaperReapplyOutcome
+    typealias RetryWallpaperAssignmentMigrationIfNeeded = () -> Void
     typealias MarkHighlightShown = (UUID) -> Void
     typealias InsertHighlight = (Highlight) -> Void
     typealias UpdateHighlight = (Highlight) throws -> Void
@@ -411,6 +412,7 @@ final class AppState: ObservableObject {
     private let storedWallpaperAssignmentPersistence: StoredWallpaperAssignmentPersistence
     private let reapplyStoredWallpaper: ReapplyStoredWallpaper
     private let reapplyCurrentWallpaperForTopology: ReapplyCurrentWallpaperForTopology
+    private let retryWallpaperAssignmentMigrationIfNeeded: RetryWallpaperAssignmentMigrationIfNeeded
     private let markHighlightShown: MarkHighlightShown
     private let insertHighlightAction: InsertHighlight
     private let updateHighlightAction: UpdateHighlight
@@ -493,6 +495,7 @@ final class AppState: ObservableObject {
         storedWallpaperAssignmentPersistence: StoredWallpaperAssignmentPersistence = .noOp,
         reapplyStoredWallpaper: @escaping ReapplyStoredWallpaper = { .noStoredWallpapers },
         reapplyCurrentWallpaperForTopology: @escaping ReapplyCurrentWallpaperForTopology = { .noCurrentWallpaper },
+        retryWallpaperAssignmentMigrationIfNeeded: @escaping RetryWallpaperAssignmentMigrationIfNeeded = {},
         markHighlightShown: @escaping MarkHighlightShown,
         insertHighlight: @escaping InsertHighlight = { _ in },
         updateHighlight: @escaping UpdateHighlight = { _ in },
@@ -625,6 +628,7 @@ final class AppState: ObservableObject {
         self.storedWallpaperAssignmentPersistence = storedWallpaperAssignmentPersistence
         self.reapplyStoredWallpaper = reapplyStoredWallpaper
         self.reapplyCurrentWallpaperForTopology = reapplyCurrentWallpaperForTopology
+        self.retryWallpaperAssignmentMigrationIfNeeded = retryWallpaperAssignmentMigrationIfNeeded
         self.markHighlightShown = markHighlightShown
         self.insertHighlightAction = insertHighlight
         self.updateHighlightAction = updateHighlight
@@ -774,6 +778,7 @@ final class AppState: ObservableObject {
         let prepareWallpaperRotation: PrepareWallpaperRotation?
         let generateWallpapers: GenerateWallpapers?
         let persistAppliedWallpaperAssignments: ([GeneratedWallpaper]) -> Void
+        let retryWallpaperAssignmentMigrationIfNeeded: RetryWallpaperAssignmentMigrationIfNeeded
         let markHighlightShown: MarkHighlightShown
         let setLastChangedAt: (Date) -> Void
         let now: Now
@@ -808,6 +813,7 @@ final class AppState: ObservableObject {
             persistAppliedWallpaperAssignments: { [self] wallpapers in
                 self.persistAppliedWallpaperAssignments(wallpapers)
             },
+            retryWallpaperAssignmentMigrationIfNeeded: retryWallpaperAssignmentMigrationIfNeeded,
             markHighlightShown: markHighlightShown,
             setLastChangedAt: { [userDefaults] changedAt in
                 userDefaults.lastChangedAt = changedAt
@@ -889,6 +895,7 @@ final class AppState: ObservableObject {
         }
 
         context.persistAppliedWallpaperAssignments(appliedGeneratedWallpapers)
+        context.retryWallpaperAssignmentMigrationIfNeeded()
         context.markHighlightShown(highlight.id)
         let changedAt = context.now()
         context.setLastChangedAt(changedAt)
@@ -1309,6 +1316,22 @@ extension AppState {
                 appGroupGeneratedWallpapersDirectoryURL: generatedWallpapersContainerURL
             )
         }
+        let loadSharedGeneratedWallpapers: () -> [StoredGeneratedWallpaper] = {
+            sharedDefaults.loadReusableGeneratedWallpapersWithLegacyFallback(from: userDefaults)
+        }
+        let retryMigrationIfNeeded: () -> Void = {
+            guard
+                !sharedDefaults.wallpaperAssignmentsAppGroupMigrationCompleted,
+                let generatedWallpapersContainerURL
+            else {
+                return
+            }
+
+            _ = try? userDefaults.migrateWallpaperAssignmentsToAppGroupIfNeeded(
+                appGroupDefaults: sharedDefaults,
+                appGroupGeneratedWallpapersDirectoryURL: generatedWallpapersContainerURL
+            )
+        }
 
         let backgroundStore = BackgroundImageStore(userDefaults: userDefaults)
         let wallpaperGenerator = WallpaperGenerator(
@@ -1316,7 +1339,7 @@ extension AppState {
                 appGroupContainerURL ?? AppSupportPaths.kindleWallDirectory(fileManager: .default)
             },
             protectedGeneratedWallpapersProvider: {
-                sharedDefaults.loadReusableGeneratedWallpapers().map(\.fileURL)
+                loadSharedGeneratedWallpapers().map(\.fileURL)
             }
         )
 
@@ -1397,7 +1420,7 @@ extension AppState {
             },
             storedWallpaperAssignmentPersistence: StoredWallpaperAssignmentPersistence(
                 load: {
-                    sharedDefaults.loadReusableGeneratedWallpapers()
+                    loadSharedGeneratedWallpapers()
                 },
                 replace: { generatedWallpapers in
                     sharedDefaults.replaceReusableGeneratedWallpapers(
@@ -1414,7 +1437,7 @@ extension AppState {
                 }
             ),
             reapplyStoredWallpaper: {
-                let storedWallpapers = sharedDefaults.loadReusableGeneratedWallpapers()
+                let storedWallpapers = loadSharedGeneratedWallpapers()
                 guard !storedWallpapers.isEmpty else {
                     return .noStoredWallpapers
                 }
@@ -1432,7 +1455,7 @@ extension AppState {
             },
             reapplyCurrentWallpaperForTopology: {
                 let resolvedScreens = DisplayIdentityResolver.resolvedConnectedScreens()
-                let storedWallpapers = sharedDefaults.loadReusableGeneratedWallpapers()
+                let storedWallpapers = loadSharedGeneratedWallpapers()
                 return AppState.reapplyCurrentWallpaperForTopology(
                     resolvedScreens: resolvedScreens,
                     storedWallpapers: storedWallpapers,
@@ -1446,6 +1469,7 @@ extension AppState {
                     }
                 )
             },
+            retryWallpaperAssignmentMigrationIfNeeded: retryMigrationIfNeeded,
             markHighlightShown: DatabaseManager.markHighlightShown(id:),
             insertHighlight: DatabaseManager.insertHighlightIfNew(_:),
             updateHighlight: { highlight in

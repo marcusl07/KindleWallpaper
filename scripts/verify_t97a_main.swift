@@ -139,6 +139,44 @@ private func testMigrationSkipsMissingSourcesAndStillSucceeds() throws {
     )
 }
 
+private func testLegacyFallbackReadOrder() throws {
+    let fixture = try Fixture.make()
+    defer { fixture.cleanup() }
+
+    let sourceDirectory = fixture.rootURL.appendingPathComponent("legacy-fallback", isDirectory: true)
+    try FileManager.default.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
+    let legacySource = sourceDirectory.appendingPathComponent("legacy.png")
+    let appGroupSource = sourceDirectory.appendingPathComponent("app-group.png")
+    try Data("legacy".utf8).write(to: legacySource)
+    try Data("app-group".utf8).write(to: appGroupSource)
+
+    fixture.legacyDefaults.replaceReusableGeneratedWallpapers([
+        makeWallpaper(path: legacySource, target: "legacy-display")
+    ])
+
+    let fallbackAssignments = fixture.appGroupDefaults.loadReusableGeneratedWallpapersWithLegacyFallback(
+        from: fixture.legacyDefaults
+    )
+    assertEqual(fallbackAssignments.map(\.targetIdentifier), ["legacy-display"], "Expected legacy assignments when App Group is empty and migration is incomplete")
+
+    fixture.appGroupDefaults.replaceReusableGeneratedWallpapers([
+        makeWallpaper(path: appGroupSource, target: "app-group-display")
+    ])
+
+    let appGroupAssignments = fixture.appGroupDefaults.loadReusableGeneratedWallpapersWithLegacyFallback(
+        from: fixture.legacyDefaults
+    )
+    assertEqual(appGroupAssignments.map(\.targetIdentifier), ["app-group-display"], "Expected App Group assignments to take precedence over legacy assignments")
+
+    fixture.appGroupDefaults.clearReusableGeneratedWallpapers()
+    fixture.appGroupDefaults.wallpaperAssignmentsAppGroupMigrationCompleted = true
+
+    let completedEmptyAssignments = fixture.appGroupDefaults.loadReusableGeneratedWallpapersWithLegacyFallback(
+        from: fixture.legacyDefaults
+    )
+    assertTrue(completedEmptyAssignments.isEmpty, "Expected no legacy fallback after App Group migration is complete")
+}
+
 private func testPartialFailureLeavesBothStoresUntouched() throws {
     let fixture = try Fixture.make()
     defer { fixture.cleanup() }
@@ -180,6 +218,7 @@ private func testPartialFailureLeavesBothStoresUntouched() throws {
 do {
     try testSuccessfulMigrationCopiesFilesAndMarksCompletion()
     try testMigrationSkipsMissingSourcesAndStillSucceeds()
+    try testLegacyFallbackReadOrder()
     try testPartialFailureLeavesBothStoresUntouched()
     print("verify_t97a_main passed")
 } catch {

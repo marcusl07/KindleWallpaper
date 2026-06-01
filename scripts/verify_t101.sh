@@ -18,7 +18,7 @@ require_pattern() {
 
 require_pattern "$ROOT_DIR/App/WallpaperGenerator.swift" 'generatedWallpaperCleanupGraceInterval[^=]*=[[:space:]]*10[[:space:]]*[*][[:space:]]*60' "10 minute generated wallpaper cleanup grace interval"
 require_pattern "$ROOT_DIR/App/WallpaperGenerator.swift" 'protectedGeneratedWallpapersProvider' "shared assignment cleanup protection provider"
-require_pattern "$ROOT_DIR/App/AppState.swift" 'sharedDefaults\.loadReusableGeneratedWallpapers\(\)\.map\(\\.fileURL\)' "main app cleanup protection from shared persisted assignments"
+require_pattern "$ROOT_DIR/App/AppState.swift" 'loadSharedGeneratedWallpapers\(\)\.map\(\\.fileURL\)' "main app cleanup protection from shared persisted assignments"
 
 swiftc \
   -module-cache-path "$TMP_DIR/module-cache" \
