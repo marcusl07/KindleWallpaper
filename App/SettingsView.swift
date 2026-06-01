@@ -1626,7 +1626,8 @@ private struct QuotesListView: View {
                     placeholder: "Search quotes, books, or authors",
                     onTextChanged: scheduleSearchRefresh(rawSearchText:)
                 )
-                .frame(minWidth: 260, idealWidth: 320, maxWidth: 420)
+                .frame(minWidth: 260, idealWidth: 320, maxWidth: 420, minHeight: 30, idealHeight: 30)
+                .layoutPriority(1)
 
                 Picker("Sort", selection: $sortMode) {
                     ForEach(QuotesListSortMode.allCases) { mode in
