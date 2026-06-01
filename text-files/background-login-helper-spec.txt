@@ -6,6 +6,18 @@ Keep KindleWall wallpapers stable across monitor plug/unplug, wake, and display 
 
 The helper must not generate new quote wallpapers or mutate quote rotation state. It only restores the latest already-generated wallpaper files.
 
+## Current Product Decision
+
+For v1, treat KindleWall itself as the always-running menu bar/accessory app. Wallpaper stability across wake, monitor changes, and display remapping is expected while KindleWall is running. Users should enable Launch at Login for best results.
+
+Do not promise background repair after the user explicitly quits KindleWall in v1. A separate background helper remains the right future path for "repair even after quitting," but it should be treated as an advanced/v2 capability rather than the default product contract.
+
+If that future helper is revived, prefer the simplest local-first route before paid Apple distribution work:
+
+- For personal/local builds, use a per-user LaunchAgent or equivalent local install path that does not require Developer ID notarization.
+- For GitHub source distribution, provide source/build instructions and an install script even if unsigned binary releases have Gatekeeper friction.
+- Only require Developer ID and notarization when KindleWall needs polished downloadable binary releases without unsigned-app warnings.
+
 ## Exact Identifiers
 
 - Main app bundle id: `com.marcuslo.KindleWall`
