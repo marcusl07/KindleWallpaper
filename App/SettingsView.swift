@@ -2404,6 +2404,9 @@ private struct QuotesListControlsRow: View {
                 .frame(minWidth: 260, idealWidth: 320, maxWidth: 420, minHeight: 30, idealHeight: 30)
                 .layoutPriority(1)
 
+                Text("Sort")
+                    .fixedSize(horizontal: true, vertical: false)
+
                 Picker("Sort", selection: $sortMode) {
                     ForEach(QuotesListSortMode.allCases) { mode in
                         Text(mode.title)
@@ -2411,6 +2414,7 @@ private struct QuotesListControlsRow: View {
                     }
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
                 .frame(maxWidth: 280)
 
                 Spacer(minLength: 12)
