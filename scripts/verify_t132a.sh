@@ -21,11 +21,18 @@ require_pattern() {
 require_pattern "$SETTINGS_FILE" '@State[[:space:]]+private[[:space:]]+var[[:space:]]+effectiveSearchText[[:space:]]*=' "effective debounced quotes search state"
 require_pattern "$SETTINGS_FILE" 'QuotesLibrarySearchField' "native quotes search field"
 require_pattern "$SETTINGS_FILE" 'scheduleSearchRefresh\(rawSearchText:[[:space:]]*String\)' "raw search text argument"
-require_pattern "$SETTINGS_FILE" 'pendingSearchRefreshTask[[:space:]]*=[[:space:]]*searchRefreshDebounceScheduler\.schedule' "debounced search scheduling"
+require_pattern "$SETTINGS_FILE" 'private[[:space:]]+final[[:space:]]+class[[:space:]]+QuotesListRuntimeState:[[:space:]]*ObservableObject' "non-visual runtime state object"
+require_pattern "$SETTINGS_FILE" '@StateObject[[:space:]]+private[[:space:]]+var[[:space:]]+runtimeState[[:space:]]*=[[:space:]]*QuotesListRuntimeState\(\)' "runtime object storage"
+require_pattern "$SETTINGS_FILE" 'runtimeState\.pendingSearchRefreshTask[[:space:]]*=[[:space:]]*searchRefreshDebounceScheduler\.schedule' "runtime-backed debounced search scheduling"
 require_pattern "$SETTINGS_FILE" 'let[[:space:]]+commitState[[:space:]]*=[[:space:]]*QuotesListSearchPresentationModel\.commitSearchRefresh' "effective search commit state"
 require_pattern "$SETTINGS_FILE" 'let[[:space:]]+currentSearchText[[:space:]]*=[[:space:]]*refreshQueryState\.searchText' "refresh query capture from committed search state"
 require_pattern "$SETTINGS_FILE" 'QuotesListSearchPresentationModel\.pagingSearchText' "paging query capture from committed search state"
 require_pattern "$DEBOUNCE_FILE" 'struct[[:space:]]+DebouncedTaskScheduler' "debounced task scheduler abstraction"
+
+if rg -q '@State[[:space:]]+private[[:space:]]+var[[:space:]]+pendingSearchRefreshTask' "$SETTINGS_FILE"; then
+  echo "Verification failed: pending search task must not be SwiftUI @State" >&2
+  exit 1
+fi
 
 cp "$ROOT_DIR/scripts/verify_t132a_main.swift" "$TMP_DIR/main.swift"
 

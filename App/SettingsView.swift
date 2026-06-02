@@ -1381,6 +1381,15 @@ private enum QuotesListPagingPresentationModel {
     }
 }
 
+@MainActor
+private final class QuotesListRuntimeState: ObservableObject {
+    var pendingSearchRefreshTask: Task<Void, Never>? = nil
+    var refreshTask: Task<Void, Never>? = nil
+    var loadMoreTask: Task<Void, Never>? = nil
+    var pendingRefreshSignpostState: OSSignpostIntervalState? = nil
+    var pendingRenderSignpostState: OSSignpostIntervalState? = nil
+}
+
 private struct QuotesListView: View {
     private static let searchRefreshDebounceInterval: TimeInterval = 0.3
     private static let filterScrollCoordinateSpaceName = "QuotesFilterControlsScrollView"
@@ -1403,15 +1412,11 @@ private struct QuotesListView: View {
     @State private var hasMoreHighlights = false
     @State private var lastResolvedPrimaryContent: QuotesListPrimaryContent? = nil
     @State private var queryGeneration = 0
-    @State private var pendingRefreshSignpostState: OSSignpostIntervalState? = nil
-    @State private var pendingRenderSignpostState: OSSignpostIntervalState? = nil
     @State private var renderObservationToken = UUID()
     @State private var filterControlsViewportWidth: CGFloat = 0
     @State private var filterControlsContentWidth: CGFloat = 0
     @State private var filterControlsContentOffset: CGFloat = 0
-    @State private var refreshTask: Task<Void, Never>? = nil
-    @State private var loadMoreTask: Task<Void, Never>? = nil
-    @State private var pendingSearchRefreshTask: Task<Void, Never>? = nil
+    @StateObject private var runtimeState = QuotesListRuntimeState()
 
     private let searchRefreshDebounceInterval: TimeInterval
     private let searchRefreshDebounceScheduler: DebouncedTaskScheduler
@@ -1857,13 +1862,12 @@ private struct QuotesListView: View {
         isLoadingNextPage = resetState.isLoadingNextPage
         hasMoreHighlights = resetState.hasMoreHighlights
         highlights = resetState.highlights
-        rowModels = makeRowModels(from: resetState.highlights)
         totalMatchingHighlightCount = resetState.totalMatchingHighlightCount
         availableBookTitles = resetState.availableBookTitles
         availableAuthors = resetState.availableAuthors
         selectedHighlightIDs = resetState.selectedHighlightIDs
 
-        pendingRefreshSignpostState = QuotesListPerformanceSignposts.beginRefresh(
+        runtimeState.pendingRefreshSignpostState = QuotesListPerformanceSignposts.beginRefresh(
             reason: reason.rawValue,
             sortMode: sortMode
         )
@@ -1873,7 +1877,7 @@ private struct QuotesListView: View {
         let currentSortMode = sortMode
         let quotesQueryService = appState.quotesQueryService
         let reloadsFilterOptions = QuotesListRefreshPresentationModel.reloadsFilterOptions(for: reason)
-        refreshTask = Task {
+        runtimeState.refreshTask = Task {
             let pagePayload = await quotesQueryService.loadPagePayload(
                 searchText: currentSearchText,
                 filters: currentFilters,
@@ -1904,7 +1908,7 @@ private struct QuotesListView: View {
             reconcileSelectedHighlights()
             completeRefreshMeasurement(loadedCount: pagePayload.highlights.count)
 
-            pendingRenderSignpostState = QuotesListPerformanceSignposts.beginRender(
+            runtimeState.pendingRenderSignpostState = QuotesListPerformanceSignposts.beginRender(
                 reason: reason.rawValue,
                 sortMode: currentSortMode,
                 totalCount: pagePayload.highlights.count
@@ -1912,7 +1916,7 @@ private struct QuotesListView: View {
             renderObservationToken = UUID()
 
             guard reloadsFilterOptions else {
-                refreshTask = nil
+                runtimeState.refreshTask = nil
                 return
             }
 
@@ -1933,16 +1937,17 @@ private struct QuotesListView: View {
             availableAuthors = filterOptions.availableAuthors
 
             guard reconcileFilters() == false else {
-                refreshTask = nil
+                runtimeState.refreshTask = nil
                 return
             }
 
-            refreshTask = nil
+            runtimeState.refreshTask = nil
         }
     }
 
     private func completeRenderMeasurement(token: UUID, displayedCount: Int) {
-        guard token == renderObservationToken, let pendingRenderSignpostState else {
+        guard token == renderObservationToken,
+              let pendingRenderSignpostState = runtimeState.pendingRenderSignpostState else {
             return
         }
 
@@ -1950,7 +1955,7 @@ private struct QuotesListView: View {
             pendingRenderSignpostState,
             displayedCount: displayedCount
         )
-        self.pendingRenderSignpostState = nil
+        runtimeState.pendingRenderSignpostState = nil
     }
 
     private func cancelPendingMeasurements() {
@@ -1959,25 +1964,25 @@ private struct QuotesListView: View {
     }
 
     private func cancelPendingRefreshMeasurement() {
-        guard let pendingRefreshSignpostState else {
+        guard let pendingRefreshSignpostState = runtimeState.pendingRefreshSignpostState else {
             return
         }
 
         QuotesListPerformanceSignposts.cancelRefresh(pendingRefreshSignpostState)
-        self.pendingRefreshSignpostState = nil
+        runtimeState.pendingRefreshSignpostState = nil
     }
 
     private func cancelPendingRenderMeasurement() {
-        guard let pendingRenderSignpostState else {
+        guard let pendingRenderSignpostState = runtimeState.pendingRenderSignpostState else {
             return
         }
 
         QuotesListPerformanceSignposts.cancelRender(pendingRenderSignpostState)
-        self.pendingRenderSignpostState = nil
+        runtimeState.pendingRenderSignpostState = nil
     }
 
     private func completeRefreshMeasurement(loadedCount: Int) {
-        guard let pendingRefreshSignpostState else {
+        guard let pendingRefreshSignpostState = runtimeState.pendingRefreshSignpostState else {
             return
         }
 
@@ -1985,7 +1990,7 @@ private struct QuotesListView: View {
             pendingRefreshSignpostState,
             loadedCount: loadedCount
         )
-        self.pendingRefreshSignpostState = nil
+        runtimeState.pendingRefreshSignpostState = nil
     }
 
     private func reconcileFilters() -> Bool {
@@ -2033,7 +2038,7 @@ private struct QuotesListView: View {
             hasMoreHighlights: hasMoreHighlights,
             isLoadingHighlights: isLoadingHighlights,
             isLoadingNextPage: isLoadingNextPage,
-            hasLoadMoreTask: loadMoreTask != nil
+            hasLoadMoreTask: runtimeState.loadMoreTask != nil
         ) else {
             return
         }
@@ -2048,7 +2053,7 @@ private struct QuotesListView: View {
         let currentOffset = highlights.count
         let quotesQueryService = appState.quotesQueryService
 
-        loadMoreTask = Task {
+        runtimeState.loadMoreTask = Task {
             let nextPage = await quotesQueryService.loadPage(
                 searchText: currentSearchText,
                 filters: currentFilters,
@@ -2066,20 +2071,22 @@ private struct QuotesListView: View {
                 nextPage: nextPage,
                 totalMatchingHighlightCount: totalMatchingHighlightCount
             )
+            let existingHighlightIDs = Set(highlights.map(\.id))
+            let uniqueNextPage = nextPage.filter { !existingHighlightIDs.contains($0.id) }
             highlights = appendResult.highlights
-            rowModels = makeRowModels(from: appendResult.highlights)
+            rowModels.append(contentsOf: makeRowModels(from: uniqueNextPage))
             hasMoreHighlights = appendResult.hasMoreHighlights
             isLoadingNextPage = false
-            loadMoreTask = nil
+            runtimeState.loadMoreTask = nil
             reconcileSelectedHighlights()
         }
     }
 
     private func cancelActiveQuotesTasks() {
-        refreshTask?.cancel()
-        refreshTask = nil
-        loadMoreTask?.cancel()
-        loadMoreTask = nil
+        runtimeState.refreshTask?.cancel()
+        runtimeState.refreshTask = nil
+        runtimeState.loadMoreTask?.cancel()
+        runtimeState.loadMoreTask = nil
         isLoadingHighlights = false
         isLoadingNextPage = false
     }
@@ -2091,11 +2098,11 @@ private struct QuotesListView: View {
     }
 
     private func scheduleSearchRefresh(rawSearchText: String) {
-        pendingSearchRefreshTask = searchRefreshDebounceScheduler.schedule(
+        runtimeState.pendingSearchRefreshTask = searchRefreshDebounceScheduler.schedule(
             after: searchRefreshDebounceInterval,
-            replacing: pendingSearchRefreshTask
+            replacing: runtimeState.pendingSearchRefreshTask
         ) {
-            pendingSearchRefreshTask = nil
+            runtimeState.pendingSearchRefreshTask = nil
             let commitState = QuotesListSearchPresentationModel.commitSearchRefresh(
                 rawSearchText: rawSearchText,
                 effectiveSearchText: effectiveSearchText
@@ -2114,8 +2121,8 @@ private struct QuotesListView: View {
     }
 
     private func cancelPendingSearchRefresh() {
-        pendingSearchRefreshTask?.cancel()
-        pendingSearchRefreshTask = nil
+        runtimeState.pendingSearchRefreshTask?.cancel()
+        runtimeState.pendingSearchRefreshTask = nil
     }
 
     private func deleteSelectedHighlights() {

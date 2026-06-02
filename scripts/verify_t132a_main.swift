@@ -148,14 +148,18 @@ private func makeService(recorder: LockedRecorder) -> QuotesQueryService {
 }
 
 @MainActor
+private final class SearchRuntimeState {
+    var pendingSearchRefreshTask: Task<Void, Never>?
+}
+
+@MainActor
 private final class SearchDebounceHarness {
     private let scheduler: DebouncedTaskScheduler
     private let quotesQueryService: QuotesQueryService
+    private let runtimeState = SearchRuntimeState()
 
-    var searchText: String
     var effectiveSearchText: String
-
-    private var pendingSearchRefreshTask: Task<Void, Never>?
+    private(set) var visibleSearchStateMutationCount = 0
 
     init(
         initialCommittedSearchText: String,
@@ -164,22 +168,23 @@ private final class SearchDebounceHarness {
     ) {
         self.scheduler = scheduler
         self.quotesQueryService = quotesQueryService
-        self.searchText = initialCommittedSearchText
         self.effectiveSearchText = initialCommittedSearchText
     }
 
-    func type(_ newSearchText: String) {
-        searchText = newSearchText
-        pendingSearchRefreshTask = scheduler.schedule(
+    func type(_ rawSearchText: String) {
+        runtimeState.pendingSearchRefreshTask = scheduler.schedule(
             after: 0.3,
-            replacing: pendingSearchRefreshTask
+            replacing: runtimeState.pendingSearchRefreshTask
         ) { [self] in
-            pendingSearchRefreshTask = nil
+            runtimeState.pendingSearchRefreshTask = nil
 
             let commitState = QuotesListViewTestProbe.committedSearchRefresh(
-                rawSearchText: searchText,
+                rawSearchText: rawSearchText,
                 effectiveSearchText: effectiveSearchText
             )
+            if effectiveSearchText != commitState.effectiveSearchText {
+                visibleSearchStateMutationCount += 1
+            }
             effectiveSearchText = commitState.effectiveSearchText
 
             guard commitState.shouldRefresh else {
@@ -248,8 +253,8 @@ private final class SearchDebounceHarness {
     }
 
     func cancel() {
-        pendingSearchRefreshTask?.cancel()
-        pendingSearchRefreshTask = nil
+        runtimeState.pendingSearchRefreshTask?.cancel()
+        runtimeState.pendingSearchRefreshTask = nil
     }
 }
 
@@ -282,6 +287,7 @@ private func testRapidTypingDoesNotReachQueryServiceUntilEffectiveSearchCommits(
     }
 
     assertEqual(harness.effectiveSearchText, "", "Expected the effective search text to remain unchanged until the debounce resolves")
+    assertEqual(harness.visibleSearchStateMutationCount, 0, "Expected raw typing to avoid SwiftUI-visible search state mutation before debounce completion")
 
     var snapshot = recorder.snapshot()
     assertEqual(snapshot.pagePayloadSearchTexts, [], "Expected pending typing not to reach the page-payload query service")
@@ -293,6 +299,7 @@ private func testRapidTypingDoesNotReachQueryServiceUntilEffectiveSearchCommits(
     assertEqual(snapshot.pagePayloadSearchTexts, [], "Expected cancelled debounce waits not to issue stale page-payload queries")
     assertEqual(snapshot.filterOptionsSearchTexts, [], "Expected cancelled debounce waits not to issue stale filter-options queries")
     assertEqual(harness.effectiveSearchText, "", "Expected cancelled debounce waits not to commit a new effective search text")
+    assertEqual(harness.visibleSearchStateMutationCount, 0, "Expected cancelled debounce waits not to mutate SwiftUI-visible search state")
 
     manualSleep.resume(at: 1)
     await settleTasks()
@@ -300,6 +307,7 @@ private func testRapidTypingDoesNotReachQueryServiceUntilEffectiveSearchCommits(
     assertEqual(snapshot.pagePayloadSearchTexts, [], "Expected superseded debounce waits not to issue page-payload queries")
     assertEqual(snapshot.filterOptionsSearchTexts, [], "Expected superseded debounce waits not to issue filter-options queries")
     assertEqual(harness.effectiveSearchText, "", "Expected superseded debounce waits not to update the effective search text")
+    assertEqual(harness.visibleSearchStateMutationCount, 0, "Expected superseded debounce waits not to mutate SwiftUI-visible search state")
 
     manualSleep.resume(at: 2)
     await waitUntil {
@@ -312,6 +320,7 @@ private func testRapidTypingDoesNotReachQueryServiceUntilEffectiveSearchCommits(
     assertEqual(snapshot.pagePayloadSearchTexts, ["draft"], "Expected only the committed effective search term to reach page-payload queries")
     assertEqual(snapshot.filterOptionsSearchTexts, ["draft"], "Expected only the committed effective search term to reach filter-options queries")
     assertEqual(harness.effectiveSearchText, "draft", "Expected the effective search text to commit only after the debounce resolves")
+    assertEqual(harness.visibleSearchStateMutationCount, 1, "Expected one SwiftUI-visible search state mutation after the winning debounce resolves")
 
     harness.cancel()
 }
@@ -342,6 +351,7 @@ private func testRefreshesAndPagingUsePreviousCommittedSearchWhileTypingIsPendin
     await settleTasks()
     assertEqual(manualSleep.entries.count, 1, "Expected active typing to leave one pending debounce wait")
     assertEqual(harness.effectiveSearchText, "committed", "Expected typing to preserve the previously committed search until debounce completion")
+    assertEqual(harness.visibleSearchStateMutationCount, 0, "Expected pending typing not to mutate SwiftUI-visible search state")
 
     for reason in refreshReasons {
         await harness.triggerRefresh(reason: reason)

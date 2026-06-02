@@ -18,9 +18,10 @@ require_pattern() {
   fi
 }
 
-require_pattern "$SETTINGS_FILE" 'onChange\(of: searchText\)' "search-text change observer"
-require_pattern "$SETTINGS_FILE" 'scheduleSearchRefresh\(\)' "debounced search refresh wiring"
-require_pattern "$SETTINGS_FILE" 'pendingSearchRefreshTask[[:space:]]*=[[:space:]]*searchRefreshDebounceScheduler\.schedule' "debounced search task scheduling"
+require_pattern "$SETTINGS_FILE" 'QuotesLibrarySearchField' "native search field wiring"
+require_pattern "$SETTINGS_FILE" 'onTextChanged:[[:space:]]*scheduleSearchRefresh\(rawSearchText:\)' "debounced native search refresh wiring"
+require_pattern "$SETTINGS_FILE" '@StateObject[[:space:]]+private[[:space:]]+var[[:space:]]+runtimeState[[:space:]]*=[[:space:]]*QuotesListRuntimeState\(\)' "runtime-backed quotes list state"
+require_pattern "$SETTINGS_FILE" 'runtimeState\.pendingSearchRefreshTask[[:space:]]*=[[:space:]]*searchRefreshDebounceScheduler\.schedule' "runtime-backed debounced search task scheduling"
 require_pattern "$SETTINGS_FILE" 'cancelPendingSearchRefresh\(\)' "pending search refresh cancellation"
 require_pattern "$DEBOUNCE_FILE" 'struct[[:space:]]+AppAsyncSleep' "injectable async sleep abstraction"
 require_pattern "$DEBOUNCE_FILE" 'struct[[:space:]]+DebouncedTaskScheduler' "debounced task scheduler abstraction"

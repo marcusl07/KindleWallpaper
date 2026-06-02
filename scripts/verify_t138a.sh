@@ -20,6 +20,19 @@ require_pattern() {
 require_pattern "$SETTINGS_FILE" 'QuotesLibrarySearchField:[[:space:]]*NSViewRepresentable' "native search field wrapper"
 require_pattern "$SETTINGS_FILE" 'searchField\.sendsSearchStringImmediately[[:space:]]*=[[:space:]]*true' "immediate native search field updates"
 require_pattern "$SETTINGS_FILE" 'guard[[:space:]]+searchField\.currentEditor\(\)[[:space:]]*==[[:space:]]*nil' "no committed-state overwrite while editing"
+require_pattern "$SETTINGS_FILE" 'runtimeState\.pendingSearchRefreshTask[[:space:]]*=[[:space:]]*searchRefreshDebounceScheduler\.schedule' "runtime-backed search debounce task"
+require_pattern "$SETTINGS_FILE" 'runtimeState\.loadMoreTask[[:space:]]*=[[:space:]]*Task' "runtime-backed load-more task"
+require_pattern "$SETTINGS_FILE" 'rowModels\.append\(contentsOf:[[:space:]]*makeRowModels\(from:[[:space:]]*uniqueNextPage\)\)' "incremental row model append for loaded quotes"
+
+if rg -q 'rowModels[[:space:]]*=[[:space:]]*makeRowModels\(from:[[:space:]]*resetState\.highlights\)' "$SETTINGS_FILE"; then
+  echo "Verification failed: refresh start must not rebuild preserved row models" >&2
+  exit 1
+fi
+
+if rg -q '@State[[:space:]]+private[[:space:]]+var[[:space:]]+(pendingSearchRefreshTask|refreshTask|loadMoreTask|pendingRefreshSignpostState|pendingRenderSignpostState)' "$SETTINGS_FILE"; then
+  echo "Verification failed: non-visual task/signpost state must not be SwiftUI @State" >&2
+  exit 1
+fi
 
 cp "$ROOT_DIR/scripts/verify_t138a_main.swift" "$TMP_DIR/main.swift"
 
