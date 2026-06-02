@@ -842,3 +842,12 @@ Apply a minimum width constraint of 700 to the detail view in `LibraryView.swift
 
 
 
+
+**T143-e — Fix overlay drawer mode on search by overriding fittingSize on native table scroll view**
+Override `fittingSize` and `intrinsicContentSize` in `QuotesNativeTableScrollView` to return small/no-intrinsic sizes. This prevents the native table view from propagating wide row widths to SwiftUI, which was forcing the split view to collapse/overlay the sidebar. Also set the window minSize to 900 and default width to 1000.
+
+
+**T143-f — Prevent Library sidebar overlay collapse on search**
+Lower text field horizontal compression resistance in QuotesNativeTableCellView and adjust minWidth constraints in LibraryView.
+
+

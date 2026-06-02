@@ -1335,6 +1335,14 @@ private struct QuotesNativeTableView: NSViewRepresentable {
 private final class QuotesNativeTableScrollView: NSScrollView {
     weak var tableView: NSTableView?
 
+    override var fittingSize: NSSize {
+        NSSize(width: 100, height: 100)
+    }
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric)
+    }
+
     override func layout() {
         super.layout()
         resizeQuoteColumn()
@@ -1396,10 +1404,12 @@ private final class QuotesNativeTableCellView: NSTableCellView {
         previewTextField.font = .preferredFont(forTextStyle: .body)
         previewTextField.lineBreakMode = .byTruncatingTail
         previewTextField.maximumNumberOfLines = 2
+        previewTextField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         bookTitleTextField.font = .preferredFont(forTextStyle: .callout)
         bookTitleTextField.lineBreakMode = .byTruncatingTail
         bookTitleTextField.maximumNumberOfLines = 1
+        bookTitleTextField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         separatorTextField.textColor = .tertiaryLabelColor
 
@@ -1407,6 +1417,7 @@ private final class QuotesNativeTableCellView: NSTableCellView {
         authorTextField.textColor = .secondaryLabelColor
         authorTextField.lineBreakMode = .byTruncatingTail
         authorTextField.maximumNumberOfLines = 1
+        authorTextField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         let metadataStack = NSStackView(views: [
             bookTitleTextField,
