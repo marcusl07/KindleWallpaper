@@ -117,7 +117,7 @@ struct SettingsView: View {
         Section("Backgrounds") {
             settingsNavigationButton(
                 title: "Show Backgrounds",
-                subtitle: "\(backgroundCollectionCount) \(backgroundCollectionCount == 1 ? "image" : "images") • Current selection: \(primaryBackgroundName)",
+                subtitle: "\(backgroundCollectionCount) \(backgroundCollectionCount == 1 ? "image" : "images")",
                 destination: .backgrounds
             )
 
