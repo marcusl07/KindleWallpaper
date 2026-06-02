@@ -13,14 +13,20 @@
 		154FAA67B9134B920BB2E402 /* Database.swift in Sources */ = {isa = PBXBuildFile; fileRef = 126D2BED290D16D70E707B68 /* Database.swift */; };
 		15DE77854CB392DAF1C8452A /* ScheduleSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A72A5D605268A44A7EEBC47 /* ScheduleSettingsTests.swift */; };
 		1BC1D3D6F9EAC14BCF73CE25 /* DisplayIdentityResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A77E09E2976B60EEF5C5EB5 /* DisplayIdentityResolver.swift */; };
+		1DBD091F7C5F860D53DB4C41 /* QuoteDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 363D28120FD6A265CA45F299 /* QuoteDetailView.swift */; };
 		28774E1A69A7CBA9EC0CEADB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9659821AC668F464106C9FC7 /* SettingsView.swift */; };
+		32B33D41AD3EA067C9674A5C /* QuotesListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C0CA4AF2F0CEEF56FAF2FC /* QuotesListView.swift */; };
+		32D2D91B92B1604FBF03B4B2 /* QuotesNativeTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 037B0064A23CC5C29DF7571A /* QuotesNativeTableView.swift */; };
+		3C1B385640773F6938D7FEC9 /* QuoteEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 617C47C0AC5E536BF144CDC6 /* QuoteEditView.swift */; };
 		48B28414D1A6E94259082B12 /* WallpaperTopologyRestorer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64F72B90BAD25CC8B74973DE /* WallpaperTopologyRestorer.swift */; };
 		502DA8517C345512E26AA2A5 /* AppSupportPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC30AE2587D563491B3028B /* AppSupportPaths.swift */; };
+		576C8203381D1D02056F55D0 /* BackgroundsWindowPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ED7931BC21A450E27E95C51 /* BackgroundsWindowPresentation.swift */; };
 		60027E44266234588948DD69 /* WallpaperHistoryPruner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FB92A2D20E93A6E58E8EB44 /* WallpaperHistoryPruner.swift */; };
 		6174323980834111C7C77097 /* WallpaperScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE978DC2E088D8352D1AB370 /* WallpaperScheduler.swift */; };
 		630FD92E3719C965D0208253 /* Highlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86F9EA5F3C2418D8AA0D9365 /* Highlight.swift */; };
 		6FDE593A8A8A6CA93220C98F /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30FF8ED41FBB6C774BCADD5 /* AppState.swift */; };
 		7067D38042A1BC59897C1BAE /* BackgroundImageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 766BDB43991580ED0548AE8A /* BackgroundImageStore.swift */; };
+		83325D644678DC3122F52230 /* QuotesListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD851ED87C25424B419ECE55 /* QuotesListViewModel.swift */; };
 		84E5F9925C98D1B957960784 /* SyncNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 578F9F25BEE00A81E7CFD41F /* SyncNotificationManager.swift */; };
 		86DEA4128C7AA27D22CA5442 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C88BA03AB2C2B7841ADC4755 /* MenuBarView.swift */; };
 		87138618E08366A3E73ED3D9 /* WallpaperAssignmentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FADE0DD24FB03285ADB7BCA /* WallpaperAssignmentStore.swift */; };
@@ -33,10 +39,13 @@
 		C06D7617B1725A8B722A3626 /* ClippingsParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7702F347CAD3C65FDA7851 /* ClippingsParser.swift */; };
 		C11C4AA58645E3A2602523DC /* VolumeWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 653DF17A62F70DE93E169341 /* VolumeWatcher.swift */; };
 		C766CFBE668BE7E4CDF72C56 /* BackgroundImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E0532262BD7F480B8D9EED8 /* BackgroundImageLoader.swift */; };
+		CA5DC6DEBECEEE260390C6E0 /* BooksListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37F9D135DF467547CDB49400 /* BooksListView.swift */; };
 		CD18D1F637755F923A018CF5 /* BulkBookDeletionPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77303DBBAC7438E91F1A204E /* BulkBookDeletionPlan.swift */; };
 		D6C797343A84594057ADD624 /* ImportCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DF13C66AA67590AFF96E390 /* ImportCoordinator.swift */; };
+		DD55E3262B52501D17A44BD0 /* QuotesImportFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0445FC37421CD1EC1512BAAF /* QuotesImportFlow.swift */; };
 		E3490F35A7ACB433674887C9 /* DedupeKeyBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A563B48FBC2B662891DFB65 /* DedupeKeyBuilder.swift */; };
 		E9181E2AB7C4C596E1EAD8AD /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 9551A09A2327039A1281BEA5 /* GRDB */; };
+		F02BACA7AC7D1DD177ADA219 /* BackgroundsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D75F5B4676E7AE45FB875FD8 /* BackgroundsListView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -50,17 +59,24 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		037B0064A23CC5C29DF7571A /* QuotesNativeTableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuotesNativeTableView.swift; sourceTree = "<group>"; };
+		0445FC37421CD1EC1512BAAF /* QuotesImportFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuotesImportFlow.swift; sourceTree = "<group>"; };
 		10497CFEC3D771E2D3A70010 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		126D2BED290D16D70E707B68 /* Database.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Database.swift; sourceTree = "<group>"; };
+		16C0CA4AF2F0CEEF56FAF2FC /* QuotesListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuotesListView.swift; sourceTree = "<group>"; };
 		1D7702F347CAD3C65FDA7851 /* ClippingsParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClippingsParser.swift; sourceTree = "<group>"; };
+		1ED7931BC21A450E27E95C51 /* BackgroundsWindowPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundsWindowPresentation.swift; sourceTree = "<group>"; };
 		2A5767AD8F86113DAE586BEF /* DisplayTopologyCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTopologyCoordinator.swift; sourceTree = "<group>"; };
 		2FADE0DD24FB03285ADB7BCA /* WallpaperAssignmentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperAssignmentStore.swift; sourceTree = "<group>"; };
+		363D28120FD6A265CA45F299 /* QuoteDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuoteDetailView.swift; sourceTree = "<group>"; };
+		37F9D135DF467547CDB49400 /* BooksListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BooksListView.swift; sourceTree = "<group>"; };
 		3F040EDF848E9D9B7A8E5001 /* WallpaperAssignmentStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperAssignmentStoreTests.swift; sourceTree = "<group>"; };
 		4E0532262BD7F480B8D9EED8 /* BackgroundImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundImageLoader.swift; sourceTree = "<group>"; };
 		578F9F25BEE00A81E7CFD41F /* SyncNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncNotificationManager.swift; sourceTree = "<group>"; };
 		5A72A5D605268A44A7EEBC47 /* ScheduleSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleSettingsTests.swift; sourceTree = "<group>"; };
 		5C88B20A7755CD6200EE4E3F /* WallpaperSetter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperSetter.swift; sourceTree = "<group>"; };
 		5DF13C66AA67590AFF96E390 /* ImportCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportCoordinator.swift; sourceTree = "<group>"; };
+		617C47C0AC5E536BF144CDC6 /* QuoteEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuoteEditView.swift; sourceTree = "<group>"; };
 		64F72B90BAD25CC8B74973DE /* WallpaperTopologyRestorer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperTopologyRestorer.swift; sourceTree = "<group>"; };
 		653DF17A62F70DE93E169341 /* VolumeWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VolumeWatcher.swift; sourceTree = "<group>"; };
 		67306A31618FE6581F9F81F4 /* KindleWallApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KindleWallApp.swift; sourceTree = "<group>"; };
@@ -79,6 +95,8 @@
 		9659821AC668F464106C9FC7 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		C88BA03AB2C2B7841ADC4755 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		CCC30AE2587D563491B3028B /* AppSupportPaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSupportPaths.swift; sourceTree = "<group>"; };
+		CD851ED87C25424B419ECE55 /* QuotesListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuotesListViewModel.swift; sourceTree = "<group>"; };
+		D75F5B4676E7AE45FB875FD8 /* BackgroundsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundsListView.swift; sourceTree = "<group>"; };
 		E7722C3B4FB0A66E04C7BB28 /* ScheduleSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleSettings.swift; sourceTree = "<group>"; };
 		F30FF8ED41FBB6C774BCADD5 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		FE978DC2E088D8352D1AB370 /* WallpaperScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperScheduler.swift; sourceTree = "<group>"; };
@@ -122,6 +140,9 @@
 				CCC30AE2587D563491B3028B /* AppSupportPaths.swift */,
 				4E0532262BD7F480B8D9EED8 /* BackgroundImageLoader.swift */,
 				766BDB43991580ED0548AE8A /* BackgroundImageStore.swift */,
+				D75F5B4676E7AE45FB875FD8 /* BackgroundsListView.swift */,
+				1ED7931BC21A450E27E95C51 /* BackgroundsWindowPresentation.swift */,
+				37F9D135DF467547CDB49400 /* BooksListView.swift */,
 				126D2BED290D16D70E707B68 /* Database.swift */,
 				8B4A1FCB6ABBF2C9182D99CA /* DebouncedTaskScheduler.swift */,
 				6A77E09E2976B60EEF5C5EB5 /* DisplayIdentityResolver.swift */,
@@ -131,6 +152,12 @@
 				67306A31618FE6581F9F81F4 /* KindleWallApp.swift */,
 				10497CFEC3D771E2D3A70010 /* LibraryView.swift */,
 				C88BA03AB2C2B7841ADC4755 /* MenuBarView.swift */,
+				363D28120FD6A265CA45F299 /* QuoteDetailView.swift */,
+				617C47C0AC5E536BF144CDC6 /* QuoteEditView.swift */,
+				0445FC37421CD1EC1512BAAF /* QuotesImportFlow.swift */,
+				16C0CA4AF2F0CEEF56FAF2FC /* QuotesListView.swift */,
+				CD851ED87C25424B419ECE55 /* QuotesListViewModel.swift */,
+				037B0064A23CC5C29DF7571A /* QuotesNativeTableView.swift */,
 				E7722C3B4FB0A66E04C7BB28 /* ScheduleSettings.swift */,
 				9659821AC668F464106C9FC7 /* SettingsView.swift */,
 				578F9F25BEE00A81E7CFD41F /* SyncNotificationManager.swift */,
@@ -280,7 +307,10 @@
 				502DA8517C345512E26AA2A5 /* AppSupportPaths.swift in Sources */,
 				C766CFBE668BE7E4CDF72C56 /* BackgroundImageLoader.swift in Sources */,
 				7067D38042A1BC59897C1BAE /* BackgroundImageStore.swift in Sources */,
+				F02BACA7AC7D1DD177ADA219 /* BackgroundsListView.swift in Sources */,
+				576C8203381D1D02056F55D0 /* BackgroundsWindowPresentation.swift in Sources */,
 				006BFF281CE13CB5B2AA67E6 /* Book.swift in Sources */,
+				CA5DC6DEBECEEE260390C6E0 /* BooksListView.swift in Sources */,
 				CD18D1F637755F923A018CF5 /* BulkBookDeletionPlan.swift in Sources */,
 				C06D7617B1725A8B722A3626 /* ClippingsParser.swift in Sources */,
 				154FAA67B9134B920BB2E402 /* Database.swift in Sources */,
@@ -293,6 +323,12 @@
 				0F47113C8F5C5C3A9CDF9C42 /* KindleWallApp.swift in Sources */,
 				0A908775A2D5A7F75E764B1E /* LibraryView.swift in Sources */,
 				86DEA4128C7AA27D22CA5442 /* MenuBarView.swift in Sources */,
+				1DBD091F7C5F860D53DB4C41 /* QuoteDetailView.swift in Sources */,
+				3C1B385640773F6938D7FEC9 /* QuoteEditView.swift in Sources */,
+				DD55E3262B52501D17A44BD0 /* QuotesImportFlow.swift in Sources */,
+				32B33D41AD3EA067C9674A5C /* QuotesListView.swift in Sources */,
+				83325D644678DC3122F52230 /* QuotesListViewModel.swift in Sources */,
+				32D2D91B92B1604FBF03B4B2 /* QuotesNativeTableView.swift in Sources */,
 				B91FD28C7AEC1D1726DD6E98 /* ScheduleSettings.swift in Sources */,
 				28774E1A69A7CBA9EC0CEADB /* SettingsView.swift in Sources */,
 				84E5F9925C98D1B957960784 /* SyncNotificationManager.swift in Sources */,
