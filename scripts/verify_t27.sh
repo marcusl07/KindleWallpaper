@@ -8,14 +8,6 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 cat > "$TMP_DIR/main.swift" <<'SWIFT'
 import Foundation
 
-struct QuoteEditSaveRequest {
-    let bookId: UUID
-    let quoteText: String
-    let bookTitle: String
-    let author: String
-    let location: String
-}
-
 @MainActor
 func testInitLoadsDefaultsAndLibrarySnapshot() throws {
     let fixture = try Fixture.make()
@@ -358,16 +350,16 @@ struct VerifyT27 {
 }
 SWIFT
 
+TYPECHECK_FILES=(
+  $(cd "$ROOT_DIR" && rg --files App Models Parsing -g '*.swift' | rg -v '^App/Database\.swift$')
+)
+
 swiftc \
   -parse-as-library \
   -module-cache-path "$TMP_DIR/module-cache" \
-  "$ROOT_DIR/App/ScheduleSettings.swift" \
-  "$ROOT_DIR/App/WallpaperSetter.swift" \
-  "$ROOT_DIR/App/DisplayIdentityResolver.swift" \
-  "$ROOT_DIR/App/AppState.swift" \
-  "$ROOT_DIR/Models/Highlight.swift" \
-  "$ROOT_DIR/Models/Book.swift" \
+  -D TESTING \
   "$TMP_DIR/main.swift" \
+  "${TYPECHECK_FILES[@]/#/$ROOT_DIR/}" \
   -o "$TMP_DIR/t27_runner"
 
 "$TMP_DIR/t27_runner"

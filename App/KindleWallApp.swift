@@ -282,6 +282,10 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.displayTopologyCoordinator?.start()
             }
         )
+        
+        #if !TESTING
+        SyncNotificationManager.shared.requestAuthorization()
+        #endif
     }
 
     func showSettingsWindowFromCommand() {

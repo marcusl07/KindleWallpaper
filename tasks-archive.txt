@@ -819,3 +819,7 @@ Verify KindleWall launch-at-login behavior on macOS, including enable, disable, 
 **T140-a — Add SQLite FTS5 full text search**
 Add SQLite FTS5 search index, triggers, and MATCH queries for highlight text, book title, and author to replace the LIKE-based queries.
 
+
+**T141-a — Implement sync banner notifications**
+Implement macOS banner notifications that alert the user when a Kindle highlight sync finishes. This uses UNUserNotificationCenter to request permissions on launch and posts banners for success/warning/error outcomes.
+

@@ -1030,6 +1030,24 @@ final class AppState: ObservableObject {
 
     func setImportStatus(_ status: ImportStatus) {
         latestImportStatus = status
+        
+        #if !TESTING
+        if !status.message.isEmpty {
+            let title: String
+            if status.isError {
+                title = "Sync Failed"
+            } else if !status.warningDetails.isEmpty {
+                title = "Sync Completed with Warnings"
+            } else {
+                title = "Sync Successful"
+            }
+            
+            SyncNotificationManager.shared.showNotification(
+                title: title,
+                body: status.message
+            )
+        }
+        #endif
     }
 
     func setImportStatus(_ message: String, isError: Bool, warningDetails: [String] = []) {
