@@ -17,13 +17,18 @@
 		28774E1A69A7CBA9EC0CEADB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9659821AC668F464106C9FC7 /* SettingsView.swift */; };
 		32B33D41AD3EA067C9674A5C /* QuotesListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C0CA4AF2F0CEEF56FAF2FC /* QuotesListView.swift */; };
 		32D2D91B92B1604FBF03B4B2 /* QuotesNativeTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 037B0064A23CC5C29DF7571A /* QuotesNativeTableView.swift */; };
+		387D813306394B50F62B51A1 /* DatabaseSchema.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C8DF85457DF25CCB63EA1DE /* DatabaseSchema.swift */; };
+		3BDF52CFFD3C5678465AC433 /* DatabaseRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 829041E82AC9216C736415F9 /* DatabaseRepositoryTests.swift */; };
 		3C1B385640773F6938D7FEC9 /* QuoteEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 617C47C0AC5E536BF144CDC6 /* QuoteEditView.swift */; };
 		48B28414D1A6E94259082B12 /* WallpaperTopologyRestorer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64F72B90BAD25CC8B74973DE /* WallpaperTopologyRestorer.swift */; };
 		502DA8517C345512E26AA2A5 /* AppSupportPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC30AE2587D563491B3028B /* AppSupportPaths.swift */; };
 		576C8203381D1D02056F55D0 /* BackgroundsWindowPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ED7931BC21A450E27E95C51 /* BackgroundsWindowPresentation.swift */; };
+		5E47F3A21E81B969740B5391 /* LibraryRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A453AA0FAEA310481C2420 /* LibraryRepository.swift */; };
 		60027E44266234588948DD69 /* WallpaperHistoryPruner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FB92A2D20E93A6E58E8EB44 /* WallpaperHistoryPruner.swift */; };
 		6174323980834111C7C77097 /* WallpaperScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE978DC2E088D8352D1AB370 /* WallpaperScheduler.swift */; };
 		630FD92E3719C965D0208253 /* Highlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86F9EA5F3C2418D8AA0D9365 /* Highlight.swift */; };
+		6708CE984AD09C6D9D57232F /* QuoteRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 148A64E3E571CDC87B646789 /* QuoteRepository.swift */; };
+		6E326D1CC68AD411B44C9C47 /* DatabaseMigrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE1A57417D9CDEAF8AE8FAB9 /* DatabaseMigrations.swift */; };
 		6FDE593A8A8A6CA93220C98F /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30FF8ED41FBB6C774BCADD5 /* AppState.swift */; };
 		7067D38042A1BC59897C1BAE /* BackgroundImageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 766BDB43991580ED0548AE8A /* BackgroundImageStore.swift */; };
 		83325D644678DC3122F52230 /* QuotesListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD851ED87C25424B419ECE55 /* QuotesListViewModel.swift */; };
@@ -31,9 +36,11 @@
 		86DEA4128C7AA27D22CA5442 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C88BA03AB2C2B7841ADC4755 /* MenuBarView.swift */; };
 		87138618E08366A3E73ED3D9 /* WallpaperAssignmentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FADE0DD24FB03285ADB7BCA /* WallpaperAssignmentStore.swift */; };
 		8CFDB5D51168C39C9A5EEBCD /* WallpaperSetter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C88B20A7755CD6200EE4E3F /* WallpaperSetter.swift */; };
+		8E1DB6229D22B9AFC1C8B118 /* ImportRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C9ADF239E0ACF39D89648A3 /* ImportRepository.swift */; };
 		A1D63361761E841AB597AA66 /* WallpaperAssignmentStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F040EDF848E9D9B7A8E5001 /* WallpaperAssignmentStoreTests.swift */; };
 		AC5C41E9141FFA860C973256 /* DebouncedTaskScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B4A1FCB6ABBF2C9182D99CA /* DebouncedTaskScheduler.swift */; };
 		AFEDDEADFB13BFA4F23F0FD5 /* DisplayTopologyCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A5767AD8F86113DAE586BEF /* DisplayTopologyCoordinator.swift */; };
+		B33183E21DE8874D4FF5F3BE /* DatabaseSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02F39201D3AFB8B68A52F234 /* DatabaseSupport.swift */; };
 		B355BB125C0BFE9298F3C07C /* WallpaperGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E25B22876E6C4FDA140A324 /* WallpaperGenerator.swift */; };
 		B91FD28C7AEC1D1726DD6E98 /* ScheduleSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7722C3B4FB0A66E04C7BB28 /* ScheduleSettings.swift */; };
 		C06D7617B1725A8B722A3626 /* ClippingsParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7702F347CAD3C65FDA7851 /* ClippingsParser.swift */; };
@@ -59,14 +66,18 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		02F39201D3AFB8B68A52F234 /* DatabaseSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseSupport.swift; sourceTree = "<group>"; };
 		037B0064A23CC5C29DF7571A /* QuotesNativeTableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuotesNativeTableView.swift; sourceTree = "<group>"; };
 		0445FC37421CD1EC1512BAAF /* QuotesImportFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuotesImportFlow.swift; sourceTree = "<group>"; };
 		10497CFEC3D771E2D3A70010 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		126D2BED290D16D70E707B68 /* Database.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Database.swift; sourceTree = "<group>"; };
+		148A64E3E571CDC87B646789 /* QuoteRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuoteRepository.swift; sourceTree = "<group>"; };
 		16C0CA4AF2F0CEEF56FAF2FC /* QuotesListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuotesListView.swift; sourceTree = "<group>"; };
+		1C9ADF239E0ACF39D89648A3 /* ImportRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportRepository.swift; sourceTree = "<group>"; };
 		1D7702F347CAD3C65FDA7851 /* ClippingsParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClippingsParser.swift; sourceTree = "<group>"; };
 		1ED7931BC21A450E27E95C51 /* BackgroundsWindowPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundsWindowPresentation.swift; sourceTree = "<group>"; };
 		2A5767AD8F86113DAE586BEF /* DisplayTopologyCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTopologyCoordinator.swift; sourceTree = "<group>"; };
+		2C8DF85457DF25CCB63EA1DE /* DatabaseSchema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseSchema.swift; sourceTree = "<group>"; };
 		2FADE0DD24FB03285ADB7BCA /* WallpaperAssignmentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperAssignmentStore.swift; sourceTree = "<group>"; };
 		363D28120FD6A265CA45F299 /* QuoteDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuoteDetailView.swift; sourceTree = "<group>"; };
 		37F9D135DF467547CDB49400 /* BooksListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BooksListView.swift; sourceTree = "<group>"; };
@@ -88,15 +99,18 @@
 		7AFC8E757B8000A41A04805D /* LeafTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LeafTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7FB92A2D20E93A6E58E8EB44 /* WallpaperHistoryPruner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperHistoryPruner.swift; sourceTree = "<group>"; };
 		811E26389F17F084542DAAF7 /* KindleWall.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KindleWall.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		829041E82AC9216C736415F9 /* DatabaseRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseRepositoryTests.swift; sourceTree = "<group>"; };
 		86F9EA5F3C2418D8AA0D9365 /* Highlight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Highlight.swift; sourceTree = "<group>"; };
 		8A563B48FBC2B662891DFB65 /* DedupeKeyBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DedupeKeyBuilder.swift; sourceTree = "<group>"; };
 		8B4A1FCB6ABBF2C9182D99CA /* DebouncedTaskScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebouncedTaskScheduler.swift; sourceTree = "<group>"; };
 		931DFDD6D12D8887EA968760 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		9659821AC668F464106C9FC7 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		C5A453AA0FAEA310481C2420 /* LibraryRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryRepository.swift; sourceTree = "<group>"; };
 		C88BA03AB2C2B7841ADC4755 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		CCC30AE2587D563491B3028B /* AppSupportPaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSupportPaths.swift; sourceTree = "<group>"; };
 		CD851ED87C25424B419ECE55 /* QuotesListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuotesListViewModel.swift; sourceTree = "<group>"; };
 		D75F5B4676E7AE45FB875FD8 /* BackgroundsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundsListView.swift; sourceTree = "<group>"; };
+		DE1A57417D9CDEAF8AE8FAB9 /* DatabaseMigrations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseMigrations.swift; sourceTree = "<group>"; };
 		E7722C3B4FB0A66E04C7BB28 /* ScheduleSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleSettings.swift; sourceTree = "<group>"; };
 		F30FF8ED41FBB6C774BCADD5 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		FE978DC2E088D8352D1AB370 /* WallpaperScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperScheduler.swift; sourceTree = "<group>"; };
@@ -144,16 +158,22 @@
 				1ED7931BC21A450E27E95C51 /* BackgroundsWindowPresentation.swift */,
 				37F9D135DF467547CDB49400 /* BooksListView.swift */,
 				126D2BED290D16D70E707B68 /* Database.swift */,
+				DE1A57417D9CDEAF8AE8FAB9 /* DatabaseMigrations.swift */,
+				2C8DF85457DF25CCB63EA1DE /* DatabaseSchema.swift */,
+				02F39201D3AFB8B68A52F234 /* DatabaseSupport.swift */,
 				8B4A1FCB6ABBF2C9182D99CA /* DebouncedTaskScheduler.swift */,
 				6A77E09E2976B60EEF5C5EB5 /* DisplayIdentityResolver.swift */,
 				2A5767AD8F86113DAE586BEF /* DisplayTopologyCoordinator.swift */,
 				5DF13C66AA67590AFF96E390 /* ImportCoordinator.swift */,
+				1C9ADF239E0ACF39D89648A3 /* ImportRepository.swift */,
 				931DFDD6D12D8887EA968760 /* Info.plist */,
 				67306A31618FE6581F9F81F4 /* KindleWallApp.swift */,
+				C5A453AA0FAEA310481C2420 /* LibraryRepository.swift */,
 				10497CFEC3D771E2D3A70010 /* LibraryView.swift */,
 				C88BA03AB2C2B7841ADC4755 /* MenuBarView.swift */,
 				363D28120FD6A265CA45F299 /* QuoteDetailView.swift */,
 				617C47C0AC5E536BF144CDC6 /* QuoteEditView.swift */,
+				148A64E3E571CDC87B646789 /* QuoteRepository.swift */,
 				0445FC37421CD1EC1512BAAF /* QuotesImportFlow.swift */,
 				16C0CA4AF2F0CEEF56FAF2FC /* QuotesListView.swift */,
 				CD851ED87C25424B419ECE55 /* QuotesListViewModel.swift */,
@@ -186,6 +206,7 @@
 		54A9BAE9BBA9B7593F6D628B /* LeafTests */ = {
 			isa = PBXGroup;
 			children = (
+				829041E82AC9216C736415F9 /* DatabaseRepositoryTests.swift */,
 				5A72A5D605268A44A7EEBC47 /* ScheduleSettingsTests.swift */,
 				3F040EDF848E9D9B7A8E5001 /* WallpaperAssignmentStoreTests.swift */,
 			);
@@ -294,6 +315,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3BDF52CFFD3C5678465AC433 /* DatabaseRepositoryTests.swift in Sources */,
 				15DE77854CB392DAF1C8452A /* ScheduleSettingsTests.swift in Sources */,
 				A1D63361761E841AB597AA66 /* WallpaperAssignmentStoreTests.swift in Sources */,
 			);
@@ -314,17 +336,23 @@
 				CD18D1F637755F923A018CF5 /* BulkBookDeletionPlan.swift in Sources */,
 				C06D7617B1725A8B722A3626 /* ClippingsParser.swift in Sources */,
 				154FAA67B9134B920BB2E402 /* Database.swift in Sources */,
+				6E326D1CC68AD411B44C9C47 /* DatabaseMigrations.swift in Sources */,
+				387D813306394B50F62B51A1 /* DatabaseSchema.swift in Sources */,
+				B33183E21DE8874D4FF5F3BE /* DatabaseSupport.swift in Sources */,
 				AC5C41E9141FFA860C973256 /* DebouncedTaskScheduler.swift in Sources */,
 				E3490F35A7ACB433674887C9 /* DedupeKeyBuilder.swift in Sources */,
 				1BC1D3D6F9EAC14BCF73CE25 /* DisplayIdentityResolver.swift in Sources */,
 				AFEDDEADFB13BFA4F23F0FD5 /* DisplayTopologyCoordinator.swift in Sources */,
 				630FD92E3719C965D0208253 /* Highlight.swift in Sources */,
 				D6C797343A84594057ADD624 /* ImportCoordinator.swift in Sources */,
+				8E1DB6229D22B9AFC1C8B118 /* ImportRepository.swift in Sources */,
 				0F47113C8F5C5C3A9CDF9C42 /* KindleWallApp.swift in Sources */,
+				5E47F3A21E81B969740B5391 /* LibraryRepository.swift in Sources */,
 				0A908775A2D5A7F75E764B1E /* LibraryView.swift in Sources */,
 				86DEA4128C7AA27D22CA5442 /* MenuBarView.swift in Sources */,
 				1DBD091F7C5F860D53DB4C41 /* QuoteDetailView.swift in Sources */,
 				3C1B385640773F6938D7FEC9 /* QuoteEditView.swift in Sources */,
+				6708CE984AD09C6D9D57232F /* QuoteRepository.swift in Sources */,
 				DD55E3262B52501D17A44BD0 /* QuotesImportFlow.swift in Sources */,
 				32B33D41AD3EA067C9674A5C /* QuotesListView.swift in Sources */,
 				83325D644678DC3122F52230 /* QuotesListViewModel.swift in Sources */,
