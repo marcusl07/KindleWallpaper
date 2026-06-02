@@ -3866,6 +3866,7 @@ struct BooksListView: View {
                     appState.setAllBooksEnabled(true)
                 }
                 .disabled(
+                    isEditingBooks ||
                     appState.isBookMutationInFlight ||
                     appState.books.isEmpty ||
                     appState.books.allSatisfy(\.isEnabled)
@@ -3875,6 +3876,7 @@ struct BooksListView: View {
                     appState.setAllBooksEnabled(false)
                 }
                 .disabled(
+                    isEditingBooks ||
                     appState.isBookMutationInFlight ||
                     appState.books.isEmpty ||
                     appState.books.allSatisfy { !$0.isEnabled }
@@ -3925,14 +3927,16 @@ struct BooksListView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                Button(role: .destructive, action: deleteSelectedBooks) {
-                    Label("Delete Selected", systemImage: "trash")
+                if isEditingBooks {
+                    Button(role: .destructive, action: deleteSelectedBooks) {
+                        Label("Delete Selected", systemImage: "trash")
+                    }
+                    .disabled(BooksBulkSelectionPresentationModel.bulkDeleteButtonDisabled(
+                        isEditing: isEditingBooks,
+                        selectedBookIDs: selectedBookIDs
+                    ))
+                    .help(deleteSelectedHelpText)
                 }
-                .disabled(BooksBulkSelectionPresentationModel.bulkDeleteButtonDisabled(
-                    isEditing: isEditingBooks,
-                    selectedBookIDs: selectedBookIDs
-                ))
-                .help(deleteSelectedHelpText)
 
                 Button(isEditingBooks ? "Done" : "Edit") {
                     toggleBooksEditMode()
