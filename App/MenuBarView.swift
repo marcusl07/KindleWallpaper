@@ -142,6 +142,7 @@ final class MenuBarView: NSObject {
     }
 
     @objc private func preferencesClicked() {
+        NSApp.activate(ignoringOtherApps: true)
         NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
     }
 

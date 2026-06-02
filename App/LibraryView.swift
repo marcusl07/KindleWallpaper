@@ -29,7 +29,7 @@ struct LibraryView: View {
             }
             .navigationTitle("Library")
             .listStyle(.sidebar)
-            .frame(minWidth: 150, idealWidth: 200)
+            .frame(minWidth: 200, idealWidth: 240)
         } detail: {
             if let selectedSidebarItem {
                 switch selectedSidebarItem {
