@@ -17,6 +17,7 @@ final class MenuBarView: NSObject {
     private let appState: AppState
     private let nextQuoteAction: Action
     private let openSettingsAction: Action
+    private let openPreferencesAction: Action
     private let quitAction: Action
     private var cancellables = Set<AnyCancellable>()
 
@@ -27,11 +28,13 @@ final class MenuBarView: NSObject {
         appState: AppState,
         nextQuoteAction: @escaping Action,
         openSettingsAction: @escaping Action,
+        openPreferencesAction: @escaping Action,
         quitAction: @escaping Action
     ) {
         self.appState = appState
         self.nextQuoteAction = nextQuoteAction
         self.openSettingsAction = openSettingsAction
+        self.openPreferencesAction = openPreferencesAction
         self.quitAction = quitAction
         self.menu = NSMenu()
 
@@ -142,8 +145,7 @@ final class MenuBarView: NSObject {
     }
 
     @objc private func preferencesClicked() {
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        openPreferencesAction()
     }
 
     @objc private func quitClicked() {

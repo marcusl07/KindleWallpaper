@@ -296,6 +296,9 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
             openSettings: { [weak self] in
                 self?.settingsWindowCoordinator?.showWindow()
             },
+            openPreferences: { [weak self] in
+                self?.settingsWindowCoordinator?.showPreferencesWindow()
+            },
             rotateWallpaper: { [weak appState] in
                 Task { @MainActor in
                     _ = appState?.requestWallpaperRotation()
@@ -364,6 +367,7 @@ struct AppLaunchLifecycleTestProbe {
 private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
     private weak var appState: AppState?
     private var settingsWindowController: NSWindowController?
+    private var preferencesWindowController: NSWindowController?
     private var backgroundsWindowController: NSWindowController?
     private var backgroundsWindowObserver: NSObjectProtocol?
     private var appDidResignActiveObserver: NSObjectProtocol?
@@ -423,6 +427,7 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
     private func restoreWindowVisibilityAfterAppDeactivation() {
         restoreVisibilityIfNeeded(for: settingsWindowController)
         restoreVisibilityIfNeeded(for: backgroundsWindowController)
+        restoreVisibilityIfNeeded(for: preferencesWindowController)
     }
 
     private func restoreVisibilityIfNeeded(for windowController: NSWindowController?) {
@@ -489,6 +494,30 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
         window.makeKeyAndOrderFront(nil)
     }
 
+    func showPreferencesWindow() {
+        NSApp.activate(ignoringOtherApps: true)
+
+        if let existingWindow = preferencesWindowController?.window {
+            existingWindow.makeKeyAndOrderFront(nil)
+            return
+        }
+
+        guard let appState else {
+            return
+        }
+
+        let preferencesView = SettingsView(navigationModel: SettingsNavigationModel())
+            .environmentObject(appState)
+        let hostingController = NSHostingController(rootView: preferencesView)
+        let window = NSWindow(contentViewController: hostingController)
+        configurePreferencesWindow(window)
+
+        let controller = NSWindowController(window: window)
+        preferencesWindowController = controller
+        controller.showWindow(nil)
+        window.makeKeyAndOrderFront(nil)
+    }
+
     private func configureSettingsWindow(_ window: NSWindow) {
         window.title = "Library"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
@@ -498,6 +527,16 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
         window.hidesOnDeactivate = false
         window.titleVisibility = .visible
         window.toolbarStyle = .unified
+        window.delegate = self
+    }
+
+    private func configurePreferencesWindow(_ window: NSWindow) {
+        window.title = "Settings"
+        window.styleMask = [.titled, .closable, .miniaturizable]
+        window.setContentSize(NSSize(width: 480, height: 380))
+        window.center()
+        window.canHide = false
+        window.hidesOnDeactivate = false
         window.delegate = self
     }
 
@@ -517,6 +556,10 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
         }
         if settingsWindowController?.window === closedWindow {
             settingsWindowController = nil
+            return
+        }
+        if preferencesWindowController?.window === closedWindow {
+            preferencesWindowController = nil
             return
         }
         if backgroundsWindowController?.window === closedWindow {
@@ -651,6 +694,7 @@ private final class StatusItemController: NSObject {
     init(
         appState: AppState,
         openSettings: @escaping () -> Void,
+        openPreferences: @escaping () -> Void,
         rotateWallpaper: @escaping () -> Void
     ) {
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -658,6 +702,7 @@ private final class StatusItemController: NSObject {
             appState: appState,
             nextQuoteAction: rotateWallpaper,
             openSettingsAction: openSettings,
+            openPreferencesAction: openPreferences,
             quitAction: {
                 NSApp.terminate(nil)
             }

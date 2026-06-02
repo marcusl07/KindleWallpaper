@@ -20,8 +20,10 @@ struct LibraryView: View {
         }
     }
 
+    @State private var columnVisibility = NavigationSplitViewVisibility.all
+
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             List(LibrarySidebarItem.allCases, selection: $selectedSidebarItem) { item in
                 NavigationLink(value: item) {
                     Label(item.rawValue, systemImage: item.iconName)
@@ -29,7 +31,7 @@ struct LibraryView: View {
             }
             .navigationTitle("Library")
             .listStyle(.sidebar)
-            .frame(minWidth: 200, idealWidth: 240)
+            .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 300)
         } detail: {
             if let selectedSidebarItem {
                 switch selectedSidebarItem {
@@ -45,6 +47,7 @@ struct LibraryView: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .navigationSplitViewStyle(.balanced)
     }
 }
 
