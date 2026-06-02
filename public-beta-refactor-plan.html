@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KindleWall Public Beta Refactor Plan</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #171717;
+      --muted: #5b626b;
+      --border: #d8dce2;
+      --bg: #fafafa;
+      --panel: #ffffff;
+      --accent: #245c7a;
+      --warn: #8a4d00;
+      --risk: #8b1f1f;
+      --ok: #2f6f4e;
+    }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.5;
+    }
+
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 36px 28px 72px;
+    }
+
+    h1, h2, h3 {
+      margin: 0;
+      line-height: 1.14;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      font-size: 34px;
+    }
+
+    h2 {
+      font-size: 22px;
+      margin-top: 34px;
+      padding-top: 20px;
+      border-top: 2px solid var(--border);
+    }
+
+    h3 {
+      font-size: 17px;
+      margin-bottom: 7px;
+    }
+
+    p {
+      margin: 8px 0;
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.94em;
+      background: #f0f2f4;
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+
+    ul, ol {
+      margin: 8px 0 0 22px;
+      padding: 0;
+    }
+
+    li {
+      margin: 5px 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      margin-top: 14px;
+    }
+
+    th, td {
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid var(--border);
+      padding: 10px 12px;
+    }
+
+    th {
+      background: #f3f5f7;
+      font-size: 13px;
+    }
+
+    .meta {
+      color: var(--muted);
+      margin-top: 8px;
+    }
+
+    .summary {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-left: 6px solid var(--accent);
+      padding: 18px 20px;
+      margin-top: 24px;
+    }
+
+    .decision-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .decision, .phase, .callout {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      padding: 14px 16px;
+    }
+
+    .decision strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .phase {
+      margin-top: 14px;
+    }
+
+    .tag {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+
+    .risk { color: var(--risk); }
+    .warn { color: var(--warn); }
+    .ok { color: var(--ok); }
+    .muted { color: var(--muted); }
+
+    .checklist {
+      columns: 2;
+      column-gap: 38px;
+    }
+
+    @media (max-width: 760px) {
+      main {
+        padding: 28px 18px 56px;
+      }
+
+      .decision-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .checklist {
+        columns: 1;
+      }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>KindleWall Public Beta Refactor Plan</h1>
+  <p class="meta">Planning artifact for <code>/Users/marcuslo/Documents/1_Projects/KindleWallpaper</code>. Source review: <code>launch-technical-review.html</code>.</p>
+
+  <section class="summary">
+    <h2 style="border:0; padding:0; margin:0 0 8px;">Goal</h2>
+    <p>Prepare KindleWall for a public macOS validation beta while preserving current user-facing behavior. The refactor should make the app easier for future LLM agents and maintainers to change safely: smaller files, clearer ownership, fewer historical paths, one reliable verification entrypoint, and no shipping helper architecture.</p>
+    <p>This is not an App Store launch plan. It is a public beta plan for posting the app around, learning whether people use it, and avoiding premature paid distribution work.</p>
+  </section>
+
+  <h2>Decisions</h2>
+  <section class="decision-grid" aria-label="Architecture decisions">
+    <div class="decision"><strong>Platform</strong>Public macOS app beta. Not iOS.</div>
+    <div class="decision"><strong>Distribution</strong>Direct/GitHub beta distribution. App Store, notarization, and paid signing are deferred until demand is proven.</div>
+    <div class="decision"><strong>Product promise</strong>Set-and-forget menu bar utility. KindleWall must be running to rotate or restore wallpaper; launch at login starts the main app automatically.</div>
+    <div class="decision"><strong>No helper</strong>Delete <code>DisplayHelper</code> from shipping source and build graph. Do not archive helper source in the repo; git history is enough.</div>
+    <div class="decision"><strong>Behavior</strong>Preserve current user-facing functionality during structural refactors, except for removing helper-only paths.</div>
+    <div class="decision"><strong>Storage</strong>Local-only SQLite/GRDB. No accounts, sync, or cloud model in the beta plan.</div>
+    <div class="decision"><strong>Core boundary</strong>No separate package/module yet. Keep one app target and organize by folders/files first.</div>
+    <div class="decision"><strong>UI</strong>Keep the current UI direction. Focus on internals, reliability, privacy clarity, and beta readiness.</div>
+  </section>
+
+  <h2>Execution Principles</h2>
+  <ul>
+    <li>Make behavior-preserving moves before behavior changes.</li>
+    <li>Commit and push each verified phase as a rollback point.</li>
+    <li>Stage only files touched for the current phase; ignore unrelated local, build, trace, and Xcode user-state changes.</li>
+    <li>Prefer boring, feature-named files over clever abstractions.</li>
+    <li>Keep <code>DatabaseManager</code> as a facade during the first database split to reduce blast radius.</li>
+    <li>Use responsibility boundaries over strict line-count targets, but large files need a strong reason to stay large.</li>
+  </ul>
+
+  <h2>Phased Plan</h2>
+
+  <article class="phase">
+    <div class="tag">Phase 0</div>
+    <h3>Baseline, Inventory, and Safety Net</h3>
+    <p><strong>Intent:</strong> establish the current behavior and a canonical verification path before moving architecture.</p>
+    <ul>
+      <li>Audit the best existing <code>scripts/verify_t*.sh</code> scripts and identify which represent durable product behavior.</li>
+      <li>Add a real Swift/Xcode test target in <code>project.yml</code>.</li>
+      <li>Create <code>scripts/test.sh</code> as the one blessed local verification command.</li>
+      <li>Keep only a small smoke-script layer for macOS integration behavior that cannot run in ordinary tests.</li>
+      <li>Regenerate the Xcode project after <code>project.yml</code> changes.</li>
+    </ul>
+    <p><strong>Verification:</strong> generated project opens/builds, the new test target runs, and <code>scripts/test.sh</code> completes.</p>
+    <p><strong>Commit boundary:</strong> test target plus canonical test wrapper only.</p>
+  </article>
+
+  <article class="phase">
+    <div class="tag">Phase 1</div>
+    <h3>Delete the Non-Shipping Helper Architecture</h3>
+    <p><strong>Intent:</strong> make the codebase match the beta promise: one main menu bar app, no helper.</p>
+    <ul>
+      <li>Remove <code>DisplayHelper</code> target, embedding, references, and generated project wiring.</li>
+      <li>Delete <code>DisplayHelper/</code> source files and helper-only login service code.</li>
+      <li>Remove startup unregister/shelving code that only exists because the helper half-exists.</li>
+      <li>Collapse storage/defaults policy that was only needed for helper sharing.</li>
+      <li>Update <code>text-files/background-login-helper-spec.txt</code> or replace it with a current product decision: main app only.</li>
+    </ul>
+    <p><strong>Verification:</strong> app builds without <code>DisplayHelper</code>, no embedded login item exists in the product, launch-at-login still controls the main app, and wallpaper behavior remains unchanged while the app is running.</p>
+    <p><strong>Commit boundary:</strong> helper deletion and docs/spec truth update.</p>
+  </article>
+
+  <article class="phase">
+    <div class="tag">Phase 2</div>
+    <h3>Split the Settings and Library UI</h3>
+    <p><strong>Intent:</strong> reduce the largest UI file into LLM-friendly feature files without changing visible UI behavior.</p>
+    <ul>
+      <li>Split <code>App/SettingsView.swift</code> into feature files such as <code>SettingsView</code>, <code>QuotesListView</code>, <code>QuotesListViewModel</code>, <code>QuotesNativeTableView</code>, <code>QuoteDetailView</code>, <code>QuoteEditView</code>, <code>BooksListView</code>, and <code>BackgroundsListView</code>.</li>
+      <li>Move test probes out of production view files where the new test target can cover behavior directly.</li>
+      <li>Keep the current UI layout and interactions unless a tiny adjustment is required by the split.</li>
+      <li>Preserve quote import, browse, search, edit, delete, selection, paging, and filter behavior.</li>
+    </ul>
+    <p><strong>Verification:</strong> tests pass; manual smoke covers opening settings, importing highlights, browsing/searching quotes, editing/deleting, managing books/backgrounds, and generating wallpaper from the library.</p>
+    <p><strong>Commit boundary:</strong> UI file split with no intentional behavior changes.</p>
+  </article>
+
+  <article class="phase">
+    <div class="tag">Phase 3</div>
+    <h3>Split Database Internals Behind the Facade</h3>
+    <p><strong>Intent:</strong> shrink <code>Database.swift</code> while keeping <code>DatabaseManager</code> as the app-facing facade.</p>
+    <ul>
+      <li>Move schema and migrations into <code>DatabaseSchema</code> and <code>DatabaseMigrations</code>.</li>
+      <li>Move quote paging/search/filter behavior into <code>QuoteRepository</code>.</li>
+      <li>Move import behavior into <code>ImportRepository</code>.</li>
+      <li>Move book/background/delete/tombstone behavior into focused repositories where appropriate.</li>
+      <li>Add regression tests for punctuation-heavy search strings, empty search, long search, import dedupe, deletion, and migration basics.</li>
+    </ul>
+    <p><strong>Verification:</strong> tests pass; existing database files migrate/open; quote library behavior and import behavior match the baseline.</p>
+    <p><strong>Commit boundary:</strong> database split preserving the facade and behavior.</p>
+  </article>
+
+  <article class="phase">
+    <div class="tag">Phase 4</div>
+    <h3>Split App State and App Lifecycle Ownership</h3>
+    <p><strong>Intent:</strong> make <code>AppState</code> observable UI state, not the owner of every service and lifecycle decision.</p>
+    <ul>
+      <li>Extract wallpaper rotation/restoration into <code>WallpaperRotationService</code> and display-specific code into a main-app-only display subsystem.</li>
+      <li>Extract library mutations into <code>LibraryService</code> if the database facade still leaves too much UI-facing orchestration in <code>AppState</code>.</li>
+      <li>Keep launch-at-login as a main-app service only.</li>
+      <li>Split <code>KindleWallApp.swift</code> into app entry, app delegate, status item controller, settings window coordinator, and lifecycle test support.</li>
+    </ul>
+    <p><strong>Verification:</strong> launch, menu bar actions, settings window behavior, schedule modes, manual rotation, launch-at-login toggling, and wallpaper restoration smoke tests pass.</p>
+    <p><strong>Commit boundary:</strong> app state/lifecycle split with behavior preserved.</p>
+  </article>
+
+  <article class="phase">
+    <div class="tag">Phase 5</div>
+    <h3>Replace User-Facing Fatal Paths</h3>
+    <p><strong>Intent:</strong> after boundaries are clearer, change failure behavior where public beta users would otherwise see crashes.</p>
+    <ul>
+      <li>Replace launch/user-facing <code>fatalError</code> database paths with thrown errors.</li>
+      <li>Surface recoverable import, migration, locked database, and file access failures in the UI.</li>
+      <li>Keep truly impossible programmer errors narrow and documented.</li>
+      <li>Add tests for representative failure cases.</li>
+    </ul>
+    <p><strong>Verification:</strong> tests pass; simulated bad import/database/file states show user-visible errors instead of crashing where recovery is possible.</p>
+    <p><strong>Commit boundary:</strong> error handling behavior changes.</p>
+  </article>
+
+  <article class="phase">
+    <div class="tag">Phase 6</div>
+    <h3>Beta Readiness and Documentation</h3>
+    <p><strong>Intent:</strong> make the validation release understandable to early users without adding App Store infrastructure.</p>
+    <ul>
+      <li>Add a GitHub README beta section with install steps, unsigned-app expectations if applicable, manual update instructions, and known limitations.</li>
+      <li>Add clear local-data/privacy language: highlights stay local, no account, no cloud sync, no analytics unless explicitly added later.</li>
+      <li>Fix repo hygiene: generated build products, trace bundles, <code>.DS_Store</code>, and Xcode user state should not be tracked.</li>
+      <li>Run a final manual beta acceptance pass on a fresh-ish local install state.</li>
+    </ul>
+    <p><strong>Verification:</strong> clean build, tests, smoke wrapper, README review, fresh install/import/generate/schedule/launch-at-login pass.</p>
+    <p><strong>Commit boundary:</strong> beta docs and hygiene only.</p>
+  </article>
+
+  <h2>Risk Register</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Risk</th>
+        <th>Why it matters</th>
+        <th>Control</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="risk">Helper deletion regresses launch behavior</span></td>
+        <td>The repo has historical helper/main-app overlap.</td>
+        <td>Verify launch-at-login controls the main app only, and inspect the built product for no embedded login item.</td>
+      </tr>
+      <tr>
+        <td><span class="risk">UI split changes quote library behavior</span></td>
+        <td><code>SettingsView.swift</code> currently mixes view, table bridge, state, and probes.</td>
+        <td>Move in narrow slices and run import/search/edit/delete/manual generation smoke checks after each slice.</td>
+      </tr>
+      <tr>
+        <td><span class="warn">Database split masks behavior changes</span></td>
+        <td>Persistence owns schema, import, search, paging, and deletion.</td>
+        <td>Keep <code>DatabaseManager</code> as facade first; add behavior tests before changing call sites.</td>
+      </tr>
+      <tr>
+        <td><span class="warn">Error handling becomes a mixed refactor</span></td>
+        <td>Changing crash behavior while moving files makes regressions hard to isolate.</td>
+        <td>Do structural split first, then convert user-facing failures to thrown errors in a separate phase.</td>
+      </tr>
+      <tr>
+        <td><span class="warn">Beta packaging distracts from validation</span></td>
+        <td>Signing, notarization, auto-update, and App Store work can consume time before demand is proven.</td>
+        <td>Keep first beta manual and direct. Document friction instead of solving all distribution problems now.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Beta Acceptance Checklist</h2>
+  <ul class="checklist">
+    <li>Fresh build succeeds from regenerated project.</li>
+    <li>Canonical <code>scripts/test.sh</code> passes.</li>
+    <li>Real test target passes.</li>
+    <li>No <code>DisplayHelper</code> target, source, product, or embedded login item remains.</li>
+    <li>Main app launches normally as menu bar app.</li>
+    <li>Launch-at-login can be enabled and disabled for the main app.</li>
+    <li>Manual wallpaper generation works.</li>
+    <li>Scheduled wallpaper rotation works.</li>
+    <li>On-app-launch rotation behavior is preserved.</li>
+    <li>Wallpaper restore works while the app is running.</li>
+    <li>Quitting behavior is documented: no hidden helper continues work.</li>
+    <li>Kindle highlight import works.</li>
+    <li>Quote browse/search/filter/edit/delete behavior works.</li>
+    <li>Books/backgrounds management still works.</li>
+    <li>Recoverable import/database/file failures show user-visible errors.</li>
+    <li>README explains install, manual updates, local-data privacy, and beta limitations.</li>
+    <li>Generated artifacts and local Xcode state are ignored or left uncommitted.</li>
+  </ul>
+
+  <h2>Not Now</h2>
+  <ul>
+    <li>No App Store submission work.</li>
+    <li>No auto-updater.</li>
+    <li>No helper resurrection.</li>
+    <li>No iOS app work.</li>
+    <li>No account, sync, cloud, or analytics system.</li>
+    <li>No major visual redesign.</li>
+    <li>No separate Swift package/module until the app-target folders are clean and stable.</li>
+  </ul>
+
+  <h2>Recommended First Commit</h2>
+  <p>Start with Phase 0. The first useful commit should add the test target and <code>scripts/test.sh</code> without touching helper deletion or UI/database refactors. That gives every later phase a repeatable safety check and keeps the first rollback point obvious.</p>
+</main>
+</body>
+</html>
