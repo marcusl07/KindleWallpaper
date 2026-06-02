@@ -1322,6 +1322,9 @@ extension AppState {
             }
         )
 
+        // Automatically unregister the display helper if it was previously enabled since we are shelving it.
+        try? BackgroundDisplayHelperLoginService.setEnabled(false)
+
         return AppState(
             userDefaults: userDefaults,
             pickNextHighlight: DatabaseManager.pickNextHighlight,

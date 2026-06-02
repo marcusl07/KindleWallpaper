@@ -205,14 +205,14 @@ struct SettingsView: View {
                 settingsMessageRow(error, tone: .error)
             }
 
-            Toggle("Keep wallpaper stable in background", isOn: backgroundDisplayHelperBinding)
-            settingsMessageRow(
-                "Starts the display helper at login so wallpapers can be restored after wake or monitor changes.",
-                tone: .secondary
-            )
-            if let error = appState.backgroundDisplayHelperErrorMessage {
-                settingsMessageRow(error, tone: .error)
-            }
+            // Toggle("Keep wallpaper stable in background", isOn: backgroundDisplayHelperBinding)
+            // settingsMessageRow(
+            //     "Starts the display helper at login so wallpapers can be restored after wake or monitor changes.",
+            //     tone: .secondary
+            // )
+            // if let error = appState.backgroundDisplayHelperErrorMessage {
+            //     settingsMessageRow(error, tone: .error)
+            // }
 
             settingsValueRow(label: "App", value: "KindleWall")
             settingsValueRow(label: "Version", value: appVersionDisplay)
