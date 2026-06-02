@@ -2050,7 +2050,10 @@ struct QuotesListView: View {
     }
 
     private var shouldShowImportHeader: Bool {
-        runtimeState.isLoadingHighlights || appState.totalHighlightCount > 0 && !runtimeState.rowModels.isEmpty
+        QuotesHeaderPresentationModel.shouldShowImportHeader(
+            isLoadingHighlights: runtimeState.isLoadingHighlights,
+            totalHighlightCount: appState.totalHighlightCount
+        )
     }
 
     private var hasActiveQuery: Bool {
@@ -2687,6 +2690,15 @@ private enum QuotesBulkSelectionPresentationModel {
         }
 
         return "\(displayedCount) of \(totalCount) \(totalCount == 1 ? "quote" : "quotes")"
+    }
+}
+
+private enum QuotesHeaderPresentationModel {
+    static func shouldShowImportHeader(
+        isLoadingHighlights: Bool,
+        totalHighlightCount: Int
+    ) -> Bool {
+        isLoadingHighlights || totalHighlightCount > 0
     }
 }
 
@@ -3636,6 +3648,16 @@ enum QuotesListViewTestProbe {
             hasActiveQuery: hasActiveQuery,
             isEditing: isEditing,
             selectedCount: selectedCount
+        )
+    }
+
+    static func shouldShowImportHeader(
+        isLoadingHighlights: Bool,
+        totalHighlightCount: Int
+    ) -> Bool {
+        QuotesHeaderPresentationModel.shouldShowImportHeader(
+            isLoadingHighlights: isLoadingHighlights,
+            totalHighlightCount: totalHighlightCount
         )
     }
 

@@ -174,6 +174,20 @@ private func testMountedRefreshCanResolveIntoNoMatchesAndThenClearSelection() {
         "0 of 12 quotes • 0 selected",
         "Expected the no-matches edit-mode summary to remain consistent after mounted refresh reconciliation"
     )
+    assertTrue(
+        QuotesListViewTestProbe.shouldShowImportHeader(
+            isLoadingHighlights: false,
+            totalHighlightCount: 12
+        ),
+        "Expected the import header and library count to remain visible when a search has no matching rows"
+    )
+    assertTrue(
+        !QuotesListViewTestProbe.shouldShowImportHeader(
+            isLoadingHighlights: false,
+            totalHighlightCount: 0
+        ),
+        "Expected the import header to stay hidden only for an idle empty library"
+    )
 }
 
 private func testMountedRefreshLeavesFilteringAndPagingHelpersStableAfterAcceptance() {
