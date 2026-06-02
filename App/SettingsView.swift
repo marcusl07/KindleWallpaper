@@ -4165,8 +4165,8 @@ struct BackgroundsListView: View {
             } else {
                 ScrollView {
                     LazyVGrid(columns: gridColumns, alignment: .leading, spacing: 12) {
-                        ForEach(collectionState.items) { item in
-                            tile(for: item)
+                        ForEach(Array(collectionState.items.enumerated()), id: \.element.id) { index, item in
+                            tile(for: item, index: index)
                         }
                     }
                     .padding(.vertical, 2)
@@ -4238,21 +4238,27 @@ struct BackgroundsListView: View {
         )
     }
 
-    private func tile(for item: AppState.BackgroundCollectionItem) -> some View {
+    private func tile(for item: AppState.BackgroundCollectionItem, index: Int) -> some View {
         let isSelected = selectedBackgroundID == item.id
 
         return Button {
             setSelected(item.id)
         } label: {
-            tileCardLabel(for: item, isSelected: isSelected)
+            tileCardLabel(for: item, isSelected: isSelected, index: index)
         }
         .buttonStyle(.plain)
     }
 
-    private func tileCardLabel(for item: AppState.BackgroundCollectionItem, isSelected: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+    private func tileCardLabel(for item: AppState.BackgroundCollectionItem, isSelected: Bool, index: Int) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
             tilePreview(for: item.fileURL)
                 .frame(height: 110)
+            Text("Background \(index + 1)")
+                .font(.caption)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(8)
         .background(
@@ -4279,6 +4285,7 @@ struct BackgroundsListView: View {
             Image(nsImage: image)
                 .resizable()
                 .scaledToFill()
+                .frame(minWidth: 0, maxWidth: .infinity)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
         } else {
             fallbackPreview
