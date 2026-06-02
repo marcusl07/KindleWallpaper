@@ -1105,7 +1105,7 @@ private struct QuotesNativeTableView: NSViewRepresentable {
         scrollView.drawsBackground = true
         scrollView.backgroundColor = .controlBackgroundColor
 
-        let tableView = NSTableView()
+        let tableView = QuotesNativeTableViewControl()
         tableView.headerView = nil
         tableView.rowHeight = 68
         tableView.intercellSpacing = NSSize(width: 0, height: 0)
@@ -1118,6 +1118,11 @@ private struct QuotesNativeTableView: NSViewRepresentable {
         tableView.allowsColumnSelection = false
         tableView.dataSource = context.coordinator
         tableView.delegate = context.coordinator
+        tableView.target = context.coordinator
+        tableView.doubleAction = #selector(Coordinator.doubleClickRow(_:))
+        tableView.onReturnPressed = { [weak coordinator = context.coordinator] in
+            coordinator?.triggerDefaultAction()
+        }
 
         let column = NSTableColumn(identifier: Coordinator.quoteColumnIdentifier)
         column.resizingMask = .autoresizingMask
@@ -1224,6 +1229,21 @@ private struct QuotesNativeTableView: NSViewRepresentable {
             return view
         }
 
+        @objc func doubleClickRow(_ sender: NSTableView) {
+            triggerDefaultAction()
+        }
+
+        func triggerDefaultAction() {
+            guard !isEditing else { return }
+            guard let tableView else { return }
+            let selectedRow = tableView.selectedRow
+            guard rows.indices.contains(selectedRow) else {
+                return
+            }
+            let highlightID = rows[selectedRow].id
+            onNavigateToQuote(highlightID)
+        }
+
         func tableViewSelectionDidChange(_ notification: Notification) {
             guard !isSyncingSelection,
                   let tableView = notification.object as? NSTableView else {
@@ -1242,15 +1262,6 @@ private struct QuotesNativeTableView: NSViewRepresentable {
                 )
                 return
             }
-
-            let clickedRow = tableView.selectedRow
-            guard rows.indices.contains(clickedRow) else {
-                return
-            }
-
-            let highlightID = rows[clickedRow].id
-            deselectAll(in: tableView)
-            onNavigateToQuote(highlightID)
         }
 
         private func loadingView(for tableView: NSTableView) -> NSView {
@@ -1310,6 +1321,18 @@ private final class QuotesNativeTableScrollView: NSScrollView {
         }
 
         column.width = contentSize.width
+    }
+}
+
+private final class QuotesNativeTableViewControl: NSTableView {
+    var onReturnPressed: (() -> Void)?
+
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 36 || event.keyCode == 76 { // Return or Enter key code
+            onReturnPressed?()
+            return
+        }
+        super.keyDown(with: event)
     }
 }
 
@@ -1807,6 +1830,9 @@ private struct QuotesListView: View {
         )
 
         return VStack(alignment: .leading, spacing: 16) {
+            Text("Quotes")
+                .font(.title2.bold())
+
             if shouldShowImportHeader {
                 QuotesImportHeaderView()
             }
@@ -2641,6 +2667,9 @@ private struct QuoteDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                Text("Quote Detail")
+                    .font(.title2.bold())
+
                 VStack(alignment: .leading, spacing: 12) {
                     Text(highlight.quoteText)
                         .font(.title3)
@@ -3705,7 +3734,7 @@ private struct QuotesImportHeaderView: View {
                 settingsMessageRow(importError, tone: .error)
             } else if !appState.importStatus.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 settingsMessageRow(appState.importStatus)
-            } else {
+            } else if appState.totalHighlightCount == 0 {
                 settingsMessageRow("No imports yet.", tone: .secondary)
             }
 
@@ -3829,6 +3858,9 @@ struct BooksListView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            Text("Books")
+                .font(.title2.bold())
+
             HStack(spacing: 12) {
                 Button("Select All") {
                     appState.setAllBooksEnabled(true)
@@ -4104,13 +4136,14 @@ struct BackgroundsListView: View {
     @State private var collectionState = AppState.BackgroundCollectionState(items: [], selectedItemID: nil, warningMessage: nil)
     @State private var selectedBackgroundID: UUID? = nil
     @State private var operationError: String? = nil
+    @State private var isShowingRemoveConfirmation = false
 
     private let gridColumns = [GridItem(.adaptive(minimum: 170, maximum: 230), spacing: 12)]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Backgrounds")
-                .font(.headline)
+                .font(.title2.bold())
 
             controlsRow
 
@@ -4146,6 +4179,17 @@ struct BackgroundsListView: View {
         .onAppear {
             refreshCollection()
         }
+        .alert(
+            "Remove Background?",
+            isPresented: $isShowingRemoveConfirmation
+        ) {
+            Button("Remove", role: .destructive) {
+                removeSelected()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Are you sure you want to remove this background image from KindleWall?")
+        }
     }
 
     private var controlsRow: some View {
@@ -4159,7 +4203,7 @@ struct BackgroundsListView: View {
             }
 
             Button("Remove Selected") {
-                removeSelected()
+                isShowingRemoveConfirmation = true
             }
             .disabled(!canRemoveSelected)
 
@@ -4206,14 +4250,9 @@ struct BackgroundsListView: View {
     }
 
     private func tileCardLabel(for item: AppState.BackgroundCollectionItem, isSelected: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 0) {
             tilePreview(for: item.fileURL)
                 .frame(height: 110)
-            Text(item.fileURL.lastPathComponent)
-                .font(.caption)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .foregroundStyle(.primary)
         }
         .padding(8)
         .background(
