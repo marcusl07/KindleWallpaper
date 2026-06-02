@@ -3995,16 +3995,41 @@ struct BooksListView: View {
     }
 
     private func bookToggleRow(_ book: Book) -> some View {
-        Toggle(isOn: bindingForBook(book)) {
+        HStack(alignment: .center) {
             bookRowContent(book)
+            Toggle("", isOn: bindingForBook(book))
+                .toggleStyle(.switch)
+                .labelsHidden()
+                .disabled(appState.isBookMutationInFlight)
         }
-        .toggleStyle(.checkbox)
-        .disabled(appState.isBookMutationInFlight)
+        .contextMenu {
+            Button("Delete Book...", role: .destructive) {
+                let plan = appState.prepareBulkBookDeletion(bookIDs: [book.id])
+                if !plan.isEmpty {
+                    pendingBulkBookDeletionPlan = plan
+                }
+            }
+        }
     }
 
     private func bookSelectionRow(_ book: Book) -> some View {
-        bookRowContent(book)
-            .padding(.vertical, 4)
+        HStack(alignment: .center, spacing: 8) {
+            Toggle("", isOn: Binding(
+                get: { selectedBookIDs.contains(book.id) },
+                set: { isSelected in
+                    if isSelected {
+                        selectedBookIDs.insert(book.id)
+                    } else {
+                        selectedBookIDs.remove(book.id)
+                    }
+                }
+            ))
+            .toggleStyle(.checkbox)
+            .labelsHidden()
+            
+            bookRowContent(book)
+        }
+        .padding(.vertical, 4)
     }
 
     private func bookRowContent(_ book: Book) -> some View {
