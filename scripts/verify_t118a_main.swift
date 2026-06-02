@@ -48,6 +48,29 @@ private func makeHighlight(
     )
 }
 
+private func makeHighlight(
+    id: UUID,
+    quoteText: String,
+    bookTitle: String,
+    author: String,
+    location: String? = nil,
+    dateAdded: Date? = nil,
+    lastShownAt: Date? = nil,
+    isEnabled: Bool = true
+) -> Highlight {
+    Highlight(
+        id: id,
+        bookId: nil,
+        quoteText: quoteText,
+        bookTitle: bookTitle,
+        author: author,
+        location: location,
+        dateAdded: dateAdded,
+        lastShownAt: lastShownAt,
+        isEnabled: isEnabled
+    )
+}
+
 private func loadRealHighlightPreviewCorpus() -> [String] {
     guard let rootDirectory = ProcessInfo.processInfo.environment["KINDLEWALL_ROOT_DIR"] else {
         fail("Missing KINDLEWALL_ROOT_DIR environment variable")
@@ -205,6 +228,63 @@ private func testPreviewTextMatchesLegacyNormalizationAcrossWhitespaceEdgeCases(
     }
 }
 
+private func testRowModelEqualityUsesOnlyVisibleContent() {
+    let id = UUID(uuidString: "00000000-0000-0000-0000-000000001184")!
+    let first = makeHighlight(
+        id: id,
+        quoteText: "Visible quote",
+        bookTitle: "Visible book",
+        author: "Visible author",
+        location: "1",
+        dateAdded: Date(timeIntervalSince1970: 1),
+        lastShownAt: nil,
+        isEnabled: true
+    )
+    let second = makeHighlight(
+        id: id,
+        quoteText: "Visible quote",
+        bookTitle: "Visible book",
+        author: "Visible author",
+        location: "2",
+        dateAdded: Date(timeIntervalSince1970: 2),
+        lastShownAt: Date(timeIntervalSince1970: 3),
+        isEnabled: false
+    )
+
+    assertTrue(
+        QuotesListViewTestProbe.rowModelsAreEquivalentForVisibleContent(first: first, second: second),
+        "Expected row model equality to ignore hidden highlight fields"
+    )
+}
+
+@MainActor
+private func testRuntimeStateSkipsEquivalentRowReplacement() {
+    let id = UUID(uuidString: "00000000-0000-0000-0000-000000001185")!
+    let first = makeHighlight(
+        id: id,
+        quoteText: "Visible quote",
+        bookTitle: "Visible book",
+        author: "Visible author",
+        lastShownAt: nil
+    )
+    let equivalentReplacement = makeHighlight(
+        id: id,
+        quoteText: "Visible quote",
+        bookTitle: "Visible book",
+        author: "Visible author",
+        lastShownAt: Date(timeIntervalSince1970: 10)
+    )
+
+    assertEqual(
+        QuotesListViewTestProbe.retainedRowLastShownAtAfterEquivalentReplacement(
+            initialHighlight: first,
+            replacementHighlight: equivalentReplacement
+        ),
+        nil,
+        "Expected equivalent row replacement to preserve the existing stored row model"
+    )
+}
+
 @main
 struct VerifyT118AMain {
     static func main() async {
@@ -213,6 +293,8 @@ struct VerifyT118AMain {
         testAppStateRetainsInjectedQuotesQueryService()
         testPreviewTextMatchesLegacyNormalizationAcrossRealHighlightCorpus()
         testPreviewTextMatchesLegacyNormalizationAcrossWhitespaceEdgeCases()
+        testRowModelEqualityUsesOnlyVisibleContent()
+        testRuntimeStateSkipsEquivalentRowReplacement()
         print("verify_t118a_main passed")
     }
 }

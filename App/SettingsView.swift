@@ -1037,6 +1037,13 @@ private struct QuotesListRowModel: Identifiable, Equatable {
 
     var id: UUID { highlight.id }
 
+    static func == (lhs: QuotesListRowModel, rhs: QuotesListRowModel) -> Bool {
+        lhs.id == rhs.id
+            && lhs.previewText == rhs.previewText
+            && lhs.bookTitleText == rhs.bookTitleText
+            && lhs.authorText == rhs.authorText
+    }
+
     init(highlight: Highlight) {
         self.highlight = highlight
         self.previewText = QuotesListPresentationModel.previewText(for: highlight.quoteText)
@@ -1402,7 +1409,12 @@ private final class QuotesListRuntimeState: ObservableObject {
     var pendingRenderSignpostState: OSSignpostIntervalState? = nil
 
     func replaceRows(with highlights: [Highlight]) {
-        rowModels = makeRowModels(from: highlights)
+        let newRowModels = makeRowModels(from: highlights)
+        guard newRowModels != rowModels else {
+            return
+        }
+
+        rowModels = newRowModels
     }
 
     func appendRows(from uniqueNextPage: [Highlight]) {
@@ -3041,6 +3053,24 @@ enum QuotesListViewTestProbe {
 
     static func previewText(for quoteText: String) -> String {
         QuotesListPresentationModel.previewText(for: quoteText)
+    }
+
+    static func rowModelsAreEquivalentForVisibleContent(
+        first: Highlight,
+        second: Highlight
+    ) -> Bool {
+        QuotesListRowModel(highlight: first) == QuotesListRowModel(highlight: second)
+    }
+
+    @MainActor
+    static func retainedRowLastShownAtAfterEquivalentReplacement(
+        initialHighlight: Highlight,
+        replacementHighlight: Highlight
+    ) -> Date? {
+        let runtimeState = QuotesListRuntimeState()
+        runtimeState.replaceRows(with: [initialHighlight])
+        runtimeState.replaceRows(with: [replacementHighlight])
+        return runtimeState.rowModels.first?.highlight.lastShownAt
     }
 
     static func bookTitleText(for highlight: Highlight) -> String {
