@@ -521,8 +521,8 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
     private func configureSettingsWindow(_ window: NSWindow) {
         window.title = "Library"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        window.setContentSize(NSSize(width: 1000, height: 650))
-        window.minSize = NSSize(width: 1000, height: 600)
+        window.setContentSize(NSSize(width: 900, height: 600))
+        window.minSize = NSSize(width: 900, height: 600)
         window.center()
         window.canHide = false
         window.hidesOnDeactivate = false
@@ -551,19 +551,24 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
         window.delegate = self
     }
 
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        cleanupController(for: sender)
+        return true
+    }
+
     func windowWillClose(_ notification: Notification) {
         guard let closedWindow = notification.object as? NSWindow else {
             return
         }
-        if settingsWindowController?.window === closedWindow {
+        cleanupController(for: closedWindow)
+    }
+
+    private func cleanupController(for window: NSWindow) {
+        if settingsWindowController?.window === window {
             settingsWindowController = nil
-            return
-        }
-        if preferencesWindowController?.window === closedWindow {
+        } else if preferencesWindowController?.window === window {
             preferencesWindowController = nil
-            return
-        }
-        if backgroundsWindowController?.window === closedWindow {
+        } else if backgroundsWindowController?.window === window {
             backgroundsWindowController = nil
         }
     }

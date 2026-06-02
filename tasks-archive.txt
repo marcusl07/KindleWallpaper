@@ -827,3 +827,7 @@ Implement macOS banner notifications that alert the user when a Kindle highlight
 **T143-a — Fix Library view sizing and edges cropping**
 Adjust settings window size and minimum width constraint in App/KindleWallApp.swift, and apply minimum width frame size on LibraryView in App/LibraryView.swift to prevent the view from getting cropped and the sidebar from overlapping.
 
+
+**T143-b — Fix Library window opening on Settings close and keep UI sizing consistent**
+Implement `windowShouldClose(_:)` delegate method and `cleanupController(for:)` helper to set controller references to `nil` immediately upon close request to prevent app deactivation restore race. Adjust default content size and frame constraints to 900x600 in `KindleWallApp.swift` and `LibraryView.swift` to prevent layout jump during search.
+
