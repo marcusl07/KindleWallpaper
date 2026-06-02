@@ -4177,7 +4177,7 @@ struct BackgroundsListView: View {
             Text("Backgrounds")
                 .font(.title2.bold())
 
-            controlsRow
+            itemCountRow
 
             if let warningMessage = collectionState.warningMessage {
                 Text(warningMessage)
@@ -4208,6 +4208,31 @@ struct BackgroundsListView: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button {
+                    choosePhotos()
+                } label: {
+                    Image(systemName: "photo.badge.plus")
+                }
+                .help("Add Photo")
+
+                Button {
+                    chooseFolder()
+                } label: {
+                    Image(systemName: "folder.badge.plus")
+                }
+                .help("Add Folder")
+
+                Button(role: .destructive) {
+                    isShowingRemoveConfirmation = true
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .disabled(!canRemoveSelected)
+                .help("Remove Selected Background")
+            }
+        }
         .onAppear {
             refreshCollection()
         }
@@ -4224,23 +4249,9 @@ struct BackgroundsListView: View {
         }
     }
 
-    private var controlsRow: some View {
-        HStack(spacing: 8) {
-            Button("Add Photo...") {
-                choosePhotos()
-            }
-
-            Button("Add Folder...") {
-                chooseFolder()
-            }
-
-            Button("Remove Selected") {
-                isShowingRemoveConfirmation = true
-            }
-            .disabled(!canRemoveSelected)
-
+    private var itemCountRow: some View {
+        HStack {
             Spacer(minLength: 8)
-
             Text("\(collectionState.items.count) \(collectionState.items.count == 1 ? "item" : "items")")
                 .font(.callout)
                 .foregroundStyle(.secondary)
