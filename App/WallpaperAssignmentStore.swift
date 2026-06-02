@@ -1,12 +1,7 @@
 import Foundation
 
 enum KindleWallSharedStorage {
-    static let sharedDefaultsSuiteName = "com.marcuslo.KindleWall"
     static let generatedWallpapersDirectoryName = "generated-wallpapers"
-
-    static func sharedUserDefaults() -> UserDefaults {
-        UserDefaults(suiteName: sharedDefaultsSuiteName) ?? .standard
-    }
 
     static func sharedContainerURL(fileManager: FileManager = .default) -> URL {
         AppSupportPaths.kindleWallDirectory(fileManager: fileManager)

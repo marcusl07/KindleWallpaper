@@ -13,18 +13,12 @@
 		154FAA67B9134B920BB2E402 /* Database.swift in Sources */ = {isa = PBXBuildFile; fileRef = 126D2BED290D16D70E707B68 /* Database.swift */; };
 		15DE77854CB392DAF1C8452A /* ScheduleSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A72A5D605268A44A7EEBC47 /* ScheduleSettingsTests.swift */; };
 		1BC1D3D6F9EAC14BCF73CE25 /* DisplayIdentityResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A77E09E2976B60EEF5C5EB5 /* DisplayIdentityResolver.swift */; };
-		25D3C340D5AC921E42BA887B /* DisplayIdentityResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A77E09E2976B60EEF5C5EB5 /* DisplayIdentityResolver.swift */; };
 		28774E1A69A7CBA9EC0CEADB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9659821AC668F464106C9FC7 /* SettingsView.swift */; };
-		2A06C8108E63F311407E724D /* DisplayTopologyCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A5767AD8F86113DAE586BEF /* DisplayTopologyCoordinator.swift */; };
-		3C90688C83BAF37B6B40D39A /* AppSupportPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC30AE2587D563491B3028B /* AppSupportPaths.swift */; };
 		48B28414D1A6E94259082B12 /* WallpaperTopologyRestorer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64F72B90BAD25CC8B74973DE /* WallpaperTopologyRestorer.swift */; };
 		502DA8517C345512E26AA2A5 /* AppSupportPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC30AE2587D563491B3028B /* AppSupportPaths.swift */; };
-		5566F84E8A244324D414F144 /* WallpaperAssignmentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FADE0DD24FB03285ADB7BCA /* WallpaperAssignmentStore.swift */; };
-		5E43E849698E64EFC7CD56F9 /* ScheduleSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7722C3B4FB0A66E04C7BB28 /* ScheduleSettings.swift */; };
 		60027E44266234588948DD69 /* WallpaperHistoryPruner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FB92A2D20E93A6E58E8EB44 /* WallpaperHistoryPruner.swift */; };
 		6174323980834111C7C77097 /* WallpaperScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE978DC2E088D8352D1AB370 /* WallpaperScheduler.swift */; };
 		630FD92E3719C965D0208253 /* Highlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86F9EA5F3C2418D8AA0D9365 /* Highlight.swift */; };
-		666CF5CCE2B724E090227D8B /* WallpaperSetter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C88B20A7755CD6200EE4E3F /* WallpaperSetter.swift */; };
 		6FDE593A8A8A6CA93220C98F /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30FF8ED41FBB6C774BCADD5 /* AppState.swift */; };
 		7067D38042A1BC59897C1BAE /* BackgroundImageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 766BDB43991580ED0548AE8A /* BackgroundImageStore.swift */; };
 		84E5F9925C98D1B957960784 /* SyncNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 578F9F25BEE00A81E7CFD41F /* SyncNotificationManager.swift */; };
@@ -42,9 +36,7 @@
 		CD18D1F637755F923A018CF5 /* BulkBookDeletionPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77303DBBAC7438E91F1A204E /* BulkBookDeletionPlan.swift */; };
 		D6C797343A84594057ADD624 /* ImportCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DF13C66AA67590AFF96E390 /* ImportCoordinator.swift */; };
 		E3490F35A7ACB433674887C9 /* DedupeKeyBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A563B48FBC2B662891DFB65 /* DedupeKeyBuilder.swift */; };
-		E5F5F90B0B24055F6FB0C414 /* WallpaperTopologyRestorer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64F72B90BAD25CC8B74973DE /* WallpaperTopologyRestorer.swift */; };
 		E9181E2AB7C4C596E1EAD8AD /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 9551A09A2327039A1281BEA5 /* GRDB */; };
-		FF4C50C3E74D15F7E4380054 /* DisplayHelperApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F34813885EBA019C840EE522 /* DisplayHelperApp.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -54,13 +46,6 @@
 			proxyType = 1;
 			remoteGlobalIDString = D9B056B258DD0ADC060E0F5A;
 			remoteInfo = KindleWall;
-		};
-		662FE92E4EB93CE9B8469606 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = D4F779AA0A26DE43440ECF4E /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 1005666C5ED1AD9117B4B0E8;
-			remoteInfo = DisplayHelper;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -84,7 +69,6 @@
 		6E25B22876E6C4FDA140A324 /* WallpaperGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperGenerator.swift; sourceTree = "<group>"; };
 		766BDB43991580ED0548AE8A /* BackgroundImageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundImageStore.swift; sourceTree = "<group>"; };
 		77303DBBAC7438E91F1A204E /* BulkBookDeletionPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BulkBookDeletionPlan.swift; sourceTree = "<group>"; };
-		7AAC474AAFAE0B81E2855524 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		7AFC8E757B8000A41A04805D /* LeafTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LeafTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7FB92A2D20E93A6E58E8EB44 /* WallpaperHistoryPruner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperHistoryPruner.swift; sourceTree = "<group>"; };
 		811E26389F17F084542DAAF7 /* KindleWall.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KindleWall.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -97,8 +81,6 @@
 		CCC30AE2587D563491B3028B /* AppSupportPaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSupportPaths.swift; sourceTree = "<group>"; };
 		E7722C3B4FB0A66E04C7BB28 /* ScheduleSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleSettings.swift; sourceTree = "<group>"; };
 		F30FF8ED41FBB6C774BCADD5 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
-		F34813885EBA019C840EE522 /* DisplayHelperApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayHelperApp.swift; sourceTree = "<group>"; };
-		F54F09281BB5A7F45138D7C0 /* DisplayHelper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DisplayHelper.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FE978DC2E088D8352D1AB370 /* WallpaperScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperScheduler.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -126,7 +108,6 @@
 			isa = PBXGroup;
 			children = (
 				34D11B167C7ACAEF878BFE92 /* App */,
-				4A3DD1B74F9E7C444D3974DC /* DisplayHelper */,
 				45C42DCDDC36FFEB4D2F707D /* Models */,
 				031DE6FED8A853242735DC25 /* Parsing */,
 				C79EDAAB83F205105A70C66E /* Tests */,
@@ -175,15 +156,6 @@
 			path = Models;
 			sourceTree = "<group>";
 		};
-		4A3DD1B74F9E7C444D3974DC /* DisplayHelper */ = {
-			isa = PBXGroup;
-			children = (
-				F34813885EBA019C840EE522 /* DisplayHelperApp.swift */,
-				7AAC474AAFAE0B81E2855524 /* Info.plist */,
-			);
-			path = DisplayHelper;
-			sourceTree = "<group>";
-		};
 		54A9BAE9BBA9B7593F6D628B /* LeafTests */ = {
 			isa = PBXGroup;
 			children = (
@@ -204,7 +176,6 @@
 		D079063320403131A75753EC /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				F54F09281BB5A7F45138D7C0 /* DisplayHelper.app */,
 				811E26389F17F084542DAAF7 /* KindleWall.app */,
 				7AFC8E757B8000A41A04805D /* LeafTests.xctest */,
 			);
@@ -214,23 +185,6 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		1005666C5ED1AD9117B4B0E8 /* DisplayHelper */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = ABEF6AFF7E844D1841D87D00 /* Build configuration list for PBXNativeTarget "DisplayHelper" */;
-			buildPhases = (
-				87A5F45AE89F78858A779F30 /* Sources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = DisplayHelper;
-			packageProductDependencies = (
-			);
-			productName = DisplayHelper;
-			productReference = F54F09281BB5A7F45138D7C0 /* DisplayHelper.app */;
-			productType = "com.apple.product-type.application";
-		};
 		B4B27C6945C968CCCE20759D /* LeafTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = EFD4B4BA42F281495460B810 /* Build configuration list for PBXNativeTarget "LeafTests" */;
@@ -255,12 +209,10 @@
 			buildPhases = (
 				FB500375C2412AA6AF2AD9F6 /* Sources */,
 				E22ABD819961EAE14CB180F9 /* Frameworks */,
-				E2B4360A1957EA1649055BE3 /* Embed DisplayHelper Login Item */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				35D71C02B87030A4BF0BC01F /* PBXTargetDependency */,
 			);
 			name = KindleWall;
 			packageProductDependencies = (
@@ -279,9 +231,6 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1540;
 				TargetAttributes = {
-					1005666C5ED1AD9117B4B0E8 = {
-						DevelopmentTeam = "";
-					};
 					B4B27C6945C968CCCE20759D = {
 						DevelopmentTeam = "";
 					};
@@ -307,50 +256,13 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				1005666C5ED1AD9117B4B0E8 /* DisplayHelper */,
 				D9B056B258DD0ADC060E0F5A /* KindleWall */,
 				B4B27C6945C968CCCE20759D /* LeafTests */,
 			);
 		};
 /* End PBXProject section */
 
-/* Begin PBXShellScriptBuildPhase section */
-		E2B4360A1957EA1649055BE3 /* Embed DisplayHelper Login Item */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
-			name = "Embed DisplayHelper Login Item";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "set -euo pipefail\nLOGIN_ITEMS_DIR=\"$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Library/LoginItems\"\nmkdir -p \"$LOGIN_ITEMS_DIR\"\nditto \"$BUILT_PRODUCTS_DIR/DisplayHelper.app\" \"$LOGIN_ITEMS_DIR/DisplayHelper.app\"\n";
-		};
-/* End PBXShellScriptBuildPhase section */
-
 /* Begin PBXSourcesBuildPhase section */
-		87A5F45AE89F78858A779F30 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				3C90688C83BAF37B6B40D39A /* AppSupportPaths.swift in Sources */,
-				FF4C50C3E74D15F7E4380054 /* DisplayHelperApp.swift in Sources */,
-				25D3C340D5AC921E42BA887B /* DisplayIdentityResolver.swift in Sources */,
-				2A06C8108E63F311407E724D /* DisplayTopologyCoordinator.swift in Sources */,
-				5E43E849698E64EFC7CD56F9 /* ScheduleSettings.swift in Sources */,
-				5566F84E8A244324D414F144 /* WallpaperAssignmentStore.swift in Sources */,
-				666CF5CCE2B724E090227D8B /* WallpaperSetter.swift in Sources */,
-				E5F5F90B0B24055F6FB0C414 /* WallpaperTopologyRestorer.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		8F20446858893A3833236A56 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -397,11 +309,6 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		35D71C02B87030A4BF0BC01F /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 1005666C5ED1AD9117B4B0E8 /* DisplayHelper */;
-			targetProxy = 662FE92E4EB93CE9B8469606 /* PBXContainerItemProxy */;
-		};
 		941784C2B8E6E5B04CA74833 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = D9B056B258DD0ADC060E0F5A /* KindleWall */;
@@ -427,44 +334,6 @@
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KindleWall.app/Contents/MacOS/KindleWall";
 			};
 			name = Debug;
-		};
-		389E63A144A150EBAD54A3A8 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				COMBINE_HIDPI_IMAGES = YES;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = DisplayHelper/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				OTHER_SWIFT_FLAGS = "$(inherited) -D DISPLAY_HELPER";
-				PRODUCT_BUNDLE_IDENTIFIER = com.marcuslo.KindleWall.DisplayHelper;
-				PRODUCT_NAME = DisplayHelper;
-				SDKROOT = macosx;
-			};
-			name = Debug;
-		};
-		39803563D0F2163C27784E9B /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				COMBINE_HIDPI_IMAGES = YES;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = DisplayHelper/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				OTHER_SWIFT_FLAGS = "$(inherited) -D DISPLAY_HELPER";
-				PRODUCT_BUNDLE_IDENTIFIER = com.marcuslo.KindleWall.DisplayHelper;
-				PRODUCT_NAME = DisplayHelper;
-				SDKROOT = macosx;
-			};
-			name = Release;
 		};
 		4AF4225BFDFE7D18D9906085 /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -649,15 +518,6 @@
 			buildConfigurations = (
 				BCE89F25068DB8C2C14F2864 /* Debug */,
 				DE53D1C2FBBEE10B71DE6803 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Debug;
-		};
-		ABEF6AFF7E844D1841D87D00 /* Build configuration list for PBXNativeTarget "DisplayHelper" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				389E63A144A150EBAD54A3A8 /* Debug */,
-				39803563D0F2163C27784E9B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

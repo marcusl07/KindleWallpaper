@@ -26,7 +26,7 @@ final class WallpaperAssignmentStoreTests: XCTestCase {
         try super.tearDownWithError()
     }
 
-    func testSharedStoragePathsStayInUnsignedLocalAppSupport() {
+    func testWallpaperStoragePathsStayInUnsignedLocalAppSupport() {
         let sharedContainerURL = KindleWallSharedStorage.sharedContainerURL()
         let generatedDirectoryURL = KindleWallSharedStorage.generatedWallpapersDirectoryURL()
 
@@ -36,7 +36,6 @@ final class WallpaperAssignmentStoreTests: XCTestCase {
             generatedDirectoryURL.deletingLastPathComponent().standardizedFileURL,
             sharedContainerURL.standardizedFileURL
         )
-        XCTAssertEqual(KindleWallSharedStorage.sharedDefaultsSuiteName, "com.marcuslo.KindleWall")
     }
 
     func testAssignmentRoundTripFiltersInvalidEntriesAndPreservesMetadata() throws {

@@ -281,7 +281,6 @@ private final class CoreGraphicsDisplayCallbackRegistration: NSObject {
     }
 }
 
-#if !DISPLAY_HELPER
 extension DisplayTopologyCoordinator {
     convenience init(
         appState: AppState? = nil,
@@ -303,4 +302,3 @@ extension DisplayTopologyCoordinator {
         }
     }
 }
-#endif

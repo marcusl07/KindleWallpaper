@@ -154,15 +154,6 @@ struct SettingsView: View {
                 settingsMessageRow(error, tone: .error)
             }
 
-            // Toggle("Keep wallpaper stable in background", isOn: backgroundDisplayHelperBinding)
-            // settingsMessageRow(
-            //     "Starts the display helper at login so wallpapers can be restored after wake or monitor changes.",
-            //     tone: .secondary
-            // )
-            // if let error = appState.backgroundDisplayHelperErrorMessage {
-            //     settingsMessageRow(error, tone: .error)
-            // }
-
             settingsValueRow(label: "App", value: "KindleWall")
             settingsValueRow(label: "Version", value: appVersionDisplay)
         }
@@ -271,17 +262,6 @@ struct SettingsView: View {
             return "KindleWall will open automatically when you log in."
         }
         return "KindleWall will not open automatically when you log in."
-    }
-
-    private var backgroundDisplayHelperBinding: Binding<Bool> {
-        Binding(
-            get: {
-                appState.isBackgroundDisplayHelperEnabled
-            },
-            set: { enabled in
-                appState.setBackgroundDisplayHelperEnabled(enabled)
-            }
-        )
     }
 
     private var formattedLastChangedAt: String {
