@@ -1811,7 +1811,18 @@ private struct QuotesListView: View {
                 QuotesImportHeaderView()
             }
 
-            controlsRow(displayedCount: displayedRows.count)
+            QuotesListControlsRow(
+                committedSearchText: effectiveSearchText,
+                sortMode: $sortMode,
+                filters: $filters,
+                availableBookTitles: runtimeState.availableBookTitles,
+                availableAuthors: runtimeState.availableAuthors,
+                resultCountSummary: resultCountSummary(displayedCount: displayedRows.count),
+                filterControlsViewportWidth: $filterControlsViewportWidth,
+                filterControlsContentWidth: $filterControlsContentWidth,
+                filterControlsContentOffset: $filterControlsContentOffset,
+                onSearchTextChanged: scheduleSearchRefresh(rawSearchText:)
+            )
 
             Group {
                 if contentPresentation.primaryContent == .initialLoading {
@@ -1956,157 +1967,6 @@ private struct QuotesListView: View {
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
         }
         .transition(.opacity)
-    }
-
-    private func controlsRow(displayedCount: Int) -> some View {
-        let overflowPresentation = QuotesFilterOverflowPresentationModel.presentationState(
-            viewportWidth: filterControlsViewportWidth,
-            contentWidth: filterControlsContentWidth,
-            contentOffset: filterControlsContentOffset
-        )
-
-        return VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 12) {
-                QuotesLibrarySearchField(
-                    committedSearchText: effectiveSearchText,
-                    placeholder: "Search quotes, books, or authors",
-                    onTextChanged: scheduleSearchRefresh(rawSearchText:)
-                )
-                .frame(minWidth: 260, idealWidth: 320, maxWidth: 420, minHeight: 30, idealHeight: 30)
-                .layoutPriority(1)
-
-                Picker("Sort", selection: $sortMode) {
-                    ForEach(QuotesListSortMode.allCases) { mode in
-                        Text(mode.title)
-                            .tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 280)
-
-                Spacer(minLength: 12)
-
-                Text(resultCountSummary(displayedCount: displayedCount))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack(alignment: .center, spacing: 12) {
-                ZStack {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(alignment: .center, spacing: 12) {
-                            Picker("Book", selection: $filters.selectedBookTitle) {
-                                Text("All Books")
-                                    .tag(nil as String?)
-
-                                ForEach(runtimeState.availableBookTitles, id: \.self) { title in
-                                    Text(title)
-                                        .tag(title as String?)
-                                }
-                            }
-                            .pickerStyle(.menu)
-
-                            Picker("Author", selection: $filters.selectedAuthor) {
-                                Text("All Authors")
-                                    .tag(nil as String?)
-
-                                ForEach(runtimeState.availableAuthors, id: \.self) { author in
-                                    Text(author)
-                                        .tag(author as String?)
-                                }
-                            }
-                            .pickerStyle(.menu)
-
-                            Picker("Book Status", selection: $filters.bookStatus) {
-                                ForEach(QuotesListBookStatusFilterMode.allCases) { mode in
-                                    Text(mode.title)
-                                        .tag(mode)
-                                }
-                            }
-                            .pickerStyle(.menu)
-
-                            Picker("Manual Added", selection: $filters.source) {
-                                ForEach(QuotesListSourceFilterMode.allCases) { mode in
-                                    Text(mode.title)
-                                        .tag(mode)
-                                }
-                            }
-                            .pickerStyle(.menu)
-                        }
-                        .background(filterControlsContentMetricsReader)
-                    }
-                    .coordinateSpace(name: Self.filterScrollCoordinateSpaceName)
-                    .background(filterControlsViewportMetricsReader)
-                    .overlay(alignment: .leading) {
-                        overflowAffordanceOverlay(
-                            systemImage: "chevron.left",
-                            isVisible: overflowPresentation.showsLeadingAffordance,
-                            alignment: .leading
-                        )
-                    }
-                    .overlay(alignment: .trailing) {
-                        overflowAffordanceOverlay(
-                            systemImage: "chevron.right",
-                            isVisible: overflowPresentation.showsTrailingAffordance,
-                            alignment: .trailing
-                        )
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                if filters.isActive {
-                    Button("Reset Filters") {
-                        filters = QuotesListFilters()
-                    }
-                }
-            }
-        }
-    }
-
-    private var filterControlsViewportMetricsReader: some View {
-        GeometryReader { geometry in
-            Color.clear
-                .preference(
-                    key: QuotesFilterControlsViewportWidthPreferenceKey.self,
-                    value: geometry.size.width
-                )
-        }
-        .onPreferenceChange(QuotesFilterControlsViewportWidthPreferenceKey.self) { width in
-            filterControlsViewportWidth = width
-        }
-    }
-
-    private var filterControlsContentMetricsReader: some View {
-        GeometryReader { geometry in
-            let frame = geometry.frame(in: .named(Self.filterScrollCoordinateSpaceName))
-            Color.clear
-                .preference(
-                    key: QuotesFilterControlsContentMetricsPreferenceKey.self,
-                    value: QuotesFilterControlsContentMetrics(
-                        width: frame.width,
-                        minX: frame.minX
-                    )
-                )
-        }
-        .onPreferenceChange(QuotesFilterControlsContentMetricsPreferenceKey.self) { metrics in
-            filterControlsContentWidth = metrics.width
-            filterControlsContentOffset = max(-metrics.minX, 0)
-        }
-    }
-
-    @ViewBuilder
-    private func overflowAffordanceOverlay(
-        systemImage: String,
-        isVisible: Bool,
-        alignment: Alignment
-    ) -> some View {
-        if isVisible {
-            QuotesFilterOverflowAffordance(
-                systemImage: systemImage,
-                alignment: alignment
-            )
-            .allowsHitTesting(false)
-        }
     }
 
     private func resultCountSummary(displayedCount: Int) -> String {
@@ -2486,6 +2346,172 @@ private struct QuotesListView: View {
         appState.deleteHighlights(using: plan)
         pendingBulkDeletePlan = nil
         selectedHighlightIDs.removeAll()
+    }
+}
+
+private struct QuotesListControlsRow: View {
+    private static let filterScrollCoordinateSpaceName = "QuotesFilterControlsScrollView"
+
+    let committedSearchText: String
+    @Binding var sortMode: QuotesListSortMode
+    @Binding var filters: QuotesListFilters
+    let availableBookTitles: [String]
+    let availableAuthors: [String]
+    let resultCountSummary: String
+    @Binding var filterControlsViewportWidth: CGFloat
+    @Binding var filterControlsContentWidth: CGFloat
+    @Binding var filterControlsContentOffset: CGFloat
+    let onSearchTextChanged: (String) -> Void
+
+    var body: some View {
+        let overflowPresentation = QuotesFilterOverflowPresentationModel.presentationState(
+            viewportWidth: filterControlsViewportWidth,
+            contentWidth: filterControlsContentWidth,
+            contentOffset: filterControlsContentOffset
+        )
+
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
+                QuotesLibrarySearchField(
+                    committedSearchText: committedSearchText,
+                    placeholder: "Search quotes, books, or authors",
+                    onTextChanged: onSearchTextChanged
+                )
+                .frame(minWidth: 260, idealWidth: 320, maxWidth: 420, minHeight: 30, idealHeight: 30)
+                .layoutPriority(1)
+
+                Picker("Sort", selection: $sortMode) {
+                    ForEach(QuotesListSortMode.allCases) { mode in
+                        Text(mode.title)
+                            .tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 280)
+
+                Spacer(minLength: 12)
+
+                Text(resultCountSummary)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(alignment: .center, spacing: 12) {
+                ZStack {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(alignment: .center, spacing: 12) {
+                            Picker("Book", selection: $filters.selectedBookTitle) {
+                                Text("All Books")
+                                    .tag(nil as String?)
+
+                                ForEach(availableBookTitles, id: \.self) { title in
+                                    Text(title)
+                                        .tag(title as String?)
+                                }
+                            }
+                            .pickerStyle(.menu)
+
+                            Picker("Author", selection: $filters.selectedAuthor) {
+                                Text("All Authors")
+                                    .tag(nil as String?)
+
+                                ForEach(availableAuthors, id: \.self) { author in
+                                    Text(author)
+                                        .tag(author as String?)
+                                }
+                            }
+                            .pickerStyle(.menu)
+
+                            Picker("Book Status", selection: $filters.bookStatus) {
+                                ForEach(QuotesListBookStatusFilterMode.allCases) { mode in
+                                    Text(mode.title)
+                                        .tag(mode)
+                                }
+                            }
+                            .pickerStyle(.menu)
+
+                            Picker("Manual Added", selection: $filters.source) {
+                                ForEach(QuotesListSourceFilterMode.allCases) { mode in
+                                    Text(mode.title)
+                                        .tag(mode)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                        }
+                        .background(filterControlsContentMetricsReader)
+                    }
+                    .coordinateSpace(name: Self.filterScrollCoordinateSpaceName)
+                    .background(filterControlsViewportMetricsReader)
+                    .overlay(alignment: .leading) {
+                        overflowAffordanceOverlay(
+                            systemImage: "chevron.left",
+                            isVisible: overflowPresentation.showsLeadingAffordance,
+                            alignment: .leading
+                        )
+                    }
+                    .overlay(alignment: .trailing) {
+                        overflowAffordanceOverlay(
+                            systemImage: "chevron.right",
+                            isVisible: overflowPresentation.showsTrailingAffordance,
+                            alignment: .trailing
+                        )
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                if filters.isActive {
+                    Button("Reset Filters") {
+                        filters = QuotesListFilters()
+                    }
+                }
+            }
+        }
+    }
+
+    private var filterControlsViewportMetricsReader: some View {
+        GeometryReader { geometry in
+            Color.clear
+                .preference(
+                    key: QuotesFilterControlsViewportWidthPreferenceKey.self,
+                    value: geometry.size.width
+                )
+        }
+        .onPreferenceChange(QuotesFilterControlsViewportWidthPreferenceKey.self) { width in
+            filterControlsViewportWidth = width
+        }
+    }
+
+    private var filterControlsContentMetricsReader: some View {
+        GeometryReader { geometry in
+            let frame = geometry.frame(in: .named(Self.filterScrollCoordinateSpaceName))
+            Color.clear
+                .preference(
+                    key: QuotesFilterControlsContentMetricsPreferenceKey.self,
+                    value: QuotesFilterControlsContentMetrics(
+                        width: frame.width,
+                        minX: frame.minX
+                    )
+                )
+        }
+        .onPreferenceChange(QuotesFilterControlsContentMetricsPreferenceKey.self) { metrics in
+            filterControlsContentWidth = metrics.width
+            filterControlsContentOffset = max(-metrics.minX, 0)
+        }
+    }
+
+    @ViewBuilder
+    private func overflowAffordanceOverlay(
+        systemImage: String,
+        isVisible: Bool,
+        alignment: Alignment
+    ) -> some View {
+        if isVisible {
+            QuotesFilterOverflowAffordance(
+                systemImage: systemImage,
+                alignment: alignment
+            )
+            .allowsHitTesting(false)
+        }
     }
 }
 
