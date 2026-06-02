@@ -4165,8 +4165,8 @@ struct BackgroundsListView: View {
             } else {
                 ScrollView {
                     LazyVGrid(columns: gridColumns, alignment: .leading, spacing: 12) {
-                        ForEach(Array(collectionState.items.enumerated()), id: \.element.id) { index, item in
-                            tile(for: item, index: index)
+                        ForEach(collectionState.items) { item in
+                            tile(for: item)
                         }
                     }
                     .padding(.vertical, 2)
@@ -4238,26 +4238,20 @@ struct BackgroundsListView: View {
         )
     }
 
-    private func tile(for item: AppState.BackgroundCollectionItem, index: Int) -> some View {
+    private func tile(for item: AppState.BackgroundCollectionItem) -> some View {
         let isSelected = selectedBackgroundID == item.id
 
         return Button {
             setSelected(item.id)
         } label: {
-            tileCardLabel(for: item, isSelected: isSelected, index: index)
+            tileCardLabel(for: item, isSelected: isSelected)
         }
         .buttonStyle(.plain)
     }
 
-    private func tileCardLabel(for item: AppState.BackgroundCollectionItem, isSelected: Bool, index: Int) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+    private func tileCardLabel(for item: AppState.BackgroundCollectionItem, isSelected: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
             tilePreview(for: item.fileURL)
-            Text("Background \(index + 1)")
-                .font(.caption)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .foregroundStyle(.primary)
-                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(8)
         .background(
