@@ -33,19 +33,22 @@ struct LibraryView: View {
             .listStyle(.sidebar)
             .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 300)
         } detail: {
-            if let selectedSidebarItem {
-                switch selectedSidebarItem {
-                case .quotes:
-                    QuotesLibraryWrapperView()
-                case .books:
-                    BooksListView()
-                case .backgrounds:
-                    BackgroundsListView()
+            Group {
+                if let selectedSidebarItem {
+                    switch selectedSidebarItem {
+                    case .quotes:
+                        QuotesLibraryWrapperView()
+                    case .books:
+                        BooksListView()
+                    case .backgrounds:
+                        BackgroundsListView()
+                    }
+                } else {
+                    Text("Select an item from the sidebar")
+                        .foregroundStyle(.secondary)
                 }
-            } else {
-                Text("Select an item from the sidebar")
-                    .foregroundStyle(.secondary)
             }
+            .frame(minWidth: 700, maxWidth: .infinity)
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 1000, idealWidth: 1000, maxWidth: .infinity, minHeight: 600, idealHeight: 700, maxHeight: .infinity)

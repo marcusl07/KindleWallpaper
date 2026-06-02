@@ -835,3 +835,10 @@ Implement `windowShouldClose(_:)` delegate method and `cleanupController(for:)` 
 **T143-c — Lock Library view minWidth and content size to 1000 to prevent layout squeeze**
 Enforce a consistent window size by updating default and minimum content size in `KindleWallApp.swift` and `LibraryView.swift` to 1000, ensuring the split view always renders side-by-side without squishing or jumping layout during search.
 
+
+**T143-d — Prevent detail column squishing by constraining detail view minWidth**
+Apply a minimum width constraint of 700 to the detail view in `LibraryView.swift`. This locks the detail view and sidebar side-by-side inside the 1000px wide window, preventing the layout engine from entering overlay/drawer mode during search re-layouts.
+
+
+
+
