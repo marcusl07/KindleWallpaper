@@ -2434,6 +2434,7 @@ private struct QuotesListControlsRow: View {
                                 }
                             }
                             .pickerStyle(.menu)
+                            .frame(maxWidth: 220)
 
                             Picker("Author", selection: $filters.selectedAuthor) {
                                 Text("All Authors")
@@ -2445,6 +2446,7 @@ private struct QuotesListControlsRow: View {
                                 }
                             }
                             .pickerStyle(.menu)
+                            .frame(maxWidth: 180)
 
                             Picker("Book Status", selection: $filters.bookStatus) {
                                 ForEach(QuotesListBookStatusFilterMode.allCases) { mode in
@@ -2453,6 +2455,7 @@ private struct QuotesListControlsRow: View {
                                 }
                             }
                             .pickerStyle(.menu)
+                            .frame(maxWidth: 150)
 
                             Picker("Manual Added", selection: $filters.source) {
                                 ForEach(QuotesListSourceFilterMode.allCases) { mode in
@@ -2461,9 +2464,11 @@ private struct QuotesListControlsRow: View {
                                 }
                             }
                             .pickerStyle(.menu)
+                            .frame(maxWidth: 150)
                         }
                         .background(filterControlsContentMetricsReader)
                     }
+                    .frame(minWidth: 0, maxWidth: .infinity)
                     .coordinateSpace(name: Self.filterScrollCoordinateSpaceName)
                     .background(filterControlsViewportMetricsReader)
                     .overlay(alignment: .leading) {
