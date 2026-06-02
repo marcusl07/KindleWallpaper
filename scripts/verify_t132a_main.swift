@@ -111,6 +111,88 @@ private func makeHighlight(
     )
 }
 
+@MainActor
+private func testOnlyCommittedSearchStartClearsRows() {
+    let initialHighlights = [
+        makeHighlight(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000001323")!,
+            quoteText: "First"
+        ),
+        makeHighlight(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000001324")!,
+            quoteText: "Second"
+        )
+    ]
+    let nonSearchReasons = [
+        "appear",
+        "refresh",
+        "sortChanged",
+        "bookFilterChanged",
+        "authorFilterChanged",
+        "bookStatusChanged",
+        "sourceFilterChanged",
+        "libraryChanged"
+    ]
+
+    assertEqual(
+        QuotesListViewTestProbe.rowCountAfterRefreshStart(
+            reason: "searchChanged",
+            preservingHighlights: initialHighlights
+        ),
+        0,
+        "Expected a committed search refresh start to clear visible row models"
+    )
+
+    for reason in nonSearchReasons {
+        assertEqual(
+            QuotesListViewTestProbe.rowCountAfterRefreshStart(
+                reason: reason,
+                preservingHighlights: initialHighlights
+            ),
+            initialHighlights.count,
+            "Expected \(reason) refresh start to preserve visible row models"
+        )
+    }
+}
+
+@MainActor
+private func testStaleSearchResultCannotReplaceClearedRows() {
+    let preservingHighlights = [
+        makeHighlight(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000001325")!,
+            quoteText: "Preserved"
+        )
+    ]
+    let staleResult = [
+        makeHighlight(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000001326")!,
+            quoteText: "Stale"
+        )
+    ]
+
+    assertEqual(
+        QuotesListViewTestProbe.rowIDsAfterSearchClearAndPotentiallyStaleResult(
+            preservingHighlights: preservingHighlights,
+            resultHighlights: staleResult,
+            capturedGeneration: 1,
+            activeGeneration: 2
+        ),
+        [],
+        "Expected stale search results not to replace rows after a search-start clear"
+    )
+
+    assertEqual(
+        QuotesListViewTestProbe.rowIDsAfterSearchClearAndPotentiallyStaleResult(
+            preservingHighlights: preservingHighlights,
+            resultHighlights: staleResult,
+            capturedGeneration: 2,
+            activeGeneration: 2
+        ),
+        staleResult.map(\.id),
+        "Expected current-generation search results to replace rows after a search-start clear"
+    )
+}
+
 private func makeService(recorder: LockedRecorder) -> QuotesQueryService {
     QuotesQueryService(
         fetchPagePayload: { searchText, _, _, limit, offset in
@@ -398,6 +480,8 @@ private func testRefreshesAndPagingUsePreviousCommittedSearchWhileTypingIsPendin
 @main
 struct VerifyT132AMain {
     static func main() async {
+        testOnlyCommittedSearchStartClearsRows()
+        testStaleSearchResultCannotReplaceClearedRows()
         await testRapidTypingDoesNotReachQueryServiceUntilEffectiveSearchCommits()
         await testRefreshesAndPagingUsePreviousCommittedSearchWhileTypingIsPending()
         print("verify_t132a_main passed")

@@ -1417,6 +1417,14 @@ private final class QuotesListRuntimeState: ObservableObject {
         rowModels = newRowModels
     }
 
+    func clearRows() {
+        guard !rowModels.isEmpty else {
+            return
+        }
+
+        rowModels = []
+    }
+
     func appendRows(from uniqueNextPage: [Highlight]) {
         rowModels.append(contentsOf: makeRowModels(from: uniqueNextPage))
     }
@@ -1875,6 +1883,10 @@ private struct QuotesListView: View {
 
         let currentGeneration = runtimeState.queryGeneration + 1
         runtimeState.queryGeneration = currentGeneration
+        if reason == .searchChanged {
+            runtimeState.clearRows()
+        }
+
         let resetState = QuotesListPagingPresentationModel.refreshResetState(
             queryGeneration: currentGeneration,
             preservingHighlights: runtimeState.highlights,
@@ -3071,6 +3083,48 @@ enum QuotesListViewTestProbe {
         runtimeState.replaceRows(with: [initialHighlight])
         runtimeState.replaceRows(with: [replacementHighlight])
         return runtimeState.rowModels.first?.highlight.lastShownAt
+    }
+
+    @MainActor
+    static func rowCountAfterRefreshStart(
+        reason: String,
+        preservingHighlights: [Highlight]
+    ) -> Int? {
+        guard let refreshReason = QuotesListRefreshReason(rawValue: reason) else {
+            return nil
+        }
+
+        let runtimeState = QuotesListRuntimeState()
+        runtimeState.replaceRows(with: preservingHighlights)
+        runtimeState.queryGeneration += 1
+
+        if refreshReason == .searchChanged {
+            runtimeState.clearRows()
+        }
+
+        return runtimeState.rowModels.count
+    }
+
+    @MainActor
+    static func rowIDsAfterSearchClearAndPotentiallyStaleResult(
+        preservingHighlights: [Highlight],
+        resultHighlights: [Highlight],
+        capturedGeneration: Int,
+        activeGeneration: Int
+    ) -> [UUID] {
+        let runtimeState = QuotesListRuntimeState()
+        runtimeState.replaceRows(with: preservingHighlights)
+        runtimeState.queryGeneration = activeGeneration
+        runtimeState.clearRows()
+
+        if QuotesListRefreshPresentationModel.shouldAcceptAsyncResult(
+            capturedGeneration: capturedGeneration,
+            activeQueryGeneration: runtimeState.queryGeneration
+        ) {
+            runtimeState.replaceRows(with: resultHighlights)
+        }
+
+        return runtimeState.rowModels.map(\.id)
     }
 
     static func bookTitleText(for highlight: Highlight) -> String {
