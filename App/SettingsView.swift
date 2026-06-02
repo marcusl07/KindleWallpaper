@@ -4252,7 +4252,6 @@ struct BackgroundsListView: View {
     private func tileCardLabel(for item: AppState.BackgroundCollectionItem, isSelected: Bool, index: Int) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             tilePreview(for: item.fileURL)
-                .frame(height: 110)
             Text("Background \(index + 1)")
                 .font(.caption)
                 .lineLimit(1)
@@ -4285,13 +4284,19 @@ struct BackgroundsListView: View {
             Image(nsImage: image)
                 .resizable()
                 .scaledToFill()
-                .frame(minWidth: 0, maxWidth: .infinity)
+                .frame(height: 110)
+                .frame(maxWidth: .infinity)
+                .clipped()
                 .clipShape(RoundedRectangle(cornerRadius: 8))
         } else {
             fallbackPreview
+                .frame(height: 110)
+                .frame(maxWidth: .infinity)
         }
         #else
         fallbackPreview
+            .frame(height: 110)
+            .frame(maxWidth: .infinity)
         #endif
     }
 
