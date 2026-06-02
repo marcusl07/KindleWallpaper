@@ -831,3 +831,7 @@ Adjust settings window size and minimum width constraint in App/KindleWallApp.sw
 **T143-b — Fix Library window opening on Settings close and keep UI sizing consistent**
 Implement `windowShouldClose(_:)` delegate method and `cleanupController(for:)` helper to set controller references to `nil` immediately upon close request to prevent app deactivation restore race. Adjust default content size and frame constraints to 900x600 in `KindleWallApp.swift` and `LibraryView.swift` to prevent layout jump during search.
 
+
+**T143-c — Lock Library view minWidth and content size to 1000 to prevent layout squeeze**
+Enforce a consistent window size by updating default and minimum content size in `KindleWallApp.swift` and `LibraryView.swift` to 1000, ensuring the split view always renders side-by-side without squishing or jumping layout during search.
+
