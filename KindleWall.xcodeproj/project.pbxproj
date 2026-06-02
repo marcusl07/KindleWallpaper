@@ -11,6 +11,7 @@
 		0A908775A2D5A7F75E764B1E /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10497CFEC3D771E2D3A70010 /* LibraryView.swift */; };
 		0F47113C8F5C5C3A9CDF9C42 /* KindleWallApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67306A31618FE6581F9F81F4 /* KindleWallApp.swift */; };
 		154FAA67B9134B920BB2E402 /* Database.swift in Sources */ = {isa = PBXBuildFile; fileRef = 126D2BED290D16D70E707B68 /* Database.swift */; };
+		15DE77854CB392DAF1C8452A /* ScheduleSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A72A5D605268A44A7EEBC47 /* ScheduleSettingsTests.swift */; };
 		1BC1D3D6F9EAC14BCF73CE25 /* DisplayIdentityResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A77E09E2976B60EEF5C5EB5 /* DisplayIdentityResolver.swift */; };
 		25D3C340D5AC921E42BA887B /* DisplayIdentityResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A77E09E2976B60EEF5C5EB5 /* DisplayIdentityResolver.swift */; };
 		28774E1A69A7CBA9EC0CEADB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9659821AC668F464106C9FC7 /* SettingsView.swift */; };
@@ -30,6 +31,7 @@
 		86DEA4128C7AA27D22CA5442 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C88BA03AB2C2B7841ADC4755 /* MenuBarView.swift */; };
 		87138618E08366A3E73ED3D9 /* WallpaperAssignmentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FADE0DD24FB03285ADB7BCA /* WallpaperAssignmentStore.swift */; };
 		8CFDB5D51168C39C9A5EEBCD /* WallpaperSetter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C88B20A7755CD6200EE4E3F /* WallpaperSetter.swift */; };
+		A1D63361761E841AB597AA66 /* WallpaperAssignmentStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F040EDF848E9D9B7A8E5001 /* WallpaperAssignmentStoreTests.swift */; };
 		AC5C41E9141FFA860C973256 /* DebouncedTaskScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B4A1FCB6ABBF2C9182D99CA /* DebouncedTaskScheduler.swift */; };
 		AFEDDEADFB13BFA4F23F0FD5 /* DisplayTopologyCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A5767AD8F86113DAE586BEF /* DisplayTopologyCoordinator.swift */; };
 		B355BB125C0BFE9298F3C07C /* WallpaperGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E25B22876E6C4FDA140A324 /* WallpaperGenerator.swift */; };
@@ -46,6 +48,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		12C64FA735EF0E29AAB9D0CF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D4F779AA0A26DE43440ECF4E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D9B056B258DD0ADC060E0F5A;
+			remoteInfo = KindleWall;
+		};
 		662FE92E4EB93CE9B8469606 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = D4F779AA0A26DE43440ECF4E /* Project object */;
@@ -61,8 +70,10 @@
 		1D7702F347CAD3C65FDA7851 /* ClippingsParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClippingsParser.swift; sourceTree = "<group>"; };
 		2A5767AD8F86113DAE586BEF /* DisplayTopologyCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTopologyCoordinator.swift; sourceTree = "<group>"; };
 		2FADE0DD24FB03285ADB7BCA /* WallpaperAssignmentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperAssignmentStore.swift; sourceTree = "<group>"; };
+		3F040EDF848E9D9B7A8E5001 /* WallpaperAssignmentStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperAssignmentStoreTests.swift; sourceTree = "<group>"; };
 		4E0532262BD7F480B8D9EED8 /* BackgroundImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundImageLoader.swift; sourceTree = "<group>"; };
 		578F9F25BEE00A81E7CFD41F /* SyncNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncNotificationManager.swift; sourceTree = "<group>"; };
+		5A72A5D605268A44A7EEBC47 /* ScheduleSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleSettingsTests.swift; sourceTree = "<group>"; };
 		5C88B20A7755CD6200EE4E3F /* WallpaperSetter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperSetter.swift; sourceTree = "<group>"; };
 		5DF13C66AA67590AFF96E390 /* ImportCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportCoordinator.swift; sourceTree = "<group>"; };
 		64F72B90BAD25CC8B74973DE /* WallpaperTopologyRestorer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperTopologyRestorer.swift; sourceTree = "<group>"; };
@@ -74,6 +85,7 @@
 		766BDB43991580ED0548AE8A /* BackgroundImageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundImageStore.swift; sourceTree = "<group>"; };
 		77303DBBAC7438E91F1A204E /* BulkBookDeletionPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BulkBookDeletionPlan.swift; sourceTree = "<group>"; };
 		7AAC474AAFAE0B81E2855524 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		7AFC8E757B8000A41A04805D /* LeafTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LeafTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7FB92A2D20E93A6E58E8EB44 /* WallpaperHistoryPruner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperHistoryPruner.swift; sourceTree = "<group>"; };
 		811E26389F17F084542DAAF7 /* KindleWall.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KindleWall.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		86F9EA5F3C2418D8AA0D9365 /* Highlight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Highlight.swift; sourceTree = "<group>"; };
@@ -117,6 +129,7 @@
 				4A3DD1B74F9E7C444D3974DC /* DisplayHelper */,
 				45C42DCDDC36FFEB4D2F707D /* Models */,
 				031DE6FED8A853242735DC25 /* Parsing */,
+				C79EDAAB83F205105A70C66E /* Tests */,
 				D079063320403131A75753EC /* Products */,
 			);
 			sourceTree = "<group>";
@@ -171,11 +184,29 @@
 			path = DisplayHelper;
 			sourceTree = "<group>";
 		};
+		54A9BAE9BBA9B7593F6D628B /* LeafTests */ = {
+			isa = PBXGroup;
+			children = (
+				5A72A5D605268A44A7EEBC47 /* ScheduleSettingsTests.swift */,
+				3F040EDF848E9D9B7A8E5001 /* WallpaperAssignmentStoreTests.swift */,
+			);
+			path = LeafTests;
+			sourceTree = "<group>";
+		};
+		C79EDAAB83F205105A70C66E /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				54A9BAE9BBA9B7593F6D628B /* LeafTests */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
 		D079063320403131A75753EC /* Products */ = {
 			isa = PBXGroup;
 			children = (
 				F54F09281BB5A7F45138D7C0 /* DisplayHelper.app */,
 				811E26389F17F084542DAAF7 /* KindleWall.app */,
+				7AFC8E757B8000A41A04805D /* LeafTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -199,6 +230,24 @@
 			productName = DisplayHelper;
 			productReference = F54F09281BB5A7F45138D7C0 /* DisplayHelper.app */;
 			productType = "com.apple.product-type.application";
+		};
+		B4B27C6945C968CCCE20759D /* LeafTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EFD4B4BA42F281495460B810 /* Build configuration list for PBXNativeTarget "LeafTests" */;
+			buildPhases = (
+				8F20446858893A3833236A56 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				941784C2B8E6E5B04CA74833 /* PBXTargetDependency */,
+			);
+			name = LeafTests;
+			packageProductDependencies = (
+			);
+			productName = LeafTests;
+			productReference = 7AFC8E757B8000A41A04805D /* LeafTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 		D9B056B258DD0ADC060E0F5A /* KindleWall */ = {
 			isa = PBXNativeTarget;
@@ -233,6 +282,9 @@
 					1005666C5ED1AD9117B4B0E8 = {
 						DevelopmentTeam = "";
 					};
+					B4B27C6945C968CCCE20759D = {
+						DevelopmentTeam = "";
+					};
 					D9B056B258DD0ADC060E0F5A = {
 						DevelopmentTeam = "";
 					};
@@ -257,6 +309,7 @@
 			targets = (
 				1005666C5ED1AD9117B4B0E8 /* DisplayHelper */,
 				D9B056B258DD0ADC060E0F5A /* KindleWall */,
+				B4B27C6945C968CCCE20759D /* LeafTests */,
 			);
 		};
 /* End PBXProject section */
@@ -295,6 +348,15 @@
 				5566F84E8A244324D414F144 /* WallpaperAssignmentStore.swift in Sources */,
 				666CF5CCE2B724E090227D8B /* WallpaperSetter.swift in Sources */,
 				E5F5F90B0B24055F6FB0C414 /* WallpaperTopologyRestorer.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8F20446858893A3833236A56 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				15DE77854CB392DAF1C8452A /* ScheduleSettingsTests.swift in Sources */,
+				A1D63361761E841AB597AA66 /* WallpaperAssignmentStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -340,9 +402,32 @@
 			target = 1005666C5ED1AD9117B4B0E8 /* DisplayHelper */;
 			targetProxy = 662FE92E4EB93CE9B8469606 /* PBXContainerItemProxy */;
 		};
+		941784C2B8E6E5B04CA74833 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D9B056B258DD0ADC060E0F5A /* KindleWall */;
+			targetProxy = 12C64FA735EF0E29AAB9D0CF /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		146A4C7309113CB43E6C80E6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.marcuslo.LeafTests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KindleWall.app/Contents/MacOS/KindleWall";
+			};
+			name = Debug;
+		};
 		389E63A144A150EBAD54A3A8 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -378,6 +463,24 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.marcuslo.KindleWall.DisplayHelper;
 				PRODUCT_NAME = DisplayHelper;
 				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		4AF4225BFDFE7D18D9906085 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.marcuslo.LeafTests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KindleWall.app/Contents/MacOS/KindleWall";
 			};
 			name = Release;
 		};
@@ -564,6 +667,15 @@
 			buildConfigurations = (
 				63DF216E94B2552D09B05C47 /* Debug */,
 				C66DA4E92F11D2D59E0FE2F6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		EFD4B4BA42F281495460B810 /* Build configuration list for PBXNativeTarget "LeafTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				146A4C7309113CB43E6C80E6 /* Debug */,
+				4AF4225BFDFE7D18D9906085 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

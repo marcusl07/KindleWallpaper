@@ -36,7 +36,8 @@ targets:
       - target: DisplayHelper
         embed: false
     scheme:
-      testTargets: []
+      testTargets:
+        - LeafTests
     postBuildScripts:
       - name: Embed DisplayHelper Login Item
         script: |
@@ -67,3 +68,15 @@ targets:
         PRODUCT_NAME: DisplayHelper
         GENERATE_INFOPLIST_FILE: NO
         OTHER_SWIFT_FLAGS: "$(inherited) -D DISPLAY_HELPER"
+  LeafTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - Tests/LeafTests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.marcuslo.LeafTests
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: KindleWall
