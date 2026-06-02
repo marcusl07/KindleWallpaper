@@ -3863,23 +3863,33 @@ struct BooksListView: View {
 
             HStack(spacing: 12) {
                 Button("Select All") {
-                    appState.setAllBooksEnabled(true)
+                    if isEditingBooks {
+                        selectedBookIDs = Set(appState.books.map(\.id))
+                    } else {
+                        appState.setAllBooksEnabled(true)
+                    }
                 }
                 .disabled(
-                    isEditingBooks ||
-                    appState.isBookMutationInFlight ||
-                    appState.books.isEmpty ||
-                    appState.books.allSatisfy(\.isEnabled)
+                    isEditingBooks ? (appState.books.isEmpty || selectedBookIDs.count == appState.books.count) : (
+                        appState.isBookMutationInFlight ||
+                        appState.books.isEmpty ||
+                        appState.books.allSatisfy(\.isEnabled)
+                    )
                 )
 
                 Button("Deselect All") {
-                    appState.setAllBooksEnabled(false)
+                    if isEditingBooks {
+                        selectedBookIDs.removeAll()
+                    } else {
+                        appState.setAllBooksEnabled(false)
+                    }
                 }
                 .disabled(
-                    isEditingBooks ||
-                    appState.isBookMutationInFlight ||
-                    appState.books.isEmpty ||
-                    appState.books.allSatisfy { !$0.isEnabled }
+                    isEditingBooks ? selectedBookIDs.isEmpty : (
+                        appState.isBookMutationInFlight ||
+                        appState.books.isEmpty ||
+                        appState.books.allSatisfy { !$0.isEnabled }
+                    )
                 )
 
                 Spacer(minLength: 12)
