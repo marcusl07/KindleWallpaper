@@ -1883,8 +1883,6 @@ struct QuotesListView: View {
                 committedSearchText: effectiveSearchText,
                 sortMode: $sortMode,
                 filters: $filters,
-                availableBookTitles: runtimeState.availableBookTitles,
-                availableAuthors: runtimeState.availableAuthors,
                 resultCountSummary: resultCountSummary(displayedCount: displayedRows.count),
                 filterControlsViewportWidth: $filterControlsViewportWidth,
                 filterControlsContentWidth: $filterControlsContentWidth,
@@ -2429,16 +2427,12 @@ private struct QuotesListControlsRow: View {
     private static let searchFieldHeight: CGFloat = 30
     private static let sortPickerWidth: CGFloat = 240
     private static let resultSummaryWidth: CGFloat = 190
-    private static let bookFilterWidth: CGFloat = 220
-    private static let authorFilterWidth: CGFloat = 240
-    private static let bookStatusFilterWidth: CGFloat = 245
-    private static let sourceFilterWidth: CGFloat = 230
+    private static let bookStatusFilterWidth: CGFloat = 220
+    private static let sourceFilterWidth: CGFloat = 165
 
     let committedSearchText: String
     @Binding var sortMode: QuotesListSortMode
     @Binding var filters: QuotesListFilters
-    let availableBookTitles: [String]
-    let availableAuthors: [String]
     let resultCountSummary: String
     @Binding var filterControlsViewportWidth: CGFloat
     @Binding var filterControlsContentWidth: CGFloat
@@ -2491,30 +2485,6 @@ private struct QuotesListControlsRow: View {
                 ZStack {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(alignment: .center, spacing: 12) {
-                            Picker("Book", selection: $filters.selectedBookTitle) {
-                                Text("All Books")
-                                    .tag(nil as String?)
-
-                                ForEach(availableBookTitles, id: \.self) { title in
-                                    Text(title)
-                                        .tag(title as String?)
-                                }
-                            }
-                            .pickerStyle(.menu)
-                            .frame(width: Self.bookFilterWidth)
-
-                            Picker("Author", selection: $filters.selectedAuthor) {
-                                Text("All Authors")
-                                    .tag(nil as String?)
-
-                                ForEach(availableAuthors, id: \.self) { author in
-                                    Text(author)
-                                        .tag(author as String?)
-                                }
-                            }
-                            .pickerStyle(.menu)
-                            .frame(width: Self.authorFilterWidth)
-
                             Picker("Book Status", selection: $filters.bookStatus) {
                                 ForEach(QuotesListBookStatusFilterMode.allCases) { mode in
                                     Text(mode.title)

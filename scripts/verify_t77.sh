@@ -17,8 +17,19 @@ require_pattern() {
   fi
 }
 
-require_pattern "$SETTINGS_FILE" 'Picker\("Book"' "book filter picker"
-require_pattern "$SETTINGS_FILE" 'Picker\("Author"' "author filter picker"
+require_absent() {
+  local file="$1"
+  local pattern="$2"
+  local description="$3"
+
+  if rg -q "$pattern" "$file"; then
+    echo "Verification failed: unexpected $description in $file" >&2
+    exit 1
+  fi
+}
+
+require_absent "$SETTINGS_FILE" 'Picker\("Book"' "visible book filter picker"
+require_absent "$SETTINGS_FILE" 'Picker\("Author"' "visible author filter picker"
 require_pattern "$SETTINGS_FILE" 'Picker\("Book Status"' "book status filter picker"
 require_pattern "$SETTINGS_FILE" 'Picker\("Manual Added"' "manual filter picker"
 require_pattern "$SETTINGS_FILE" 'Button\("Reset Filters"' "filter reset button"
@@ -28,18 +39,15 @@ require_pattern "$SETTINGS_FILE" 'availableAuthors\(from:' "author filter option
 
 cp "$ROOT_DIR/scripts/verify_t77_main.swift" "$TMP_DIR/main.swift"
 
+TYPECHECK_FILES=(
+  $(cd "$ROOT_DIR" && rg --files App Models Parsing -g '*.swift' | rg -v '^App/Database\.swift$')
+)
+
 swiftc \
   -module-cache-path "$TMP_DIR/module-cache" \
   -D TESTING \
   "$TMP_DIR/main.swift" \
-  "$ROOT_DIR/App/ScheduleSettings.swift" \
-  "$ROOT_DIR/App/AppState.swift" \
-  "$ROOT_DIR/App/AppSupportPaths.swift" \
-  "$ROOT_DIR/App/BackgroundImageStore.swift" \
-  "$ROOT_DIR/App/BackgroundImageLoader.swift" \
-  "$ROOT_DIR/App/SettingsView.swift" \
-  "$ROOT_DIR/Models/Book.swift" \
-  "$ROOT_DIR/Models/Highlight.swift" \
+  "${TYPECHECK_FILES[@]/#/$ROOT_DIR/}" \
   -o "$TMP_DIR/verify_t77_main"
 
 "$TMP_DIR/verify_t77_main"
