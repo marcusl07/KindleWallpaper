@@ -40,7 +40,9 @@ struct SettingsView: View {
             .navigationDestination(for: SettingsDestination.self) { destination in
                 switch destination {
                 case .quotes:
-                    QuotesListView()
+                    QuotesListView { highlightID in
+                        navigationModel.path.append(.quoteDetail(highlightID))
+                    }
                         .navigationTitle("Quotes")
                 case .books:
                     BooksListView()
@@ -1082,6 +1084,336 @@ private struct QuotesListRowView: View, Equatable {
     }
 }
 
+private struct QuotesNativeTableView: NSViewRepresentable {
+    let rows: [QuotesListRowModel]
+    @Binding var selectedHighlightIDs: Set<UUID>
+    let isEditing: Bool
+    let isLoadingNextPage: Bool
+    let onLoadMore: (UUID) -> Void
+    let onNavigateToQuote: (UUID) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = QuotesNativeTableScrollView()
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
+        scrollView.autohidesScrollers = true
+        scrollView.borderType = .noBorder
+        scrollView.drawsBackground = true
+        scrollView.backgroundColor = .controlBackgroundColor
+
+        let tableView = NSTableView()
+        tableView.headerView = nil
+        tableView.rowHeight = 68
+        tableView.intercellSpacing = NSSize(width: 0, height: 0)
+        tableView.style = .plain
+        tableView.selectionHighlightStyle = .regular
+        tableView.usesAlternatingRowBackgroundColors = false
+        tableView.gridStyleMask = []
+        tableView.allowsColumnReordering = false
+        tableView.allowsColumnResizing = false
+        tableView.allowsColumnSelection = false
+        tableView.dataSource = context.coordinator
+        tableView.delegate = context.coordinator
+
+        let column = NSTableColumn(identifier: Coordinator.quoteColumnIdentifier)
+        column.resizingMask = .autoresizingMask
+        tableView.addTableColumn(column)
+
+        scrollView.documentView = tableView
+        scrollView.tableView = tableView
+        context.coordinator.tableView = tableView
+        context.coordinator.update(
+            rows: rows,
+            selectedHighlightIDs: $selectedHighlightIDs,
+            isEditing: isEditing,
+            isLoadingNextPage: isLoadingNextPage,
+            onLoadMore: onLoadMore,
+            onNavigateToQuote: onNavigateToQuote
+        )
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        context.coordinator.update(
+            rows: rows,
+            selectedHighlightIDs: $selectedHighlightIDs,
+            isEditing: isEditing,
+            isLoadingNextPage: isLoadingNextPage,
+            onLoadMore: onLoadMore,
+            onNavigateToQuote: onNavigateToQuote
+        )
+        (scrollView as? QuotesNativeTableScrollView)?.resizeQuoteColumn()
+    }
+
+    final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate {
+        static let quoteColumnIdentifier = NSUserInterfaceItemIdentifier("QuoteColumn")
+
+        private static let quoteCellIdentifier = NSUserInterfaceItemIdentifier("QuoteCell")
+        private static let loadingCellIdentifier = NSUserInterfaceItemIdentifier("LoadingCell")
+
+        weak var tableView: NSTableView?
+
+        private var rows: [QuotesListRowModel] = []
+        private var selectedHighlightIDs: Binding<Set<UUID>> = .constant([])
+        private var isEditing = false
+        private var isLoadingNextPage = false
+        private var onLoadMore: (UUID) -> Void = { _ in }
+        private var onNavigateToQuote: (UUID) -> Void = { _ in }
+        private var isSyncingSelection = false
+
+        func update(
+            rows: [QuotesListRowModel],
+            selectedHighlightIDs: Binding<Set<UUID>>,
+            isEditing: Bool,
+            isLoadingNextPage: Bool,
+            onLoadMore: @escaping (UUID) -> Void,
+            onNavigateToQuote: @escaping (UUID) -> Void
+        ) {
+            let shouldReload = self.rows != rows || self.isLoadingNextPage != isLoadingNextPage
+            let didChangeEditMode = self.isEditing != isEditing
+
+            self.rows = rows
+            self.selectedHighlightIDs = selectedHighlightIDs
+            self.isEditing = isEditing
+            self.isLoadingNextPage = isLoadingNextPage
+            self.onLoadMore = onLoadMore
+            self.onNavigateToQuote = onNavigateToQuote
+
+            guard let tableView else {
+                return
+            }
+
+            if didChangeEditMode {
+                tableView.allowsMultipleSelection = isEditing
+                tableView.allowsEmptySelection = true
+            }
+
+            if shouldReload {
+                tableView.reloadData()
+            }
+
+            syncSelection(to: tableView)
+        }
+
+        func numberOfRows(in tableView: NSTableView) -> Int {
+            rows.count + (isLoadingNextPage ? 1 : 0)
+        }
+
+        func tableView(
+            _ tableView: NSTableView,
+            viewFor tableColumn: NSTableColumn?,
+            row rowIndex: Int
+        ) -> NSView? {
+            if rowIndex >= rows.count {
+                return loadingView(for: tableView)
+            }
+
+            let row = rows[rowIndex]
+            onLoadMore(row.id)
+
+            let view = tableView.makeView(
+                withIdentifier: Self.quoteCellIdentifier,
+                owner: self
+            ) as? QuotesNativeTableCellView ?? QuotesNativeTableCellView()
+            view.identifier = Self.quoteCellIdentifier
+            view.configure(with: row)
+            return view
+        }
+
+        func tableViewSelectionDidChange(_ notification: Notification) {
+            guard !isSyncingSelection,
+                  let tableView = notification.object as? NSTableView else {
+                return
+            }
+
+            if isEditing {
+                selectedHighlightIDs.wrappedValue = Set(
+                    tableView.selectedRowIndexes.compactMap { rowIndex in
+                        guard rows.indices.contains(rowIndex) else {
+                            return nil
+                        }
+
+                        return rows[rowIndex].id
+                    }
+                )
+                return
+            }
+
+            let clickedRow = tableView.selectedRow
+            guard rows.indices.contains(clickedRow) else {
+                return
+            }
+
+            let highlightID = rows[clickedRow].id
+            deselectAll(in: tableView)
+            onNavigateToQuote(highlightID)
+        }
+
+        private func loadingView(for tableView: NSTableView) -> NSView {
+            if let reusedView = tableView.makeView(
+                withIdentifier: Self.loadingCellIdentifier,
+                owner: self
+            ) as? QuotesNativeLoadingCellView {
+                return reusedView
+            }
+
+            let view = QuotesNativeLoadingCellView()
+            view.identifier = Self.loadingCellIdentifier
+            return view
+        }
+
+        private func syncSelection(to tableView: NSTableView) {
+            isSyncingSelection = true
+            defer { isSyncingSelection = false }
+
+            guard isEditing else {
+                tableView.deselectAll(nil)
+                return
+            }
+
+            let selectedIndexes = IndexSet(
+                rows.enumerated().compactMap { index, row in
+                    selectedHighlightIDs.wrappedValue.contains(row.id) ? index : nil
+                }
+            )
+            guard selectedIndexes != tableView.selectedRowIndexes else {
+                return
+            }
+
+            tableView.selectRowIndexes(selectedIndexes, byExtendingSelection: false)
+        }
+
+        private func deselectAll(in tableView: NSTableView) {
+            isSyncingSelection = true
+            tableView.deselectAll(nil)
+            isSyncingSelection = false
+        }
+    }
+}
+
+private final class QuotesNativeTableScrollView: NSScrollView {
+    weak var tableView: NSTableView?
+
+    override func layout() {
+        super.layout()
+        resizeQuoteColumn()
+    }
+
+    func resizeQuoteColumn() {
+        guard let tableView,
+              let column = tableView.tableColumns.first else {
+            return
+        }
+
+        column.width = contentSize.width
+    }
+}
+
+private final class QuotesNativeTableCellView: NSTableCellView {
+    private let previewTextField = NSTextField(labelWithString: "")
+    private let bookTitleTextField = NSTextField(labelWithString: "")
+    private let separatorTextField = NSTextField(labelWithString: "•")
+    private let authorTextField = NSTextField(labelWithString: "")
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        buildView()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        buildView()
+    }
+
+    func configure(with row: QuotesListRowModel) {
+        previewTextField.stringValue = row.previewText
+        bookTitleTextField.stringValue = row.bookTitleText
+        authorTextField.stringValue = row.authorText
+        toolTip = "\(row.previewText)\n\(row.bookTitleText) • \(row.authorText)"
+    }
+
+    private func buildView() {
+        wantsLayer = true
+
+        previewTextField.font = .preferredFont(forTextStyle: .body)
+        previewTextField.lineBreakMode = .byTruncatingTail
+        previewTextField.maximumNumberOfLines = 2
+
+        bookTitleTextField.font = .preferredFont(forTextStyle: .callout)
+        bookTitleTextField.lineBreakMode = .byTruncatingTail
+        bookTitleTextField.maximumNumberOfLines = 1
+
+        separatorTextField.textColor = .tertiaryLabelColor
+
+        authorTextField.font = .preferredFont(forTextStyle: .callout)
+        authorTextField.textColor = .secondaryLabelColor
+        authorTextField.lineBreakMode = .byTruncatingTail
+        authorTextField.maximumNumberOfLines = 1
+
+        let metadataStack = NSStackView(views: [
+            bookTitleTextField,
+            separatorTextField,
+            authorTextField
+        ])
+        metadataStack.orientation = .horizontal
+        metadataStack.alignment = .firstBaseline
+        metadataStack.spacing = 6
+        metadataStack.distribution = .fill
+
+        let contentStack = NSStackView(views: [
+            previewTextField,
+            metadataStack
+        ])
+        contentStack.orientation = .vertical
+        contentStack.alignment = .leading
+        contentStack.spacing = 6
+        contentStack.translatesAutoresizingMaskIntoConstraints = false
+
+        addSubview(contentStack)
+
+        NSLayoutConstraint.activate([
+            contentStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            contentStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+            contentStack.centerYAnchor.constraint(equalTo: centerYAnchor),
+            previewTextField.trailingAnchor.constraint(equalTo: contentStack.trailingAnchor),
+            metadataStack.trailingAnchor.constraint(lessThanOrEqualTo: contentStack.trailingAnchor)
+        ])
+    }
+}
+
+private final class QuotesNativeLoadingCellView: NSTableCellView {
+    private let progressIndicator = NSProgressIndicator()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        buildView()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        buildView()
+    }
+
+    private func buildView() {
+        progressIndicator.style = .spinning
+        progressIndicator.controlSize = .small
+        progressIndicator.isIndeterminate = true
+        progressIndicator.startAnimation(nil)
+        progressIndicator.translatesAutoresizingMaskIntoConstraints = false
+
+        addSubview(progressIndicator)
+
+        NSLayoutConstraint.activate([
+            progressIndicator.centerXAnchor.constraint(equalTo: centerXAnchor),
+            progressIndicator.centerYAnchor.constraint(equalTo: centerYAnchor)
+        ])
+    }
+}
+
 private struct QuotesLibrarySearchField: NSViewRepresentable {
     let committedSearchText: String
     let placeholder: String
@@ -1453,13 +1785,16 @@ private struct QuotesListView: View {
 
     private let searchRefreshDebounceInterval: TimeInterval
     private let searchRefreshDebounceScheduler: DebouncedTaskScheduler
+    private let onNavigateToQuote: (UUID) -> Void
 
     init(
         searchRefreshDebounceInterval: TimeInterval = QuotesListView.searchRefreshDebounceInterval,
-        searchRefreshDebounceScheduler: DebouncedTaskScheduler = DebouncedTaskScheduler()
+        searchRefreshDebounceScheduler: DebouncedTaskScheduler = DebouncedTaskScheduler(),
+        onNavigateToQuote: @escaping (UUID) -> Void = { _ in }
     ) {
         self.searchRefreshDebounceInterval = searchRefreshDebounceInterval
         self.searchRefreshDebounceScheduler = searchRefreshDebounceScheduler
+        self.onNavigateToQuote = onNavigateToQuote
     }
 
     var body: some View {
@@ -1598,42 +1933,15 @@ private struct QuotesListView: View {
         }
     }
 
-    @ViewBuilder
     private func quotesList(displayedRows: [QuotesListRowModel]) -> some View {
-        if isEditingHighlights {
-            List(selection: $selectedHighlightIDs) {
-                ForEach(displayedRows) { row in
-                    QuotesListRowView(row: row)
-                        .equatable()
-                        .tag(row.id)
-                        .onAppear {
-                            loadMoreIfNeeded(currentHighlightID: row.id)
-                        }
-                }
-
-                if runtimeState.isLoadingNextPage {
-                    loadingMoreRow
-                }
-            }
-            .listStyle(.inset)
-        } else {
-            List {
-                ForEach(displayedRows) { row in
-                    NavigationLink(value: SettingsDestination.quoteDetail(row.id)) {
-                        QuotesListRowView(row: row)
-                            .equatable()
-                    }
-                    .onAppear {
-                        loadMoreIfNeeded(currentHighlightID: row.id)
-                    }
-                }
-
-                if runtimeState.isLoadingNextPage {
-                    loadingMoreRow
-                }
-            }
-            .listStyle(.inset)
-        }
+        QuotesNativeTableView(
+            rows: displayedRows,
+            selectedHighlightIDs: $selectedHighlightIDs,
+            isEditing: isEditingHighlights,
+            isLoadingNextPage: runtimeState.isLoadingNextPage,
+            onLoadMore: loadMoreIfNeeded(currentHighlightID:),
+            onNavigateToQuote: onNavigateToQuote
+        )
     }
 
     private var refreshOverlay: some View {
@@ -1847,17 +2155,6 @@ private struct QuotesListView: View {
 
     private var pendingBulkDeletePlanValue: BulkHighlightDeletionPlan {
         pendingBulkDeletePlan ?? BulkHighlightDeletionPlan(highlights: [])
-    }
-
-    private var loadingMoreRow: some View {
-        HStack {
-            Spacer()
-            ProgressView()
-            Spacer()
-        }
-        .padding(.vertical, 8)
-        .listRowSeparator(.hidden)
-        .allowsHitTesting(false)
     }
 
     private func refreshHighlights() {
