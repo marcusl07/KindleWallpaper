@@ -1383,11 +1383,35 @@ private enum QuotesListPagingPresentationModel {
 
 @MainActor
 private final class QuotesListRuntimeState: ObservableObject {
+    @Published private(set) var rowModels: [QuotesListRowModel] = []
+    @Published var renderObservationToken = UUID()
+
+    var highlights: [Highlight] = []
+    var totalMatchingHighlightCount = 0
+    var availableBookTitles: [String] = []
+    var availableAuthors: [String] = []
+    var isLoadingHighlights = false
+    var isLoadingNextPage = false
+    var hasMoreHighlights = false
+    var lastResolvedPrimaryContent: QuotesListPrimaryContent? = nil
+    var queryGeneration = 0
     var pendingSearchRefreshTask: Task<Void, Never>? = nil
     var refreshTask: Task<Void, Never>? = nil
     var loadMoreTask: Task<Void, Never>? = nil
     var pendingRefreshSignpostState: OSSignpostIntervalState? = nil
     var pendingRenderSignpostState: OSSignpostIntervalState? = nil
+
+    func replaceRows(with highlights: [Highlight]) {
+        rowModels = makeRowModels(from: highlights)
+    }
+
+    func appendRows(from uniqueNextPage: [Highlight]) {
+        rowModels.append(contentsOf: makeRowModels(from: uniqueNextPage))
+    }
+
+    private func makeRowModels(from highlights: [Highlight]) -> [QuotesListRowModel] {
+        highlights.map(QuotesListRowModel.init)
+    }
 }
 
 private struct QuotesListView: View {
@@ -1398,21 +1422,10 @@ private struct QuotesListView: View {
     @State private var effectiveSearchText = ""
     @State private var sortMode: QuotesListSortMode = .mostRecentlyAdded
     @State private var filters = QuotesListFilters()
-    @State private var highlights: [Highlight] = []
-    @State private var rowModels: [QuotesListRowModel] = []
-    @State private var totalMatchingHighlightCount = 0
-    @State private var availableBookTitles: [String] = []
-    @State private var availableAuthors: [String] = []
     @State private var selectedHighlightIDs: Set<UUID> = []
     @State private var pendingBulkDeletePlan: BulkHighlightDeletionPlan? = nil
     @State private var isEditingHighlights = false
     @State private var isPresentingAddQuote = false
-    @State private var isLoadingHighlights = false
-    @State private var isLoadingNextPage = false
-    @State private var hasMoreHighlights = false
-    @State private var lastResolvedPrimaryContent: QuotesListPrimaryContent? = nil
-    @State private var queryGeneration = 0
-    @State private var renderObservationToken = UUID()
     @State private var filterControlsViewportWidth: CGFloat = 0
     @State private var filterControlsContentWidth: CGFloat = 0
     @State private var filterControlsContentOffset: CGFloat = 0
@@ -1430,10 +1443,10 @@ private struct QuotesListView: View {
     }
 
     var body: some View {
-        let displayedRows = rowModels
+        let displayedRows = runtimeState.rowModels
         let contentPresentation = QuotesListContentPresentationModel.presentationState(
-            isLoadingHighlights: isLoadingHighlights,
-            lastResolvedPrimaryContent: lastResolvedPrimaryContent,
+            isLoadingHighlights: runtimeState.isLoadingHighlights,
+            lastResolvedPrimaryContent: runtimeState.lastResolvedPrimaryContent,
             totalHighlightCount: appState.totalHighlightCount,
             displayedRowCount: displayedRows.count
         )
@@ -1475,7 +1488,7 @@ private struct QuotesListView: View {
         .padding(20)
         .background(
             QuotesListRenderCompletionObserver(
-                token: renderObservationToken,
+                token: runtimeState.renderObservationToken,
                 displayedCount: displayedRows.count,
                 onRendered: completeRenderMeasurement
             )
@@ -1578,7 +1591,7 @@ private struct QuotesListView: View {
                         }
                 }
 
-                if isLoadingNextPage {
+                if runtimeState.isLoadingNextPage {
                     loadingMoreRow
                 }
             }
@@ -1595,7 +1608,7 @@ private struct QuotesListView: View {
                     }
                 }
 
-                if isLoadingNextPage {
+                if runtimeState.isLoadingNextPage {
                     loadingMoreRow
                 }
             }
@@ -1658,7 +1671,7 @@ private struct QuotesListView: View {
                                 Text("All Books")
                                     .tag(nil as String?)
 
-                                ForEach(availableBookTitles, id: \.self) { title in
+                                ForEach(runtimeState.availableBookTitles, id: \.self) { title in
                                     Text(title)
                                         .tag(title as String?)
                                 }
@@ -1669,7 +1682,7 @@ private struct QuotesListView: View {
                                 Text("All Authors")
                                     .tag(nil as String?)
 
-                                ForEach(availableAuthors, id: \.self) { author in
+                                ForEach(runtimeState.availableAuthors, id: \.self) { author in
                                     Text(author)
                                         .tag(author as String?)
                                 }
@@ -1771,7 +1784,7 @@ private struct QuotesListView: View {
     private func resultCountSummary(displayedCount: Int) -> String {
         QuotesBulkSelectionPresentationModel.resultCountSummary(
             displayedCount: displayedCount,
-            totalCount: totalMatchingHighlightCount,
+            totalCount: runtimeState.totalMatchingHighlightCount,
             hasActiveQuery: hasActiveQuery,
             isEditing: isEditingHighlights,
             selectedCount: selectedHighlightIDs.count
@@ -1779,7 +1792,7 @@ private struct QuotesListView: View {
     }
 
     private var shouldShowImportHeader: Bool {
-        isLoadingHighlights || appState.totalHighlightCount > 0 && !rowModels.isEmpty
+        runtimeState.isLoadingHighlights || appState.totalHighlightCount > 0 && !runtimeState.rowModels.isEmpty
     }
 
     private var hasActiveQuery: Bool {
@@ -1848,23 +1861,23 @@ private struct QuotesListView: View {
         cancelActiveQuotesTasks()
         cancelPendingMeasurements()
 
-        let currentGeneration = queryGeneration + 1
-        queryGeneration = currentGeneration
+        let currentGeneration = runtimeState.queryGeneration + 1
+        runtimeState.queryGeneration = currentGeneration
         let resetState = QuotesListPagingPresentationModel.refreshResetState(
             queryGeneration: currentGeneration,
-            preservingHighlights: highlights,
-            totalMatchingHighlightCount: totalMatchingHighlightCount,
-            availableBookTitles: availableBookTitles,
-            availableAuthors: availableAuthors,
+            preservingHighlights: runtimeState.highlights,
+            totalMatchingHighlightCount: runtimeState.totalMatchingHighlightCount,
+            availableBookTitles: runtimeState.availableBookTitles,
+            availableAuthors: runtimeState.availableAuthors,
             selectedHighlightIDs: selectedHighlightIDs
         )
-        isLoadingHighlights = resetState.isLoadingHighlights
-        isLoadingNextPage = resetState.isLoadingNextPage
-        hasMoreHighlights = resetState.hasMoreHighlights
-        highlights = resetState.highlights
-        totalMatchingHighlightCount = resetState.totalMatchingHighlightCount
-        availableBookTitles = resetState.availableBookTitles
-        availableAuthors = resetState.availableAuthors
+        runtimeState.isLoadingHighlights = resetState.isLoadingHighlights
+        runtimeState.isLoadingNextPage = resetState.isLoadingNextPage
+        runtimeState.hasMoreHighlights = resetState.hasMoreHighlights
+        runtimeState.highlights = resetState.highlights
+        runtimeState.totalMatchingHighlightCount = resetState.totalMatchingHighlightCount
+        runtimeState.availableBookTitles = resetState.availableBookTitles
+        runtimeState.availableAuthors = resetState.availableAuthors
         selectedHighlightIDs = resetState.selectedHighlightIDs
 
         runtimeState.pendingRefreshSignpostState = QuotesListPerformanceSignposts.beginRefresh(
@@ -1888,23 +1901,23 @@ private struct QuotesListView: View {
             guard !Task.isCancelled,
                   QuotesListRefreshPresentationModel.shouldAcceptAsyncResult(
                     capturedGeneration: currentGeneration,
-                    activeQueryGeneration: queryGeneration
+                    activeQueryGeneration: runtimeState.queryGeneration
                   ) else {
                 return
             }
 
-            highlights = pagePayload.highlights
-            rowModels = makeRowModels(from: pagePayload.highlights)
-            totalMatchingHighlightCount = pagePayload.totalMatchingHighlightCount
-            hasMoreHighlights = QuotesListPagingPresentationModel.hasMoreHighlights(
+            runtimeState.highlights = pagePayload.highlights
+            runtimeState.totalMatchingHighlightCount = pagePayload.totalMatchingHighlightCount
+            runtimeState.hasMoreHighlights = QuotesListPagingPresentationModel.hasMoreHighlights(
                 loadedCount: pagePayload.highlights.count,
                 totalMatchingHighlightCount: pagePayload.totalMatchingHighlightCount
             )
-            isLoadingHighlights = false
-            lastResolvedPrimaryContent = QuotesListContentPresentationModel.resolvedPrimaryContent(
+            runtimeState.isLoadingHighlights = false
+            runtimeState.lastResolvedPrimaryContent = QuotesListContentPresentationModel.resolvedPrimaryContent(
                 totalHighlightCount: appState.totalHighlightCount,
                 displayedRowCount: pagePayload.highlights.count
             )
+            runtimeState.replaceRows(with: pagePayload.highlights)
             reconcileSelectedHighlights()
             completeRefreshMeasurement(loadedCount: pagePayload.highlights.count)
 
@@ -1913,7 +1926,7 @@ private struct QuotesListView: View {
                 sortMode: currentSortMode,
                 totalCount: pagePayload.highlights.count
             )
-            renderObservationToken = UUID()
+            runtimeState.renderObservationToken = UUID()
 
             guard reloadsFilterOptions else {
                 runtimeState.refreshTask = nil
@@ -1928,13 +1941,13 @@ private struct QuotesListView: View {
             guard !Task.isCancelled,
                   QuotesListRefreshPresentationModel.shouldAcceptAsyncResult(
                     capturedGeneration: currentGeneration,
-                    activeQueryGeneration: queryGeneration
+                    activeQueryGeneration: runtimeState.queryGeneration
                   ) else {
                 return
             }
 
-            availableBookTitles = filterOptions.availableBookTitles
-            availableAuthors = filterOptions.availableAuthors
+            runtimeState.availableBookTitles = filterOptions.availableBookTitles
+            runtimeState.availableAuthors = filterOptions.availableAuthors
 
             guard reconcileFilters() == false else {
                 runtimeState.refreshTask = nil
@@ -1946,7 +1959,7 @@ private struct QuotesListView: View {
     }
 
     private func completeRenderMeasurement(token: UUID, displayedCount: Int) {
-        guard token == renderObservationToken,
+        guard token == runtimeState.renderObservationToken,
               let pendingRenderSignpostState = runtimeState.pendingRenderSignpostState else {
             return
         }
@@ -1997,13 +2010,13 @@ private struct QuotesListView: View {
         var didChange = false
 
         if let selectedBookTitle = filters.selectedBookTitle,
-           !availableBookTitles.contains(selectedBookTitle) {
+           !runtimeState.availableBookTitles.contains(selectedBookTitle) {
             filters.selectedBookTitle = nil
             didChange = true
         }
 
         if let selectedAuthor = filters.selectedAuthor,
-           !availableAuthors.contains(selectedAuthor) {
+           !runtimeState.availableAuthors.contains(selectedAuthor) {
             filters.selectedAuthor = nil
             didChange = true
         }
@@ -2014,12 +2027,12 @@ private struct QuotesListView: View {
     private func reconcileSelectedHighlights() {
         let reconciledSelection = QuotesBulkSelectionPresentationModel.reconciledSelection(
             selectedHighlightIDs,
-            validHighlightIDs: highlights.map(\.id)
+            validHighlightIDs: runtimeState.highlights.map(\.id)
         )
         selectedHighlightIDs = reconciledSelection
         pendingBulkDeletePlan = QuotesBulkSelectionPresentationModel.reconciledPendingDeletionPlan(
             pendingBulkDeletePlan,
-            validHighlightIDs: highlights.map(\.id)
+            validHighlightIDs: runtimeState.highlights.map(\.id)
         )
     }
 
@@ -2033,24 +2046,24 @@ private struct QuotesListView: View {
 
     private func loadMoreIfNeeded(currentHighlightID: UUID) {
         guard QuotesListPagingPresentationModel.shouldLoadMore(
-            highlights: highlights,
+            highlights: runtimeState.highlights,
             currentHighlightID: currentHighlightID,
-            hasMoreHighlights: hasMoreHighlights,
-            isLoadingHighlights: isLoadingHighlights,
-            isLoadingNextPage: isLoadingNextPage,
+            hasMoreHighlights: runtimeState.hasMoreHighlights,
+            isLoadingHighlights: runtimeState.isLoadingHighlights,
+            isLoadingNextPage: runtimeState.isLoadingNextPage,
             hasLoadMoreTask: runtimeState.loadMoreTask != nil
         ) else {
             return
         }
 
-        isLoadingNextPage = true
-        let currentGeneration = queryGeneration
+        runtimeState.isLoadingNextPage = true
+        let currentGeneration = runtimeState.queryGeneration
         let currentSearchText = QuotesListSearchPresentationModel.pagingSearchText(
             effectiveSearchText: effectiveSearchText
         )
         let currentFilters = filters
         let currentSortMode = sortMode
-        let currentOffset = highlights.count
+        let currentOffset = runtimeState.highlights.count
         let quotesQueryService = appState.quotesQueryService
 
         runtimeState.loadMoreTask = Task {
@@ -2062,21 +2075,21 @@ private struct QuotesListView: View {
                 offset: currentOffset
             )
 
-            guard !Task.isCancelled, currentGeneration == queryGeneration else {
+            guard !Task.isCancelled, currentGeneration == runtimeState.queryGeneration else {
                 return
             }
 
             let appendResult = QuotesListPagingPresentationModel.appendPage(
-                existingHighlights: highlights,
+                existingHighlights: runtimeState.highlights,
                 nextPage: nextPage,
-                totalMatchingHighlightCount: totalMatchingHighlightCount
+                totalMatchingHighlightCount: runtimeState.totalMatchingHighlightCount
             )
-            let existingHighlightIDs = Set(highlights.map(\.id))
+            let existingHighlightIDs = Set(runtimeState.highlights.map(\.id))
             let uniqueNextPage = nextPage.filter { !existingHighlightIDs.contains($0.id) }
-            highlights = appendResult.highlights
-            rowModels.append(contentsOf: makeRowModels(from: uniqueNextPage))
-            hasMoreHighlights = appendResult.hasMoreHighlights
-            isLoadingNextPage = false
+            runtimeState.highlights = appendResult.highlights
+            runtimeState.appendRows(from: uniqueNextPage)
+            runtimeState.hasMoreHighlights = appendResult.hasMoreHighlights
+            runtimeState.isLoadingNextPage = false
             runtimeState.loadMoreTask = nil
             reconcileSelectedHighlights()
         }
@@ -2087,8 +2100,8 @@ private struct QuotesListView: View {
         runtimeState.refreshTask = nil
         runtimeState.loadMoreTask?.cancel()
         runtimeState.loadMoreTask = nil
-        isLoadingHighlights = false
-        isLoadingNextPage = false
+        runtimeState.isLoadingHighlights = false
+        runtimeState.isLoadingNextPage = false
     }
 
     private func cancelQuotesLoading() {
@@ -2127,7 +2140,7 @@ private struct QuotesListView: View {
 
     private func deleteSelectedHighlights() {
         let highlightIDsToDelete = QuotesBulkSelectionPresentationModel.bulkDeleteHighlightIDs(
-            from: highlights,
+            from: runtimeState.highlights,
             selectedHighlightIDs: selectedHighlightIDs
         )
         guard !highlightIDsToDelete.isEmpty else {
@@ -2152,10 +2165,6 @@ private struct QuotesListView: View {
         appState.deleteHighlights(using: plan)
         pendingBulkDeletePlan = nil
         selectedHighlightIDs.removeAll()
-    }
-
-    private func makeRowModels(from highlights: [Highlight]) -> [QuotesListRowModel] {
-        highlights.map(QuotesListRowModel.init)
     }
 }
 
