@@ -823,3 +823,7 @@ Add SQLite FTS5 search index, triggers, and MATCH queries for highlight text, bo
 **T141-a — Implement sync banner notifications**
 Implement macOS banner notifications that alert the user when a Kindle highlight sync finishes. This uses UNUserNotificationCenter to request permissions on launch and posts banners for success/warning/error outcomes.
 
+
+**T143-a — Fix Library view sizing and edges cropping**
+Adjust settings window size and minimum width constraint in App/KindleWallApp.swift, and apply minimum width frame size on LibraryView in App/LibraryView.swift to prevent the view from getting cropped and the sidebar from overlapping.
+

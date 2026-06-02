@@ -48,6 +48,7 @@ struct LibraryView: View {
             }
         }
         .navigationSplitViewStyle(.balanced)
+        .frame(minWidth: 1000, idealWidth: 1024, maxWidth: .infinity, minHeight: 600, idealHeight: 750, maxHeight: .infinity)
     }
 }
 
