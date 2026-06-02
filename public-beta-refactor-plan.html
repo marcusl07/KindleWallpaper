@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>KindleWall Public Beta Refactor Plan</title>
+  <title>Leaf Public Beta Refactor Plan</title>
   <style>
     :root {
       color-scheme: light;
@@ -167,20 +167,21 @@
 </head>
 <body>
 <main>
-  <h1>KindleWall Public Beta Refactor Plan</h1>
-  <p class="meta">Planning artifact for <code>/Users/marcuslo/Documents/1_Projects/KindleWallpaper</code>. Source review: <code>launch-technical-review.html</code>.</p>
+  <h1>Leaf Public Beta Refactor Plan</h1>
+  <p class="meta">Planning artifact for the current app repository. Source review: <code>launch-technical-review.html</code>.</p>
 
   <section class="summary">
     <h2 style="border:0; padding:0; margin:0 0 8px;">Goal</h2>
-    <p>Prepare KindleWall for a public macOS validation beta while preserving current user-facing behavior. The refactor should make the app easier for future LLM agents and maintainers to change safely: smaller files, clearer ownership, fewer historical paths, one reliable verification entrypoint, and no shipping helper architecture.</p>
+    <p>Prepare Leaf for a public macOS validation beta while preserving current user-facing behavior. The refactor should make the app easier for future LLM agents and maintainers to change safely: smaller files, clearer ownership, fewer historical paths, one reliable verification entrypoint, and no shipping helper architecture.</p>
     <p>This is not an App Store launch plan. It is a public beta plan for posting the app around, learning whether people use it, and avoiding premature paid distribution work.</p>
   </section>
 
   <h2>Decisions</h2>
   <section class="decision-grid" aria-label="Architecture decisions">
     <div class="decision"><strong>Platform</strong>Public macOS app beta. Not iOS.</div>
+    <div class="decision"><strong>Product name</strong>The app is named Leaf moving forward. User-facing copy, docs, release material, and newly touched source names should stop using the old brand.</div>
     <div class="decision"><strong>Distribution</strong>Direct/GitHub beta distribution. App Store, notarization, and paid signing are deferred until demand is proven.</div>
-    <div class="decision"><strong>Product promise</strong>Set-and-forget menu bar utility. KindleWall must be running to rotate or restore wallpaper; launch at login starts the main app automatically.</div>
+    <div class="decision"><strong>Product promise</strong>Set-and-forget menu bar utility. Leaf must be running to rotate or restore wallpaper; launch at login starts the main app automatically.</div>
     <div class="decision"><strong>No helper</strong>Delete <code>DisplayHelper</code> from shipping source and build graph. Do not archive helper source in the repo; git history is enough.</div>
     <div class="decision"><strong>Behavior</strong>Preserve current user-facing functionality during structural refactors, except for removing helper-only paths.</div>
     <div class="decision"><strong>Storage</strong>Local-only SQLite/GRDB. No accounts, sync, or cloud model in the beta plan.</div>
@@ -196,6 +197,7 @@
     <li>Prefer boring, feature-named files over clever abstractions.</li>
     <li>Keep <code>DatabaseManager</code> as a facade during the first database split to reduce blast radius.</li>
     <li>Use responsibility boundaries over strict line-count targets, but large files need a strong reason to stay large.</li>
+    <li>Do not impose a final folder taxonomy before the splits. Prefer clear file names and local placement first; after the major splits, run a dedicated organization pass around boundaries that proved real.</li>
   </ul>
 
   <h2>Phased Plan</h2>
@@ -267,7 +269,7 @@
       <li>Extract wallpaper rotation/restoration into <code>WallpaperRotationService</code> and display-specific code into a main-app-only display subsystem.</li>
       <li>Extract library mutations into <code>LibraryService</code> if the database facade still leaves too much UI-facing orchestration in <code>AppState</code>.</li>
       <li>Keep launch-at-login as a main-app service only.</li>
-      <li>Split <code>KindleWallApp.swift</code> into app entry, app delegate, status item controller, settings window coordinator, and lifecycle test support.</li>
+      <li>Split the current app entry file into app entry, app delegate, status item controller, settings window coordinator, and lifecycle test support. Rename source files away from the old brand when doing so.</li>
     </ul>
     <p><strong>Verification:</strong> launch, menu bar actions, settings window behavior, schedule modes, manual rotation, launch-at-login toggling, and wallpaper restoration smoke tests pass.</p>
     <p><strong>Commit boundary:</strong> app state/lifecycle split with behavior preserved.</p>
