@@ -1087,10 +1087,11 @@ private struct QuotesListRowView: View, Equatable {
 private struct QuotesNativeTableView: NSViewRepresentable {
     let rows: [QuotesListRowModel]
     @Binding var selectedHighlightIDs: Set<UUID>
-    let isEditing: Bool
     let isLoadingNextPage: Bool
     let onLoadMore: (UUID) -> Void
     let onNavigateToQuote: (UUID) -> Void
+    let onSetWallpaper: (UUID) -> Void
+    let onDeleteQuotes: ([UUID]) -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -1116,6 +1117,8 @@ private struct QuotesNativeTableView: NSViewRepresentable {
         tableView.allowsColumnReordering = false
         tableView.allowsColumnResizing = false
         tableView.allowsColumnSelection = false
+        tableView.allowsMultipleSelection = true
+        tableView.allowsEmptySelection = true
         tableView.dataSource = context.coordinator
         tableView.delegate = context.coordinator
         tableView.target = context.coordinator
@@ -1123,6 +1126,13 @@ private struct QuotesNativeTableView: NSViewRepresentable {
         tableView.onReturnPressed = { [weak coordinator = context.coordinator] in
             coordinator?.triggerDefaultAction()
         }
+        tableView.onDeletePressed = { [weak coordinator = context.coordinator] in
+            coordinator?.triggerDeleteAction()
+        }
+
+        let menu = NSMenu()
+        menu.delegate = context.coordinator
+        tableView.menu = menu
 
         let column = NSTableColumn(identifier: Coordinator.quoteColumnIdentifier)
         column.resizingMask = .autoresizingMask
@@ -1134,10 +1144,11 @@ private struct QuotesNativeTableView: NSViewRepresentable {
         context.coordinator.update(
             rows: rows,
             selectedHighlightIDs: $selectedHighlightIDs,
-            isEditing: isEditing,
             isLoadingNextPage: isLoadingNextPage,
             onLoadMore: onLoadMore,
-            onNavigateToQuote: onNavigateToQuote
+            onNavigateToQuote: onNavigateToQuote,
+            onSetWallpaper: onSetWallpaper,
+            onDeleteQuotes: onDeleteQuotes
         )
         return scrollView
     }
@@ -1146,15 +1157,16 @@ private struct QuotesNativeTableView: NSViewRepresentable {
         context.coordinator.update(
             rows: rows,
             selectedHighlightIDs: $selectedHighlightIDs,
-            isEditing: isEditing,
             isLoadingNextPage: isLoadingNextPage,
             onLoadMore: onLoadMore,
-            onNavigateToQuote: onNavigateToQuote
+            onNavigateToQuote: onNavigateToQuote,
+            onSetWallpaper: onSetWallpaper,
+            onDeleteQuotes: onDeleteQuotes
         )
         (scrollView as? QuotesNativeTableScrollView)?.resizeQuoteColumn()
     }
 
-    final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate {
+    final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate, NSMenuDelegate {
         static let quoteColumnIdentifier = NSUserInterfaceItemIdentifier("QuoteColumn")
 
         private static let quoteCellIdentifier = NSUserInterfaceItemIdentifier("QuoteCell")
@@ -1164,37 +1176,34 @@ private struct QuotesNativeTableView: NSViewRepresentable {
 
         private var rows: [QuotesListRowModel] = []
         private var selectedHighlightIDs: Binding<Set<UUID>> = .constant([])
-        private var isEditing = false
         private var isLoadingNextPage = false
         private var onLoadMore: (UUID) -> Void = { _ in }
         private var onNavigateToQuote: (UUID) -> Void = { _ in }
+        private var onSetWallpaper: (UUID) -> Void = { _ in }
+        private var onDeleteQuotes: ([UUID]) -> Void = { _ in }
         private var isSyncingSelection = false
 
         func update(
             rows: [QuotesListRowModel],
             selectedHighlightIDs: Binding<Set<UUID>>,
-            isEditing: Bool,
             isLoadingNextPage: Bool,
             onLoadMore: @escaping (UUID) -> Void,
-            onNavigateToQuote: @escaping (UUID) -> Void
+            onNavigateToQuote: @escaping (UUID) -> Void,
+            onSetWallpaper: @escaping (UUID) -> Void,
+            onDeleteQuotes: @escaping ([UUID]) -> Void
         ) {
             let shouldReload = self.rows != rows || self.isLoadingNextPage != isLoadingNextPage
-            let didChangeEditMode = self.isEditing != isEditing
 
             self.rows = rows
             self.selectedHighlightIDs = selectedHighlightIDs
-            self.isEditing = isEditing
             self.isLoadingNextPage = isLoadingNextPage
             self.onLoadMore = onLoadMore
             self.onNavigateToQuote = onNavigateToQuote
+            self.onSetWallpaper = onSetWallpaper
+            self.onDeleteQuotes = onDeleteQuotes
 
             guard let tableView else {
                 return
-            }
-
-            if didChangeEditMode {
-                tableView.allowsMultipleSelection = isEditing
-                tableView.allowsEmptySelection = true
             }
 
             if shouldReload {
@@ -1234,7 +1243,6 @@ private struct QuotesNativeTableView: NSViewRepresentable {
         }
 
         func triggerDefaultAction() {
-            guard !isEditing else { return }
             guard let tableView else { return }
             let selectedRow = tableView.selectedRow
             guard rows.indices.contains(selectedRow) else {
@@ -1250,18 +1258,15 @@ private struct QuotesNativeTableView: NSViewRepresentable {
                 return
             }
 
-            if isEditing {
-                selectedHighlightIDs.wrappedValue = Set(
-                    tableView.selectedRowIndexes.compactMap { rowIndex in
-                        guard rows.indices.contains(rowIndex) else {
-                            return nil
-                        }
-
-                        return rows[rowIndex].id
+            selectedHighlightIDs.wrappedValue = Set(
+                tableView.selectedRowIndexes.compactMap { rowIndex in
+                    guard rows.indices.contains(rowIndex) else {
+                        return nil
                     }
-                )
-                return
-            }
+
+                    return rows[rowIndex].id
+                }
+            )
         }
 
         private func loadingView(for tableView: NSTableView) -> NSView {
@@ -1281,11 +1286,6 @@ private struct QuotesNativeTableView: NSViewRepresentable {
             isSyncingSelection = true
             defer { isSyncingSelection = false }
 
-            guard isEditing else {
-                tableView.deselectAll(nil)
-                return
-            }
-
             let selectedIndexes = IndexSet(
                 rows.enumerated().compactMap { index, row in
                     selectedHighlightIDs.wrappedValue.contains(row.id) ? index : nil
@@ -1302,6 +1302,83 @@ private struct QuotesNativeTableView: NSViewRepresentable {
             isSyncingSelection = true
             tableView.deselectAll(nil)
             isSyncingSelection = false
+        }
+
+        func triggerDeleteAction() {
+            guard let tableView else { return }
+            let selectedRowIndexes = tableView.selectedRowIndexes
+            let ids = selectedRowIndexes.compactMap { index -> UUID? in
+                rows.indices.contains(index) ? rows[index].id : nil
+            }
+            guard !ids.isEmpty else { return }
+            onDeleteQuotes(ids)
+        }
+
+        // MARK: - NSMenuDelegate
+
+        func menuNeedsUpdate(_ menu: NSMenu) {
+            menu.removeAllItems()
+
+            guard let tableView else { return }
+            let clickedRow = tableView.clickedRow
+
+            if clickedRow >= 0 && !tableView.selectedRowIndexes.contains(clickedRow) {
+                tableView.selectRowIndexes(IndexSet(integer: clickedRow), byExtendingSelection: false)
+            }
+
+            let selectedRowIndexes = tableView.selectedRowIndexes
+            guard !selectedRowIndexes.isEmpty else { return }
+
+            if selectedRowIndexes.count == 1 {
+                let viewItem = NSMenuItem(title: "View Details", action: #selector(viewQuoteDetailsClicked), keyEquivalent: "")
+                viewItem.target = self
+                menu.addItem(viewItem)
+
+                let setWallpaperItem = NSMenuItem(title: "Set as Wallpaper", action: #selector(setWallpaperClicked), keyEquivalent: "")
+                setWallpaperItem.target = self
+                menu.addItem(setWallpaperItem)
+
+                menu.addItem(.separator())
+            }
+
+            let deleteTitle = selectedRowIndexes.count == 1 ? "Delete Quote..." : "Delete Selected Quotes..."
+            let deleteItem = NSMenuItem(title: deleteTitle, action: #selector(deleteQuotesClicked), keyEquivalent: "")
+            deleteItem.target = self
+            menu.addItem(deleteItem)
+
+            menu.addItem(.separator())
+
+            let copyItem = NSMenuItem(title: "Copy Quote", action: #selector(copyQuoteClicked), keyEquivalent: "")
+            copyItem.target = self
+            menu.addItem(copyItem)
+        }
+
+        @objc func viewQuoteDetailsClicked(_ sender: Any) {
+            guard let tableView else { return }
+            let row = tableView.selectedRow
+            guard rows.indices.contains(row) else { return }
+            onNavigateToQuote(rows[row].id)
+        }
+
+        @objc func setWallpaperClicked(_ sender: Any) {
+            guard let tableView else { return }
+            let row = tableView.selectedRow
+            guard rows.indices.contains(row) else { return }
+            onSetWallpaper(rows[row].id)
+        }
+
+        @objc func deleteQuotesClicked(_ sender: Any) {
+            triggerDeleteAction()
+        }
+
+        @objc func copyQuoteClicked(_ sender: Any) {
+            guard let tableView else { return }
+            let row = tableView.selectedRow
+            guard rows.indices.contains(row) else { return }
+            let quoteText = rows[row].highlight.quoteText
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(quoteText, forType: .string)
         }
     }
 }
@@ -1326,10 +1403,15 @@ private final class QuotesNativeTableScrollView: NSScrollView {
 
 private final class QuotesNativeTableViewControl: NSTableView {
     var onReturnPressed: (() -> Void)?
+    var onDeletePressed: (() -> Void)?
 
     override func keyDown(with event: NSEvent) {
         if event.keyCode == 36 || event.keyCode == 76 { // Return or Enter key code
             onReturnPressed?()
+            return
+        }
+        if event.keyCode == 51 || event.keyCode == 117 { // Delete or Forward Delete key code
+            onDeletePressed?()
             return
         }
         super.keyDown(with: event)
@@ -1848,6 +1930,7 @@ private struct QuotesListView: View {
                 filterControlsContentWidth: $filterControlsContentWidth,
                 filterControlsContentOffset: $filterControlsContentOffset,
                 onSearchTextChanged: scheduleSearchRefresh(rawSearchText:)
+                // onTextChanged: scheduleSearchRefresh(rawSearchText:)
             )
 
             Group {
@@ -1892,15 +1975,8 @@ private struct QuotesListView: View {
                 Button(role: .destructive, action: deleteSelectedHighlights) {
                     Label("Delete Selected", systemImage: "trash")
                 }
-                .disabled(QuotesBulkSelectionPresentationModel.bulkDeleteButtonDisabled(
-                    isEditing: isEditingHighlights,
-                    selectedHighlightIDs: selectedHighlightIDs
-                ))
-                .help(deleteSelectedHelpText)
-
-                Button(isEditingHighlights ? "Done" : "Edit") {
-                    toggleHighlightsEditMode()
-                }
+                .disabled(selectedHighlightIDs.isEmpty)
+                .help("Delete Selected Quotes")
 
                 Button {
                     isPresentingAddQuote = true
@@ -1908,7 +1984,6 @@ private struct QuotesListView: View {
                     Image(systemName: "plus")
                 }
                 .help("Add Quote")
-                .disabled(isEditingHighlights)
             }
         }
         .sheet(isPresented: $isPresentingAddQuote) {
@@ -1969,13 +2044,24 @@ private struct QuotesListView: View {
     }
 
     private func quotesList(displayedRows: [QuotesListRowModel]) -> some View {
+        // List(selection: $selectedHighlightIDs)
         QuotesNativeTableView(
             rows: displayedRows,
             selectedHighlightIDs: $selectedHighlightIDs,
-            isEditing: isEditingHighlights,
             isLoadingNextPage: runtimeState.isLoadingNextPage,
             onLoadMore: loadMoreIfNeeded(currentHighlightID:),
-            onNavigateToQuote: onNavigateToQuote
+            onNavigateToQuote: onNavigateToQuote,
+            onSetWallpaper: { quoteID in
+                if let highlight = appState.loadHighlight(id: quoteID) {
+                    _ = appState.requestWallpaperRotation(forcedHighlight: highlight)
+                }
+            },
+            onDeleteQuotes: { ids in
+                let plan = appState.prepareBulkHighlightDeletion(highlightIDs: ids)
+                if !plan.isEmpty {
+                    pendingBulkDeletePlan = plan
+                }
+            }
         )
     }
 
@@ -2063,6 +2149,7 @@ private struct QuotesListView: View {
         cancelPendingMeasurements()
 
         let currentGeneration = runtimeState.queryGeneration + 1
+        // let currentGeneration = queryGeneration + 1
         runtimeState.queryGeneration = currentGeneration
         if reason == .searchChanged {
             runtimeState.clearRows()
@@ -2608,7 +2695,7 @@ private enum QuotesBulkSelectionPresentationModel {
             hasActiveQuery: hasActiveQuery
         )
 
-        guard isEditing else {
+        guard isEditing || selectedCount > 0 else {
             return displayedSummary
         }
 
@@ -3878,68 +3965,42 @@ struct BooksListView: View {
                 .font(.title2.bold())
 
             HStack(spacing: 12) {
-                Button("Select All") {
-                    if isEditingBooks {
-                        selectedBookIDs = Set(appState.books.map(\.id))
-                    } else {
-                        appState.setAllBooksEnabled(true)
-                    }
+                Button("Enable All") {
+                    appState.setAllBooksEnabled(true)
                 }
                 .disabled(
-                    isEditingBooks ? (appState.books.isEmpty || selectedBookIDs.count == appState.books.count) : (
-                        appState.isBookMutationInFlight ||
-                        appState.books.isEmpty ||
-                        appState.books.allSatisfy(\.isEnabled)
-                    )
+                    appState.isBookMutationInFlight ||
+                    appState.books.isEmpty ||
+                    appState.books.allSatisfy(\.isEnabled)
                 )
 
-                Button("Deselect All") {
-                    if isEditingBooks {
-                        selectedBookIDs.removeAll()
-                    } else {
-                        appState.setAllBooksEnabled(false)
-                    }
+                Button("Disable All") {
+                    appState.setAllBooksEnabled(false)
                 }
                 .disabled(
-                    isEditingBooks ? selectedBookIDs.isEmpty : (
-                        appState.isBookMutationInFlight ||
-                        appState.books.isEmpty ||
-                        appState.books.allSatisfy { !$0.isEnabled }
-                    )
+                    appState.isBookMutationInFlight ||
+                    appState.books.isEmpty ||
+                    appState.books.allSatisfy { !$0.isEnabled }
                 )
 
                 Spacer(minLength: 12)
             }
 
-            Group {
-                if isEditingBooks {
-                    List(selection: $selectedBookIDs) {
-                        if appState.books.isEmpty {
-                            Text("No books imported yet.")
-                                .foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        } else {
-                            ForEach(appState.books) { book in
-                                bookSelectionRow(book)
-                                    .tag(book.id)
-                            }
-                        }
-                    }
-                    .listStyle(.inset)
+            List(selection: $selectedBookIDs) {
+                if appState.books.isEmpty {
+                    Text("No books imported yet.")
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
-                    List {
-                        if appState.books.isEmpty {
-                            Text("No books imported yet.")
-                                .foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        } else {
-                            ForEach(appState.books) { book in
-                                bookToggleRow(book)
-                            }
-                        }
+                    ForEach(appState.books) { book in
+                        bookToggleRow(book)
+                            .tag(book.id)
                     }
-                    .listStyle(.inset)
                 }
+            }
+            .listStyle(.inset)
+            .onDeleteCommand {
+                deleteSelectedBooks()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -3953,20 +4014,11 @@ struct BooksListView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                if isEditingBooks {
-                    Button(role: .destructive, action: deleteSelectedBooks) {
-                        Label("Delete Selected", systemImage: "trash")
-                    }
-                    .disabled(BooksBulkSelectionPresentationModel.bulkDeleteButtonDisabled(
-                        isEditing: isEditingBooks,
-                        selectedBookIDs: selectedBookIDs
-                    ))
-                    .help(deleteSelectedHelpText)
+                Button(role: .destructive, action: deleteSelectedBooks) {
+                    Label("Delete Selected", systemImage: "trash")
                 }
-
-                Button(isEditingBooks ? "Done" : "Edit") {
-                    toggleBooksEditMode()
-                }
+                .disabled(selectedBookIDs.isEmpty)
+                .help("Delete Selected Books")
             }
         }
         .onReceive(appState.$books) { _ in
@@ -3995,18 +4047,6 @@ struct BooksListView: View {
 
     private var allBooksDeselectedWarningVisible: Bool {
         !appState.books.isEmpty && appState.books.allSatisfy { !$0.isEnabled }
-    }
-
-    private var deleteSelectedHelpText: String {
-        if !isEditingBooks {
-            return "Enter Edit Mode to Delete Books"
-        }
-
-        if selectedBookIDs.isEmpty {
-            return "Select Books to Delete"
-        }
-
-        return "Delete Selected Books"
     }
 
     private var pendingBulkBookDeletionPlanValue: BulkBookDeletionPlan {
@@ -4042,26 +4082,6 @@ struct BooksListView: View {
         }
     }
 
-    private func bookSelectionRow(_ book: Book) -> some View {
-        HStack(alignment: .center, spacing: 8) {
-            Toggle("", isOn: Binding(
-                get: { selectedBookIDs.contains(book.id) },
-                set: { isSelected in
-                    if isSelected {
-                        selectedBookIDs.insert(book.id)
-                    } else {
-                        selectedBookIDs.remove(book.id)
-                    }
-                }
-            ))
-            .toggleStyle(.checkbox)
-            .labelsHidden()
-            
-            bookRowContent(book)
-        }
-        .padding(.vertical, 4)
-    }
-
     private func bookRowContent(_ book: Book) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(book.title)
@@ -4086,14 +4106,6 @@ struct BooksListView: View {
             pendingBulkBookDeletionPlan,
             validBookIDs: appState.books.map(\.id)
         )
-    }
-
-    private func toggleBooksEditMode() {
-        isEditingBooks.toggle()
-
-        if !isEditingBooks {
-            selectedBookIDs.removeAll()
-        }
     }
 
     private func deleteSelectedBooks() {
@@ -4160,7 +4172,7 @@ private enum BooksBulkSelectionPresentationModel {
         isEditing: Bool,
         selectedBookIDs: Set<UUID>
     ) -> Bool {
-        !isEditing || selectedBookIDs.isEmpty
+        selectedBookIDs.isEmpty
     }
 
     static func reconciledPendingDeletionPlan(
