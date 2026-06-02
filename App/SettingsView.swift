@@ -4297,11 +4297,11 @@ struct BackgroundsListView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color.black.opacity(0.04))
+                .fill(Color(NSColor.controlBackgroundColor))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.black.opacity(0.10), style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
+                .stroke(Color(NSColor.separatorColor), style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
         )
     }
 
@@ -4323,11 +4323,11 @@ struct BackgroundsListView: View {
         .padding(8)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(Color.black.opacity(0.03))
+                .fill(Color(NSColor.controlBackgroundColor))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 10)
-                .stroke(isSelected ? Color.accentColor : Color.black.opacity(0.12), lineWidth: isSelected ? 2 : 1)
+                .stroke(isSelected ? Color.accentColor : Color(NSColor.separatorColor), lineWidth: isSelected ? 2 : 1)
         )
         .overlay(alignment: .topTrailing) {
             if isSelected {
@@ -4363,7 +4363,7 @@ struct BackgroundsListView: View {
 
     private var fallbackPreview: some View {
         RoundedRectangle(cornerRadius: 8)
-            .fill(Color.black)
+            .fill(Color(NSColor.controlBackgroundColor))
             .overlay(
                 Image(systemName: "photo")
                     .foregroundStyle(.secondary)
