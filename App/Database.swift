@@ -140,6 +140,43 @@ enum DatabaseManager {
     );
     """
 
+    private static let createHighlightsFTSTableSQL = """
+    CREATE VIRTUAL TABLE IF NOT EXISTS highlights_fts USING fts5(
+        quoteText,
+        bookTitle,
+        author,
+        content='highlights'
+    );
+    """
+
+    private static let populateHighlightsFTSSQL = """
+    INSERT INTO highlights_fts(rowid, quoteText, bookTitle, author)
+    SELECT rowid, quoteText, bookTitle, author FROM highlights;
+    """
+
+    private static let createHighlightsFTSInsertTriggerSQL = """
+    CREATE TRIGGER IF NOT EXISTS highlights_ai AFTER INSERT ON highlights BEGIN
+        INSERT INTO highlights_fts(rowid, quoteText, bookTitle, author)
+        VALUES (new.rowid, new.quoteText, new.bookTitle, new.author);
+    END;
+    """
+
+    private static let createHighlightsFTSDeleteTriggerSQL = """
+    CREATE TRIGGER IF NOT EXISTS highlights_ad AFTER DELETE ON highlights BEGIN
+        INSERT INTO highlights_fts(highlights_fts, rowid, quoteText, bookTitle, author)
+        VALUES ('delete', old.rowid, old.quoteText, old.bookTitle, old.author);
+    END;
+    """
+
+    private static let createHighlightsFTSUpdateTriggerSQL = """
+    CREATE TRIGGER IF NOT EXISTS highlights_au AFTER UPDATE ON highlights BEGIN
+        INSERT INTO highlights_fts(highlights_fts, rowid, quoteText, bookTitle, author)
+        VALUES ('delete', old.rowid, old.quoteText, old.bookTitle, old.author);
+        INSERT INTO highlights_fts(rowid, quoteText, bookTitle, author)
+        VALUES (new.rowid, new.quoteText, new.bookTitle, new.author);
+    END;
+    """
+
     private static let activeHighlightsPredicateSQL = """
     (bookId IS NULL OR bookId IN (SELECT id FROM books WHERE isEnabled = 1))
       AND isEnabled = 1
@@ -268,6 +305,14 @@ enum DatabaseManager {
 
         migrator.registerMigration("addHighlightMostRecentNonNullSortIndex") { database in
             try database.execute(sql: createHighlightsMostRecentNonNullSortIndexSQL)
+        }
+
+        migrator.registerMigration("addHighlightsFTS") { database in
+            try database.execute(sql: createHighlightsFTSTableSQL)
+            try database.execute(sql: populateHighlightsFTSSQL)
+            try database.execute(sql: createHighlightsFTSInsertTriggerSQL)
+            try database.execute(sql: createHighlightsFTSDeleteTriggerSQL)
+            try database.execute(sql: createHighlightsFTSUpdateTriggerSQL)
         }
 
         return migrator
@@ -1338,17 +1383,9 @@ enum DatabaseManager {
             conditions.append("bookId IN (SELECT id FROM books WHERE isEnabled = 0)")
         }
 
-        if let searchPattern = normalizedSearchPattern(for: searchText) {
-            conditions.append(
-                """
-                (
-                    quoteText LIKE ? COLLATE NOCASE
-                    OR bookTitle LIKE ? COLLATE NOCASE
-                    OR author LIKE ? COLLATE NOCASE
-                )
-                """
-            )
-            arguments += [searchPattern, searchPattern, searchPattern]
+        if let ftsQuery = normalizedFTSSearchQuery(for: searchText) {
+            conditions.append("highlights.rowid IN (SELECT rowid FROM highlights_fts WHERE highlights_fts MATCH ?)")
+            arguments += [ftsQuery]
         }
 
         let whereClause: String
@@ -1373,12 +1410,22 @@ enum DatabaseManager {
         return trimmedValue.isEmpty ? nil : trimmedValue
     }
 
-    private static func normalizedSearchPattern(for rawValue: String) -> String? {
+    private static func normalizedFTSSearchQuery(for rawValue: String) -> String? {
         let trimmedValue = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedValue.isEmpty else {
             return nil
         }
-        return "%\(trimmedValue)%"
+        
+        let words = trimmedValue.components(separatedBy: .whitespacesAndNewlines)
+            .map { $0.replacingOccurrences(of: "\"", with: "") }
+            .filter { !$0.isEmpty }
+            
+        guard !words.isEmpty else {
+            return nil
+        }
+        
+        let queryParts = words.map { "\"\($0)\"*" }
+        return queryParts.joined(separator: " AND ")
     }
 
     private static let alphabeticalHighlightsOrderClause = """

@@ -815,3 +815,7 @@ Add a Settings toggle in the About section for launching KindleWall at login, in
 
 **T95-a — Verify launch-at-login behavior end to end**
 Verify KindleWall launch-at-login behavior on macOS, including enable, disable, restart/login behavior, accessory-app launch behavior, and compatibility with the existing On app launch wallpaper rotation mode.
+
+**T140-a — Add SQLite FTS5 full text search**
+Add SQLite FTS5 search index, triggers, and MATCH queries for highlight text, book title, and author to replace the LIKE-based queries.
+
