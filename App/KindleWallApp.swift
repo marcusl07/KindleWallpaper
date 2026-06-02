@@ -521,8 +521,8 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
     private func configureSettingsWindow(_ window: NSWindow) {
         window.title = "Library"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        window.setContentSize(NSSize(width: 1000, height: 650))
-        window.minSize = NSSize(width: 900, height: 600)
+        window.setContentSize(NSSize(width: 1240, height: 650))
+        window.minSize = NSSize(width: 1120, height: 600)
         window.center()
         window.canHide = false
         window.hidesOnDeactivate = false

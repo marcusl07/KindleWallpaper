@@ -2422,6 +2422,10 @@ struct QuotesListView: View {
 
 private struct QuotesListControlsRow: View {
     private static let filterScrollCoordinateSpaceName = "QuotesFilterControlsScrollView"
+    private static let searchFieldWidth: CGFloat = 420
+    private static let searchFieldHeight: CGFloat = 30
+    private static let sortPickerWidth: CGFloat = 240
+    private static let resultSummaryWidth: CGFloat = 190
 
     let committedSearchText: String
     @Binding var sortMode: QuotesListSortMode
@@ -2448,8 +2452,11 @@ private struct QuotesListControlsRow: View {
                     placeholder: "Search quotes, books, or authors",
                     onTextChanged: onSearchTextChanged
                 )
-                .frame(minWidth: 260, idealWidth: 320, maxWidth: 420, minHeight: 30, idealHeight: 30)
-                .layoutPriority(1)
+                .frame(
+                    width: Self.searchFieldWidth,
+                    height: Self.searchFieldHeight,
+                    alignment: .leading
+                )
 
                 Text("Sort")
                     .fixedSize(horizontal: true, vertical: false)
@@ -2462,13 +2469,15 @@ private struct QuotesListControlsRow: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(maxWidth: 280)
+                .frame(width: Self.sortPickerWidth)
 
                 Spacer(minLength: 12)
 
                 Text(resultCountSummary)
                     .font(.callout)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .frame(width: Self.resultSummaryWidth, alignment: .trailing)
             }
 
             HStack(alignment: .center, spacing: 12) {

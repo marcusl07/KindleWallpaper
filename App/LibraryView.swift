@@ -48,10 +48,10 @@ struct LibraryView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .frame(minWidth: 600, maxWidth: .infinity)
+            .frame(minWidth: 860, maxWidth: .infinity)
         }
         .navigationSplitViewStyle(.balanced)
-        .frame(minWidth: 900, idealWidth: 1000, maxWidth: .infinity, minHeight: 600, idealHeight: 700, maxHeight: .infinity)
+        .frame(minWidth: 1120, idealWidth: 1240, maxWidth: .infinity, minHeight: 600, idealHeight: 700, maxHeight: .infinity)
     }
 }
 
