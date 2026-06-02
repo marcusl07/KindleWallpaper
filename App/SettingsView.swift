@@ -2429,6 +2429,10 @@ private struct QuotesListControlsRow: View {
     private static let searchFieldHeight: CGFloat = 30
     private static let sortPickerWidth: CGFloat = 240
     private static let resultSummaryWidth: CGFloat = 190
+    private static let bookFilterWidth: CGFloat = 220
+    private static let authorFilterWidth: CGFloat = 240
+    private static let bookStatusFilterWidth: CGFloat = 245
+    private static let sourceFilterWidth: CGFloat = 230
 
     let committedSearchText: String
     @Binding var sortMode: QuotesListSortMode
@@ -2497,7 +2501,7 @@ private struct QuotesListControlsRow: View {
                                 }
                             }
                             .pickerStyle(.menu)
-                            .frame(maxWidth: 220)
+                            .frame(width: Self.bookFilterWidth)
 
                             Picker("Author", selection: $filters.selectedAuthor) {
                                 Text("All Authors")
@@ -2509,7 +2513,7 @@ private struct QuotesListControlsRow: View {
                                 }
                             }
                             .pickerStyle(.menu)
-                            .frame(maxWidth: 180)
+                            .frame(width: Self.authorFilterWidth)
 
                             Picker("Book Status", selection: $filters.bookStatus) {
                                 ForEach(QuotesListBookStatusFilterMode.allCases) { mode in
@@ -2518,7 +2522,7 @@ private struct QuotesListControlsRow: View {
                                 }
                             }
                             .pickerStyle(.menu)
-                            .frame(maxWidth: 150)
+                            .frame(width: Self.bookStatusFilterWidth)
 
                             Picker("Manual Added", selection: $filters.source) {
                                 ForEach(QuotesListSourceFilterMode.allCases) { mode in
@@ -2527,7 +2531,7 @@ private struct QuotesListControlsRow: View {
                                 }
                             }
                             .pickerStyle(.menu)
-                            .frame(maxWidth: 150)
+                            .frame(width: Self.sourceFilterWidth)
                         }
                         .background(filterControlsContentMetricsReader)
                     }
