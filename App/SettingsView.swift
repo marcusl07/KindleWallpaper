@@ -2428,7 +2428,7 @@ private struct QuotesListControlsRow: View {
     private static let sortPickerWidth: CGFloat = 240
     private static let resultSummaryWidth: CGFloat = 190
     private static let bookStatusFilterWidth: CGFloat = 220
-    private static let sourceFilterWidth: CGFloat = 165
+    private static let sourceFilterWidth: CGFloat = 230
 
     let committedSearchText: String
     @Binding var sortMode: QuotesListSortMode
