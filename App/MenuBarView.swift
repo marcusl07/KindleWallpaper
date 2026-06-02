@@ -48,21 +48,21 @@ final class MenuBarView: NSObject {
         let nextQuoteItem = NSMenuItem(
             title: "Next Quote",
             action: #selector(nextQuoteClicked),
-            keyEquivalent: "n"
+            keyEquivalent: ""
         )
         nextQuoteItem.target = self
 
         let openSettingsItem = NSMenuItem(
             title: "Open Settings...",
             action: #selector(openSettingsClicked),
-            keyEquivalent: ","
+            keyEquivalent: ""
         )
         openSettingsItem.target = self
 
         let quitItem = NSMenuItem(
             title: "Quit",
             action: #selector(quitClicked),
-            keyEquivalent: "q"
+            keyEquivalent: ""
         )
         quitItem.target = self
 

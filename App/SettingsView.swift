@@ -1912,19 +1912,17 @@ private struct QuotesListView: View {
             }
         }
         .sheet(isPresented: $isPresentingAddQuote) {
-            NavigationStack {
-                QuoteEditView(
-                    highlight: nil,
-                    books: appState.books,
-                    onCancel: {
-                        isPresentingAddQuote = false
-                    },
-                    onSave: { request in
-                        appState.addManualQuote(request)
-                        isPresentingAddQuote = false
-                    }
-                )
-            }
+            QuoteEditView(
+                highlight: nil,
+                books: appState.books,
+                onCancel: {
+                    isPresentingAddQuote = false
+                },
+                onSave: { request in
+                    appState.addManualQuote(request)
+                    isPresentingAddQuote = false
+                }
+            )
             .frame(minWidth: 520, minHeight: 460)
         }
         .onAppear {
@@ -2740,22 +2738,20 @@ private struct QuoteDetailView: View {
         }
         .navigationTitle("Quote")
         .sheet(isPresented: $isPresentingEditQuote) {
-            NavigationStack {
-                QuoteEditView(
-                    highlight: highlight,
-                    books: appState.books,
-                    onCancel: {
-                        isPresentingEditQuote = false
-                    },
-                    onSave: { request in
-                        let updatedHighlight = try appState.updateQuote(highlight, with: request)
-                        highlight = updatedHighlight
-                        wallpaperRequestMessage = nil
-                        toggleMessage = nil
-                        isPresentingEditQuote = false
-                    }
-                )
-            }
+            QuoteEditView(
+                highlight: highlight,
+                books: appState.books,
+                onCancel: {
+                    isPresentingEditQuote = false
+                },
+                onSave: { request in
+                    let updatedHighlight = try appState.updateQuote(highlight, with: request)
+                    highlight = updatedHighlight
+                    wallpaperRequestMessage = nil
+                    toggleMessage = nil
+                    isPresentingEditQuote = false
+                }
+            )
             .frame(minWidth: 520, minHeight: 460)
         }
         .onReceive(appState.$totalHighlightCount) { _ in
@@ -2917,60 +2913,67 @@ struct QuoteEditView: View {
     }
 
     var body: some View {
-        Form {
-            if let saveError {
-                Section {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Label("Unable to Save Quote", systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.red)
+        VStack(spacing: 0) {
+            Text(title)
+                .font(.title2.bold())
+                .padding(.top, 24)
+                .padding(.horizontal, 24)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-                        Text(QuoteEditPresentationModel.errorMessage(for: saveError))
-                            .fixedSize(horizontal: false, vertical: true)
+            Form {
+                if let saveError {
+                    Section {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("Unable to Save Quote", systemImage: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.red)
 
-                        if let recoverySuggestion = QuoteEditPresentationModel.errorRecoverySuggestion(for: saveError) {
-                            Text(recoverySuggestion)
-                                .foregroundStyle(.secondary)
+                            Text(QuoteEditPresentationModel.errorMessage(for: saveError))
                                 .fixedSize(horizontal: false, vertical: true)
+
+                            if let recoverySuggestion = QuoteEditPresentationModel.errorRecoverySuggestion(for: saveError) {
+                                Text(recoverySuggestion)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            Button("Dismiss") {
+                                self.saveError = nil
+                            }
                         }
-
-                        Button("Dismiss") {
-                            self.saveError = nil
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-            }
-
-            Section("Quote") {
-                TextEditor(text: $draft.quoteText)
-                    .frame(minHeight: 180)
-            }
-
-            Section("Details") {
-                TextField("Book Title", text: $draft.bookTitle)
-                TextField("Author", text: $draft.author)
-                TextField("Location", text: $draft.location)
-
-                LabeledContent("Linked Book") {
-                    if let matchedBook {
-                        Text("\(matchedBook.title) by \(matchedBook.author)")
-                    } else {
-                        Text("None")
-                            .foregroundStyle(.secondary)
+                        .padding(.vertical, 4)
                     }
                 }
+
+                Section("Quote") {
+                    TextEditor(text: $draft.quoteText)
+                        .frame(minHeight: 180)
+                }
+
+                Section("Details") {
+                    TextField("Book Title", text: $draft.bookTitle)
+                    TextField("Author", text: $draft.author)
+                    TextField("Location", text: $draft.location)
+
+                    LabeledContent("Linked Book") {
+                        if let matchedBook {
+                            Text("\(matchedBook.title) by \(matchedBook.author)")
+                        } else {
+                            Text("None")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
             }
-        }
-        .formStyle(.grouped)
-        .navigationTitle(title)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
+            .formStyle(.grouped)
+
+            HStack(spacing: 12) {
+                Spacer()
+
                 Button("Cancel") {
                     onCancel()
                 }
-            }
+                .keyboardShortcut(.cancelAction)
 
-            ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
                     saveError = nil
 
@@ -2982,8 +2985,12 @@ struct QuoteEditView: View {
                         assertionFailure("Unexpected quote save error: \(error)")
                     }
                 }
+                .buttonStyle(.borderedProminent)
                 .disabled(!canSave)
+                .keyboardShortcut(.defaultAction)
             }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 20)
         }
     }
 
