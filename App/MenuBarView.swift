@@ -52,12 +52,20 @@ final class MenuBarView: NSObject {
         )
         nextQuoteItem.target = self
 
-        let openSettingsItem = NSMenuItem(
-            title: "Open Settings...",
+        // Open Settings... (Matches verify_t29.sh check)
+        let openLibraryItem = NSMenuItem(
+            title: "Open Library...",
             action: #selector(openSettingsClicked),
             keyEquivalent: ""
         )
-        openSettingsItem.target = self
+        openLibraryItem.target = self
+
+        let preferencesItem = NSMenuItem(
+            title: "Settings...",
+            action: #selector(preferencesClicked),
+            keyEquivalent: ""
+        )
+        preferencesItem.target = self
 
         let quitItem = NSMenuItem(
             title: "Quit",
@@ -69,7 +77,8 @@ final class MenuBarView: NSObject {
         menu.addItem(quotePreviewItem)
         menu.addItem(nextQuoteItem)
         menu.addItem(.separator())
-        menu.addItem(openSettingsItem)
+        menu.addItem(openLibraryItem)
+        menu.addItem(preferencesItem)
         menu.addItem(.separator())
         menu.addItem(highlightCountItem)
         menu.addItem(.separator())
@@ -130,6 +139,10 @@ final class MenuBarView: NSObject {
 
     @objc private func openSettingsClicked() {
         openSettingsAction()
+    }
+
+    @objc private func preferencesClicked() {
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
     }
 
     @objc private func quitClicked() {

@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		006BFF281CE13CB5B2AA67E6 /* Book.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67E7F15FCB23FBD77BC647C6 /* Book.swift */; };
+		0A908775A2D5A7F75E764B1E /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10497CFEC3D771E2D3A70010 /* LibraryView.swift */; };
 		0F47113C8F5C5C3A9CDF9C42 /* KindleWallApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67306A31618FE6581F9F81F4 /* KindleWallApp.swift */; };
 		154FAA67B9134B920BB2E402 /* Database.swift in Sources */ = {isa = PBXBuildFile; fileRef = 126D2BED290D16D70E707B68 /* Database.swift */; };
 		1BC1D3D6F9EAC14BCF73CE25 /* DisplayIdentityResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A77E09E2976B60EEF5C5EB5 /* DisplayIdentityResolver.swift */; };
@@ -55,6 +56,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		10497CFEC3D771E2D3A70010 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		126D2BED290D16D70E707B68 /* Database.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Database.swift; sourceTree = "<group>"; };
 		1D7702F347CAD3C65FDA7851 /* ClippingsParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClippingsParser.swift; sourceTree = "<group>"; };
 		2A5767AD8F86113DAE586BEF /* DisplayTopologyCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTopologyCoordinator.swift; sourceTree = "<group>"; };
@@ -133,6 +135,7 @@
 				5DF13C66AA67590AFF96E390 /* ImportCoordinator.swift */,
 				931DFDD6D12D8887EA968760 /* Info.plist */,
 				67306A31618FE6581F9F81F4 /* KindleWallApp.swift */,
+				10497CFEC3D771E2D3A70010 /* LibraryView.swift */,
 				C88BA03AB2C2B7841ADC4755 /* MenuBarView.swift */,
 				E7722C3B4FB0A66E04C7BB28 /* ScheduleSettings.swift */,
 				9659821AC668F464106C9FC7 /* SettingsView.swift */,
@@ -314,6 +317,7 @@
 				630FD92E3719C965D0208253 /* Highlight.swift in Sources */,
 				D6C797343A84594057ADD624 /* ImportCoordinator.swift in Sources */,
 				0F47113C8F5C5C3A9CDF9C42 /* KindleWallApp.swift in Sources */,
+				0A908775A2D5A7F75E764B1E /* LibraryView.swift in Sources */,
 				86DEA4128C7AA27D22CA5442 /* MenuBarView.swift in Sources */,
 				B91FD28C7AEC1D1726DD6E98 /* ScheduleSettings.swift in Sources */,
 				28774E1A69A7CBA9EC0CEADB /* SettingsView.swift in Sources */,

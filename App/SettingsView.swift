@@ -26,65 +26,14 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        NavigationStack(path: $navigationModel.path) {
-            Form {
-                quotesSection
-                booksSection
-                backgroundSection
-                scheduleSection
-                displaySection
-                aboutSection
-            }
-            .formStyle(.grouped)
-            .navigationTitle("Settings")
-            .navigationDestination(for: SettingsDestination.self) { destination in
-                switch destination {
-                case .quotes:
-                    QuotesListView { highlightID in
-                        navigationModel.path.append(.quoteDetail(highlightID))
-                    }
-                        .navigationTitle("Quotes")
-                case .books:
-                    BooksListView()
-                        .navigationTitle("Books")
-                case .backgrounds:
-                    BackgroundsListView()
-                        .navigationTitle("Backgrounds")
-                case .quoteDetail(let highlightID):
-                    if let highlight = appState.loadHighlight(id: highlightID) {
-                        QuoteDetailView(highlight: highlight)
-                            .navigationTitle("Quote")
-                    } else {
-                        QuotesEmptyStateView(
-                            title: "Quote Not Found",
-                            systemImage: "quote.opening",
-                            description: "This quote is no longer available."
-                        )
-                        .navigationTitle("Quote")
-                    }
-                }
-            }
+        Form {
+            scheduleSection
+            displaySection
+            aboutSection
         }
-        .toolbar {
-            ToolbarItemGroup(placement: .navigation) {
-                Button {
-                    navigationModel.goBack()
-                } label: {
-                    Image(systemName: "chevron.left")
-                }
-                .help("Back")
-                .disabled(!navigationModel.canGoBack)
-
-                Button {
-                    navigationModel.goForward()
-                } label: {
-                    Image(systemName: "chevron.right")
-                }
-                .help("Forward")
-                .disabled(!navigationModel.canGoForward)
-            }
-        }
-        .frame(minWidth: 680, maxWidth: .infinity, minHeight: 520, maxHeight: .infinity, alignment: .topLeading)
+        .formStyle(.grouped)
+        .frame(width: 480)
+        .padding(.vertical, 8)
         .onAppear {
             refreshBackgroundSummary()
         }
@@ -1871,7 +1820,7 @@ private final class QuotesListRuntimeState: ObservableObject {
     }
 }
 
-private struct QuotesListView: View {
+struct QuotesListView: View {
     private static let searchRefreshDebounceInterval: TimeInterval = 0.3
     private static let filterScrollCoordinateSpaceName = "QuotesFilterControlsScrollView"
 
@@ -2721,7 +2670,7 @@ private enum QuotesBulkSelectionPresentationModel {
     }
 }
 
-private struct QuotesEmptyStateView: View {
+struct QuotesEmptyStateView: View {
     let title: String
     let systemImage: String
     let description: String
@@ -2744,7 +2693,7 @@ private struct QuotesEmptyStateView: View {
     }
 }
 
-private struct QuoteDetailView: View {
+struct QuoteDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var appState: AppState
 

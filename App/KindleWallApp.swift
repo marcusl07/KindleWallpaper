@@ -113,18 +113,9 @@ struct KindleWallApp: App {
 
     var body: some Scene {
         Settings {
-            EmptyView()
+            SettingsView(navigationModel: SettingsNavigationModel())
+                .environmentObject(appState)
         }
-        #if canImport(AppKit)
-        .commands {
-            CommandGroup(replacing: .appSettings) {
-                Button("Open Settings...") {
-                    appDelegate.showSettingsWindowFromCommand()
-                }
-                .keyboardShortcut(",", modifiers: .command)
-            }
-        }
-        #endif
     }
 
     private static func makeAppState() -> AppState {
@@ -462,10 +453,9 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
             return
         }
 
-        let navigationModel = SettingsNavigationModel()
-        let settingsView = SettingsView(navigationModel: navigationModel)
+        let libraryView = LibraryView()
             .environmentObject(appState)
-        let hostingController = NSHostingController(rootView: settingsView)
+        let hostingController = NSHostingController(rootView: libraryView)
         let window = NSWindow(contentViewController: hostingController)
         configureSettingsWindow(window)
 
@@ -500,13 +490,13 @@ private final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
     }
 
     private func configureSettingsWindow(_ window: NSWindow) {
-        window.title = "Settings"
+        window.title = "Library"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        window.setContentSize(NSSize(width: 760, height: 560))
+        window.setContentSize(NSSize(width: 900, height: 600))
         window.center()
         window.canHide = false
         window.hidesOnDeactivate = false
-        window.titleVisibility = .hidden
+        window.titleVisibility = .visible
         window.toolbarStyle = .unified
         window.delegate = self
     }
