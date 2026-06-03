@@ -171,10 +171,6 @@ struct BackgroundImageStore {
         let manifest = try loadManifestOrThrow()
         let existingItems = materializeItems(from: manifest.records).items
 
-        guard existingItems.count > 1 else {
-            throw StoreError.cannotRemoveLastImage
-        }
-
         guard let removedItem = existingItems.first(where: { $0.id == id }) else {
             return existingItems
         }

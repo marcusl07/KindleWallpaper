@@ -188,7 +188,7 @@ struct BackgroundsListView: View {
     }
 
     private var canRemoveSelected: Bool {
-        selectedBackgroundID != nil && collectionState.items.count > 1
+        selectedBackgroundID != nil
     }
 
     private func refreshCollection() {
