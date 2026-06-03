@@ -33,7 +33,7 @@ final class StatusItemController: NSObject {
         }
 
         if let logo = NSImage(named: "leaf-logo") {
-            logo.size = NSSize(width: 18, height: 18)
+            logo.size = NSSize(width: 18.0 * (350.0 / 550.0), height: 18.0)
             logo.isTemplate = true
             button.image = logo
         } else if let symbol = NSImage(systemSymbolName: "text.quote", accessibilityDescription: "KindleWall") {
