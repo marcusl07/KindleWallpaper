@@ -65,11 +65,7 @@ struct QuotesListView: View {
                     ProgressView("Loading Quotes…")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if contentPresentation.primaryContent == .libraryEmpty {
-                    QuotesEmptyStateView(
-                        title: "No Quotes Yet",
-                        systemImage: "quote.opening",
-                        description: "Import `My Clippings.txt` to build your quote library."
-                    )
+                    QuotesLibraryEmptyStateView()
                 } else if contentPresentation.primaryContent == .noMatchingResults {
                     QuotesEmptyStateView(
                         title: "No Matching Quotes",
@@ -610,6 +606,66 @@ struct QuotesEmptyStateView: View {
             Text(.init(description))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(24)
+    }
+}
+
+struct QuotesLibraryEmptyStateView: View {
+    @EnvironmentObject private var appState: AppState
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "quote.opening")
+                .font(.system(size: 40, weight: .light))
+                .foregroundStyle(.secondary)
+
+            Text("No Quotes Yet")
+                .font(.title3.bold())
+
+            Text("Import `My Clippings.txt` or plug in your Kindle to build your quote library.")
+                .font(.body)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: 400)
+
+            VStack(spacing: 12) {
+                Button("Import My Clippings.txt...") {
+                    chooseClippingsFile(for: appState)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+
+                if let importError = appState.importError, !importError.isEmpty {
+                    Text(importError)
+                        .font(.callout)
+                        .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
+                } else if !appState.importStatus.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text(appState.importStatus)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+
+                if !appState.importWarningDetails.isEmpty {
+                    DisclosureGroup("Warning details") {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(Array(appState.importWarningDetails.enumerated()), id: \.offset) { _, detail in
+                                Text(detail)
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                        .padding(.top, 4)
+                    }
+                    .font(.callout)
+                    .frame(maxWidth: 400)
+                }
+            }
+            .padding(.top, 8)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(24)

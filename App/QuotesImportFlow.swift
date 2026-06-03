@@ -58,7 +58,7 @@ struct QuotesImportHeaderView: View {
 }
 
 @MainActor
-private func chooseClippingsFile(for appState: AppState) {
+func chooseClippingsFile(for appState: AppState) {
     #if canImport(AppKit)
     let panel = NSOpenPanel()
     panel.canChooseFiles = true
