@@ -69,7 +69,17 @@ enum WallpaperRotationService {
                 )
             }
 
-            let generatedWallpapers = generateWallpapers(highlightForDisplay, backgroundURL, targets)
+            let generatedWallpapers: [AppState.GeneratedWallpaper]
+            do {
+                generatedWallpapers = try generateWallpapers(highlightForDisplay, backgroundURL, targets)
+            } catch {
+                return Execution(
+                    outcome: .wallpaperApplyFailure(.applyError),
+                    currentQuotePreview: nil,
+                    lastChangedAt: nil
+                )
+            }
+
             let targetIdentifiers = Set(targets.map { $0.identifier })
             let generatedIdentifiers = Set(generatedWallpapers.map { $0.targetIdentifier })
 
@@ -97,7 +107,7 @@ enum WallpaperRotationService {
             appliedGeneratedWallpapers = generatedWallpapers
         } else {
             do {
-                let wallpaperURL = context.generateWallpaper(highlightForDisplay, backgroundURL)
+                let wallpaperURL = try context.generateWallpaper(highlightForDisplay, backgroundURL)
                 try context.setWallpaper(wallpaperURL)
                 appliedGeneratedWallpapers = [
                     AppState.GeneratedWallpaper(

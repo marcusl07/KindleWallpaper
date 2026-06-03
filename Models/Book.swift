@@ -11,4 +11,6 @@ struct Book: Identifiable, Equatable {
 struct LibrarySnapshot: Equatable {
     let totalHighlightCount: Int
     let books: [Book]
+
+    static let empty = LibrarySnapshot(totalHighlightCount: 0, books: [])
 }

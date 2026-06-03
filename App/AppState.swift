@@ -151,11 +151,14 @@ final class QuotesQueryService {
 final class AppState: ObservableObject {
     enum QuoteSaveError: Error, Equatable, LocalizedError {
         case duplicateQuote
+        case persistenceFailed(String)
 
         var errorDescription: String? {
             switch self {
             case .duplicateQuote:
                 return "A matching quote already exists in your library."
+            case .persistenceFailed(let message):
+                return message
             }
         }
 
@@ -163,6 +166,8 @@ final class AppState: ObservableObject {
             switch self {
             case .duplicateQuote:
                 return "Edit the quote details or cancel to keep the original saved quote unchanged."
+            case .persistenceFailed:
+                return "Try again. If the problem continues, restart Leaf and check that the app has access to its local data folder."
             }
         }
     }
@@ -342,10 +347,10 @@ final class AppState: ObservableObject {
     typealias LoadBackgroundImageURLs = () -> [URL]
     typealias LoadBackgroundImageURL = () -> URL?
     typealias SelectBackgroundImageURL = ([URL]) -> URL?
-    typealias GenerateWallpaper = (Highlight, URL?) -> URL
+    typealias GenerateWallpaper = (Highlight, URL?) throws -> URL
     typealias SetWallpaper = (URL) throws -> Void
     typealias PrepareWallpaperRotation = () -> WallpaperRotationPlan?
-    typealias GenerateWallpapers = (Highlight, URL?, [WallpaperTarget]) -> [GeneratedWallpaper]
+    typealias GenerateWallpapers = (Highlight, URL?, [WallpaperTarget]) throws -> [GeneratedWallpaper]
     typealias ReapplyStoredWallpaper = () -> WallpaperRestoreOutcome
     typealias ReapplyCurrentWallpaperForTopology = () -> TopologyWallpaperReapplyOutcome
     typealias RetryWallpaperAssignmentMigrationIfNeeded = () -> Void
@@ -1124,10 +1129,11 @@ extension AppState {
 
         return AppState(
             userDefaults: userDefaults,
+            importStatus: initialDatabaseStatus(),
             pickNextHighlight: DatabaseManager.pickNextHighlight,
             loadBackgroundImageURLs: backgroundStore.loadBackgroundImageURLs,
             generateWallpaper: { highlight, backgroundURL in
-                wallpaperGenerator.generateWallpaper(highlight: highlight, backgroundURL: backgroundURL)
+                try wallpaperGenerator.generateWallpaper(highlight: highlight, backgroundURL: backgroundURL)
             },
             setWallpaper: { imageURL in
                 try WallpaperSetter.trySetWallpaper(imageURL: imageURL)
@@ -1180,7 +1186,7 @@ extension AppState {
                         backingScaleFactor: target.backingScaleFactor
                     )
                 }
-                return wallpaperGenerator.generateWallpapers(
+                return try wallpaperGenerator.generateWallpapers(
                     highlight: highlight,
                     backgroundURL: backgroundURL,
                     targets: generatorTargets
@@ -1255,6 +1261,8 @@ extension AppState {
                     try DatabaseManager.updateHighlight(highlight)
                 } catch DatabaseManager.HighlightUpdateError.duplicateDedupeKey {
                     throw QuoteSaveError.duplicateQuote
+                } catch let error as DatabaseManager.DatabaseFailure {
+                    throw QuoteSaveError.persistenceFailed(error.localizedDescription)
                 }
             },
             deleteHighlights: DatabaseManager.deleteHighlights(ids:),
@@ -1314,6 +1322,14 @@ extension AppState {
                 _ = try backgroundStore.promoteBackgroundImage(id: id)
             }
         )
+    }
+
+    private static func initialDatabaseStatus() -> ImportStatus {
+        guard let message = DatabaseManager.initializationFailureMessage else {
+            return ImportStatus()
+        }
+
+        return ImportStatus(message: message, isError: true)
     }
 }
 #endif

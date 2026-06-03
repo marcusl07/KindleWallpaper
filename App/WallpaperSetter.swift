@@ -1,7 +1,13 @@
 import AppKit
 import Foundation
+import OSLog
 
 enum WallpaperSetter {
+    private static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "com.marcuslo.KindleWall",
+        category: "WallpaperSetter"
+    )
+
     enum RestoreOutcome: Equatable {
         case fullRestore
         case partialRestore
@@ -108,7 +114,7 @@ enum WallpaperSetter {
                 setDesktopImage: setDesktopImage
             )
         } catch {
-            fatalError("Failed to set wallpaper for targeted screens: \(error)")
+            logger.error("Failed to set wallpaper for targeted screens: \(String(describing: error), privacy: .public)")
         }
     }
 
@@ -126,7 +132,7 @@ enum WallpaperSetter {
                 setDesktopImage: setDesktopImage
             )
         } catch {
-            fatalError("Failed to set wallpaper for targeted screens: \(error)")
+            logger.error("Failed to set wallpaper for targeted screens: \(String(describing: error), privacy: .public)")
         }
     }
 
@@ -207,7 +213,7 @@ enum WallpaperSetter {
                 setDesktopImage: setDesktopImage
             )
         } catch {
-            fatalError("Failed to set wallpaper for all screens: \(error)")
+            logger.error("Failed to set wallpaper for all screens: \(String(describing: error), privacy: .public)")
         }
     }
 

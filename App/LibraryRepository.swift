@@ -29,11 +29,11 @@ enum LibraryRepository {
             """,
             arguments: [book.title, book.author]
         ) else {
-            fatalError("Failed to find book row after upsert for title '\(book.title)' and author '\(book.author)'")
+            throw DatabaseRepositoryError.missingExpectedRow("resolving saved book")
         }
 
         guard let uuid = UUID(uuidString: storedBookID) else {
-            fatalError("Invalid UUID stored for book id '\(storedBookID)'")
+            throw DatabaseRepositoryError.invalidStoredUUID(field: "book id", value: storedBookID)
         }
 
         return uuid
@@ -241,10 +241,10 @@ enum LibraryRepository {
             """,
             arguments: [randomOffset]
         ) else {
-            fatalError("Failed to fetch highlight at random offset \(randomOffset)")
+            throw DatabaseRepositoryError.randomSelectionMissing(offset: randomOffset)
         }
 
-        return DatabaseRecordMapper.highlight(from: row)
+        return try DatabaseRecordMapper.highlight(from: row)
     }
 
     static func markHighlightShown(id: UUID, database: Database) throws {
@@ -369,7 +369,9 @@ enum LibraryRepository {
             """
         )
 
-        return rows.map(DatabaseRecordMapper.book(from:))
+        return try rows.map { row in
+            try DatabaseRecordMapper.book(from: row)
+        }
     }
 
     static func totalHighlightCount(database: Database) throws -> Int {
@@ -470,13 +472,13 @@ enum LibraryRepository {
             database: database
         )
 
-        return uniqueBookIDs.compactMap { bookIDString in
+        return try uniqueBookIDs.compactMap { bookIDString in
             guard storedBookIDSet.contains(bookIDString) else {
                 return nil
             }
 
             guard let bookID = UUID(uuidString: bookIDString) else {
-                fatalError("Invalid book id in database row")
+                throw DatabaseRepositoryError.invalidStoredUUID(field: "book id", value: bookIDString)
             }
             return bookID
         }
@@ -507,7 +509,9 @@ enum LibraryRepository {
                 arguments: StatementArguments(bookIDBatch)
             )
 
-            linkedHighlights.append(contentsOf: rows.map(DatabaseRecordMapper.linkedHighlight(from:)))
+            linkedHighlights.append(contentsOf: try rows.map { row in
+                try DatabaseRecordMapper.linkedHighlight(from: row)
+            })
         }
 
         linkedHighlights.sort(by: bulkBookDeletionLinkedHighlightSort)
@@ -534,7 +538,7 @@ enum LibraryRepository {
             )
 
             for row in rows {
-                let highlight = DatabaseRecordMapper.highlight(from: row)
+                let highlight = try DatabaseRecordMapper.highlight(from: row)
                 capturedHighlightsByID[highlight.id.uuidString] = highlight
             }
         }

@@ -37,7 +37,7 @@ enum QuoteRepository {
     static func fetchAllHighlights(
         sortedBy sortMode: QuotesListSortMode,
         databaseQueue: DatabaseQueue
-    ) -> [Highlight] {
+    ) throws -> [Highlight] {
         let signpostState = quotesPerformanceSignposter.beginInterval(
             "QuotesDBFetch",
             "sortMode=\(sortMode.rawValue, privacy: .public)"
@@ -54,7 +54,9 @@ enum QuoteRepository {
                     """
                 )
 
-                return rows.map(DatabaseRecordMapper.highlight(from:))
+                return try rows.map { row in
+                    try DatabaseRecordMapper.highlight(from: row)
+                }
             }
 
             quotesPerformanceSignposter.endInterval(
@@ -69,7 +71,7 @@ enum QuoteRepository {
                 signpostState,
                 "failed=1"
             )
-            fatalError("Failed to fetch all highlights: \(error)")
+            throw error
         }
     }
 
@@ -80,7 +82,7 @@ enum QuoteRepository {
         limit: Int,
         offset: Int,
         databaseQueue: DatabaseQueue
-    ) -> [Highlight] {
+    ) throws -> [Highlight] {
         guard limit > 0, offset >= 0 else {
             return []
         }
@@ -114,7 +116,7 @@ enum QuoteRepository {
                 signpostState,
                 "failed=1"
             )
-            fatalError("Failed to fetch highlight page: \(error)")
+            throw error
         }
     }
 
@@ -125,7 +127,7 @@ enum QuoteRepository {
         limit: Int,
         offset: Int,
         databaseQueue: DatabaseQueue
-    ) -> QuotesPagePayload {
+    ) throws -> QuotesPagePayload {
         guard limit > 0, offset >= 0 else {
             return QuotesPagePayload(highlights: [], totalMatchingHighlightCount: 0)
         }
@@ -169,7 +171,7 @@ enum QuoteRepository {
                 signpostState,
                 "failed=1"
             )
-            fatalError("Failed to fetch highlight page payload: \(error)")
+            throw error
         }
     }
 
@@ -177,35 +179,31 @@ enum QuoteRepository {
         searchText: String,
         filters: QuotesListFilters,
         databaseQueue: DatabaseQueue
-    ) -> QuotesFilterOptionsPayload {
-        do {
-            return try databaseQueue.read { database in
-                let bookTitlesQuery = quotesFilterOptionsQuery(
-                    field: .bookTitle,
-                    searchText: searchText,
-                    filters: filters
-                )
-                let authorsQuery = quotesFilterOptionsQuery(
-                    field: .author,
-                    searchText: searchText,
-                    filters: filters
-                )
+    ) throws -> QuotesFilterOptionsPayload {
+        try databaseQueue.read { database in
+            let bookTitlesQuery = quotesFilterOptionsQuery(
+                field: .bookTitle,
+                searchText: searchText,
+                filters: filters
+            )
+            let authorsQuery = quotesFilterOptionsQuery(
+                field: .author,
+                searchText: searchText,
+                filters: filters
+            )
 
-                return QuotesFilterOptionsPayload(
-                    availableBookTitles: try String.fetchAll(
-                        database,
-                        sql: bookTitlesQuery.sql,
-                        arguments: bookTitlesQuery.arguments
-                    ),
-                    availableAuthors: try String.fetchAll(
-                        database,
-                        sql: authorsQuery.sql,
-                        arguments: authorsQuery.arguments
-                    )
+            return QuotesFilterOptionsPayload(
+                availableBookTitles: try String.fetchAll(
+                    database,
+                    sql: bookTitlesQuery.sql,
+                    arguments: bookTitlesQuery.arguments
+                ),
+                availableAuthors: try String.fetchAll(
+                    database,
+                    sql: authorsQuery.sql,
+                    arguments: authorsQuery.arguments
                 )
-            }
-        } catch {
-            fatalError("Failed to fetch quote filter options: \(error)")
+            )
         }
     }
 
@@ -213,22 +211,18 @@ enum QuoteRepository {
         searchText: String,
         filters: QuotesListFilters,
         databaseQueue: DatabaseQueue
-    ) -> [String] {
-        do {
-            return try databaseQueue.read { database in
-                let query = quotesFilterOptionsQuery(
-                    field: .bookTitle,
-                    searchText: searchText,
-                    filters: filters
-                )
-                return try String.fetchAll(
-                    database,
-                    sql: query.sql,
-                    arguments: query.arguments
-                )
-            }
-        } catch {
-            fatalError("Failed to fetch quote book title filters: \(error)")
+    ) throws -> [String] {
+        try databaseQueue.read { database in
+            let query = quotesFilterOptionsQuery(
+                field: .bookTitle,
+                searchText: searchText,
+                filters: filters
+            )
+            return try String.fetchAll(
+                database,
+                sql: query.sql,
+                arguments: query.arguments
+            )
         }
     }
 
@@ -236,22 +230,18 @@ enum QuoteRepository {
         searchText: String,
         filters: QuotesListFilters,
         databaseQueue: DatabaseQueue
-    ) -> [String] {
-        do {
-            return try databaseQueue.read { database in
-                let query = quotesFilterOptionsQuery(
-                    field: .author,
-                    searchText: searchText,
-                    filters: filters
-                )
-                return try String.fetchAll(
-                    database,
-                    sql: query.sql,
-                    arguments: query.arguments
-                )
-            }
-        } catch {
-            fatalError("Failed to fetch quote author filters: \(error)")
+    ) throws -> [String] {
+        try databaseQueue.read { database in
+            let query = quotesFilterOptionsQuery(
+                field: .author,
+                searchText: searchText,
+                filters: filters
+            )
+            return try String.fetchAll(
+                database,
+                sql: query.sql,
+                arguments: query.arguments
+            )
         }
     }
 
@@ -259,17 +249,13 @@ enum QuoteRepository {
         searchText: String,
         filters: QuotesListFilters,
         databaseQueue: DatabaseQueue
-    ) -> Int {
-        do {
-            return try databaseQueue.read { database in
-                try fetchHighlightsCount(
-                    searchText: searchText,
-                    filters: filters,
-                    database: database
-                )
-            }
-        } catch {
-            fatalError("Failed to count quote results: \(error)")
+    ) throws -> Int {
+        try databaseQueue.read { database in
+            try fetchHighlightsCount(
+                searchText: searchText,
+                filters: filters,
+                database: database
+            )
         }
     }
 
@@ -323,7 +309,9 @@ enum QuoteRepository {
                 sql: query.sql,
                 arguments: query.arguments
             )
-            return rows.map(DatabaseRecordMapper.highlight(from:))
+            return try rows.map { row in
+                try DatabaseRecordMapper.highlight(from: row)
+            }
         }
     }
 
@@ -445,7 +433,9 @@ enum QuoteRepository {
             sql: query.sql,
             arguments: query.arguments
         )
-        return rows.map(DatabaseRecordMapper.highlight(from:))
+        return try rows.map { row in
+            try DatabaseRecordMapper.highlight(from: row)
+        }
     }
 
     private static func quotesFilterOptionsQuery(

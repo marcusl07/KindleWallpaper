@@ -125,7 +125,10 @@ enum ImportRepository {
             persistedBookIDsByParsedID.merge(persistedBatchBookIDs) { _, rhs in rhs }
 
             guard persistedBatchBookIDs.count == bookBatch.count else {
-                fatalError("Failed to resolve all imported books after bulk upsert")
+                throw DatabaseRepositoryError.unresolvedImportBooks(
+                    expected: bookBatch.count,
+                    actual: persistedBatchBookIDs.count
+                )
             }
 
             batchStartIndex = batchEndIndex
@@ -177,7 +180,7 @@ enum ImportRepository {
                 let storedBookIDValue: String = row["storedID"],
                 let storedBookID = UUID(uuidString: storedBookIDValue)
             else {
-                fatalError("Invalid book id returned while resolving imported books")
+                throw DatabaseRepositoryError.invalidStoredUUID(field: "imported book id", value: nil)
             }
 
             persistedBookIDsByParsedID[parsedBookID] = storedBookID

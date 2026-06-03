@@ -28,7 +28,7 @@ struct ImportCoordinator {
     typealias HighlightHasTombstone = (Highlight) -> Bool
     typealias InsertHighlightIfNew = (Highlight) -> Void
     typealias TotalHighlightCount = () -> Int
-    typealias PersistImport = ([Book], [Highlight]) -> ImportPersistenceResult
+    typealias PersistImport = ([Book], [Highlight]) throws -> ImportPersistenceResult
 
     private let parseClippings: ParseClippings
     private let upsertBook: UpsertBook
@@ -87,7 +87,19 @@ struct ImportCoordinator {
         }
 
         if let persistImport {
-            let persistenceResult = persistImport(parsed.books, parsed.highlights)
+            let persistenceResult: ImportPersistenceResult
+            do {
+                persistenceResult = try persistImport(parsed.books, parsed.highlights)
+            } catch {
+                return ImportResult(
+                    newHighlightCount: 0,
+                    error: recoverablePersistenceErrorMessage(from: error),
+                    skippedEntryCount: parsed.skippedEntryCount,
+                    warningMessages: parsed.warningMessages,
+                    librarySnapshot: nil
+                )
+            }
+
             return makeImportResult(
                 newHighlightCount: persistenceResult.newHighlightCount,
                 missingBookMappingCount: persistenceResult.missingBookMappingCount,
@@ -170,6 +182,19 @@ struct ImportCoordinator {
             warningMessages: warningMessages,
             librarySnapshot: librarySnapshot
         )
+    }
+
+    private func recoverablePersistenceErrorMessage(from error: Error) -> String {
+        let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !message.isEmpty else {
+            return "Could not save imported highlights."
+        }
+
+        if message.lowercased().hasPrefix("import failed:") {
+            return message
+        }
+
+        return "Could not save imported highlights. \(message)"
     }
 }
 

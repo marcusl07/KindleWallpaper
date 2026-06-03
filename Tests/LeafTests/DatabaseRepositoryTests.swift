@@ -1,4 +1,5 @@
 import GRDB
+import AppKit
 import XCTest
 @testable import KindleWall
 
@@ -154,6 +155,90 @@ final class DatabaseRepositoryTests: XCTestCase {
         XCTAssertEqual(punctuationSearchCount, 1)
     }
 
+    func testDatabaseOpenFailureThrowsInsteadOfCrashing() throws {
+        let invalidDatabaseURL = rootURL.appendingPathComponent("database-directory", isDirectory: false)
+        try FileManager.default.createDirectory(at: invalidDatabaseURL, withIntermediateDirectories: false)
+
+        XCTAssertThrowsError(try DatabaseManager.makeDatabaseQueue(databaseURL: invalidDatabaseURL))
+    }
+
+    func testImportCoordinatorSurfacesPersistenceFailure() throws {
+        let fixtureURL = try writeFixture(named: "My Clippings.txt", contents: "valid input")
+        let book = makeBook(title: "Parable of the Sower", author: "Octavia Butler")
+        let highlight = makeHighlight(
+            bookID: book.id,
+            quoteText: "All that you touch you change.",
+            bookTitle: book.title,
+            author: book.author,
+            location: "12"
+        )
+        let coordinator = ImportCoordinator(
+            parseClippings: { _ in
+                ClippingsParser.ParseResult(
+                    highlights: [highlight],
+                    books: [book],
+                    parseErrorCount: 0,
+                    skippedEntryCount: 1,
+                    warningMessages: ["Skipped malformed entry near: \"broken\""],
+                    error: nil
+                )
+            },
+            upsertBook: { $0.id },
+            insertHighlightIfNew: { _ in },
+            totalHighlightCount: { 0 },
+            persistImport: { _, _ in
+                throw DatabaseManager.DatabaseFailure.operationFailed(
+                    operation: "save imported highlights",
+                    message: "database is locked"
+                )
+            }
+        )
+
+        let result = coordinator.importFile(at: fixtureURL)
+
+        XCTAssertEqual(result.newHighlightCount, 0)
+        XCTAssertEqual(
+            result.error,
+            "Could not save imported highlights. Leaf could not save imported highlights: database is locked"
+        )
+        XCTAssertEqual(result.skippedEntryCount, 1)
+        XCTAssertEqual(result.warningMessages, ["Skipped malformed entry near: \"broken\""])
+        XCTAssertNil(result.librarySnapshot)
+    }
+
+    func testWallpaperGeneratorThrowsWhenGeneratedDirectoryCannotBeCreated() throws {
+        let blockedDirectoryURL = rootURL.appendingPathComponent("blocked-app-support", isDirectory: true)
+        let generatedDirectoryURL = blockedDirectoryURL
+            .appendingPathComponent("generated-wallpapers", isDirectory: true)
+        try FileManager.default.createDirectory(at: blockedDirectoryURL, withIntermediateDirectories: false)
+        try Data("not a directory".utf8).write(to: generatedDirectoryURL)
+
+        let generator = WallpaperGenerator(
+            appSupportDirectoryProvider: { blockedDirectoryURL },
+            backgroundImageLoader: BackgroundImageLoader(fileManager: .default),
+            retainedGeneratedFileCount: 1
+        )
+        let highlight = makeHighlight(bookID: UUID(), quoteText: "Recoverable file errors should not crash.")
+        let target = WallpaperGenerator.RenderTarget(
+            identifier: "main",
+            pixelWidth: 64,
+            pixelHeight: 64
+        )
+
+        XCTAssertThrowsError(
+            try generator.generateWallpapers(
+                highlight: highlight,
+                backgroundURL: nil,
+                targets: [target],
+                rotationID: "phase-5"
+            )
+        ) { error in
+            guard case WallpaperGenerator.GenerationError.createOutputDirectoryFailed = error else {
+                return XCTFail("Expected createOutputDirectoryFailed, got \(error)")
+            }
+        }
+    }
+
     private func makeBook(
         id: UUID = UUID(),
         title: String = "Meditations",
@@ -181,5 +266,11 @@ final class DatabaseRepositoryTests: XCTestCase {
             dateAdded: dateAdded,
             lastShownAt: nil
         )
+    }
+
+    private func writeFixture(named filename: String, contents: String) throws -> URL {
+        let url = rootURL.appendingPathComponent(filename, isDirectory: false)
+        try Data(contents.utf8).write(to: url)
+        return url
     }
 }

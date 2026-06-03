@@ -2,6 +2,29 @@ import AppKit
 import Foundation
 
 struct WallpaperGenerator {
+    enum GenerationError: LocalizedError, Equatable {
+        case missingGeneratedWallpaper
+        case createOutputDirectoryFailed(path: String, message: String)
+        case renderFailed
+        case pngEncodingFailed
+        case pngWriteFailed(path: String, message: String)
+
+        var errorDescription: String? {
+            switch self {
+            case .missingGeneratedWallpaper:
+                return "Failed to generate wallpaper output."
+            case .createOutputDirectoryFailed(let path, let message):
+                return "Failed to create generated wallpapers directory at \(path): \(message)"
+            case .renderFailed:
+                return "Failed to render wallpaper image."
+            case .pngEncodingFailed:
+                return "Failed to encode wallpaper as PNG."
+            case .pngWriteFailed(let path, let message):
+                return "Failed to write wallpaper PNG to \(path): \(message)"
+            }
+        }
+    }
+
     struct RenderTarget: Equatable {
         let identifier: String
         let pixelWidth: Int
@@ -77,7 +100,7 @@ struct WallpaperGenerator {
         self.currentDateProvider = currentDateProvider
     }
 
-    func generateWallpaper(highlight: Highlight, backgroundURL: URL?) -> URL {
+    func generateWallpaper(highlight: Highlight, backgroundURL: URL?) throws -> URL {
         let fallbackSize = normalizedSize(mainScreenPixelSizeProvider() ?? CGSize(width: 1920, height: 1080))
         let fallbackTarget = RenderTarget(
             identifier: "main",
@@ -85,14 +108,14 @@ struct WallpaperGenerator {
             pixelHeight: Int(fallbackSize.height),
             backingScaleFactor: normalizedDisplayScale(mainScreenScaleProvider() ?? 1.0)
         )
-        let generatedWallpapers = generateWallpapers(
+        let generatedWallpapers = try generateWallpapers(
             highlight: highlight,
             backgroundURL: backgroundURL,
             targets: [fallbackTarget]
         )
 
         guard let outputURL = generatedWallpapers.first?.fileURL else {
-            fatalError("Failed to generate fallback wallpaper")
+            throw GenerationError.missingGeneratedWallpaper
         }
 
         return outputURL
@@ -103,7 +126,7 @@ struct WallpaperGenerator {
         backgroundURL: URL?,
         targets: [RenderTarget],
         rotationID: String = UUID().uuidString
-    ) -> [GeneratedWallpaper] {
+    ) throws -> [GeneratedWallpaper] {
         guard !targets.isEmpty else {
             return []
         }
@@ -112,7 +135,10 @@ struct WallpaperGenerator {
         do {
             try fileManager.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
         } catch {
-            fatalError("Failed to create generated wallpapers directory at \(outputDirectory.path): \(error)")
+            throw GenerationError.createOutputDirectoryFailed(
+                path: outputDirectory.path,
+                message: error.localizedDescription
+            )
         }
 
         let loadedBackgroundImage = loadBackgroundImage(from: backgroundURL)
@@ -123,8 +149,13 @@ struct WallpaperGenerator {
             let outputSize = normalizedSize(
                 CGSize(width: CGFloat(max(target.pixelWidth, 1)), height: CGFloat(max(target.pixelHeight, 1)))
             )
-            let backgroundImage = loadedBackgroundImage ?? solidBlackImage(size: outputSize)
-            let composedImage = composeImage(
+            let backgroundImage: NSImage
+            if let loadedBackgroundImage {
+                backgroundImage = loadedBackgroundImage
+            } else {
+                backgroundImage = try solidBlackImage(size: outputSize)
+            }
+            let composedImage = try composeImage(
                 backgroundImage: backgroundImage,
                 size: outputSize,
                 highlight: highlight,
@@ -135,7 +166,7 @@ struct WallpaperGenerator {
                 targetIdentifier: target.identifier
             )
             let outputURL = outputDirectory.appendingPathComponent(outputFilename, isDirectory: false)
-            writeImageAsPNG(composedImage, to: outputURL)
+            try writeImageAsPNG(composedImage, to: outputURL)
             generatedWallpapers.append(
                 GeneratedWallpaper(
                     targetIdentifier: target.identifier,
@@ -156,8 +187,8 @@ struct WallpaperGenerator {
         return backgroundImageLoader.load(from: url).image
     }
 
-    private func solidBlackImage(size: CGSize) -> NSImage {
-        renderImage(size: size) { rect in
+    private func solidBlackImage(size: CGSize) throws -> NSImage {
+        try renderImage(size: size) { rect in
             NSColor.black.setFill()
             rect.fill()
         }
@@ -168,8 +199,8 @@ struct WallpaperGenerator {
         size: CGSize,
         highlight: Highlight,
         displayScaleFactor: CGFloat
-    ) -> NSImage {
-        renderImage(size: size) { rect in
+    ) throws -> NSImage {
+        try renderImage(size: size) { rect in
             backgroundImage.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1.0)
 
             NSColor.black.withAlphaComponent(0.4).setFill()
@@ -267,7 +298,7 @@ struct WallpaperGenerator {
         return components.joined(separator: " - ")
     }
 
-    private func renderImage(size: CGSize, draw: (NSRect) -> Void) -> NSImage {
+    private func renderImage(size: CGSize, draw: (NSRect) -> Void) throws -> NSImage {
         let width = max(Int(size.width.rounded(.toNearestOrAwayFromZero)), 1)
         let height = max(Int(size.height.rounded(.toNearestOrAwayFromZero)), 1)
 
@@ -286,7 +317,7 @@ struct WallpaperGenerator {
             ),
             let context = NSGraphicsContext(bitmapImageRep: bitmap)
         else {
-            fatalError("Failed to allocate bitmap context for wallpaper rendering")
+            throw GenerationError.renderFailed
         }
 
         let rect = NSRect(origin: .zero, size: CGSize(width: CGFloat(width), height: CGFloat(height)))
@@ -302,13 +333,13 @@ struct WallpaperGenerator {
         return image
     }
 
-    private func writeImageAsPNG(_ image: NSImage, to url: URL) {
+    private func writeImageAsPNG(_ image: NSImage, to url: URL) throws {
         guard
             let tiffData = image.tiffRepresentation,
             let bitmap = NSBitmapImageRep(data: tiffData),
             let pngData = bitmap.representation(using: .png, properties: [:])
         else {
-            fatalError("Failed to encode wallpaper as PNG")
+            throw GenerationError.pngEncodingFailed
         }
 
         do {
@@ -318,7 +349,7 @@ struct WallpaperGenerator {
             )
             try pngData.write(to: url, options: .atomic)
         } catch {
-            fatalError("Failed to write wallpaper PNG to \(url.path): \(error)")
+            throw GenerationError.pngWriteFailed(path: url.path, message: error.localizedDescription)
         }
     }
 

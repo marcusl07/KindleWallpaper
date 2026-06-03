@@ -1,6 +1,26 @@
 import Foundation
 import GRDB
 
+enum DatabaseRepositoryError: Error, LocalizedError {
+    case missingExpectedRow(String)
+    case invalidStoredUUID(field: String, value: String?)
+    case unresolvedImportBooks(expected: Int, actual: Int)
+    case randomSelectionMissing(offset: Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .missingExpectedRow(let context):
+            return "Missing expected database row while \(context)."
+        case .invalidStoredUUID(let field, let value):
+            return "Invalid UUID stored for \(field): \(value ?? "nil")."
+        case .unresolvedImportBooks(let expected, let actual):
+            return "Resolved \(actual) of \(expected) imported book rows."
+        case .randomSelectionMissing(let offset):
+            return "Could not load quote at random offset \(offset)."
+        }
+    }
+}
+
 enum DatabaseBatching {
     static func uniqueUUIDStrings(from ids: [UUID]) -> [String] {
         var seen = Set<UUID>()
@@ -93,19 +113,19 @@ enum DatabaseRecordMapper {
         return iso8601Formatter.string(from: date)
     }
 
-    static func highlight(from row: Row) -> Highlight {
+    static func highlight(from row: Row) throws -> Highlight {
         guard
             let idValue: String = row["id"],
             let id = UUID(uuidString: idValue)
         else {
-            fatalError("Invalid highlight id in database row")
+            throw DatabaseRepositoryError.invalidStoredUUID(field: "highlight id", value: row["id"])
         }
 
         let bookIDValue: String? = row["bookId"]
         let bookID = bookIDValue.flatMap { UUID(uuidString: $0) }
 
         if bookIDValue != nil && bookID == nil {
-            fatalError("Invalid highlight bookId in database row")
+            throw DatabaseRepositoryError.invalidStoredUUID(field: "highlight bookId", value: bookIDValue)
         }
 
         let dateAddedValue: String? = row["dateAdded"]
@@ -125,12 +145,12 @@ enum DatabaseRecordMapper {
         )
     }
 
-    static func book(from row: Row) -> Book {
+    static func book(from row: Row) throws -> Book {
         guard
             let idValue: String = row["id"],
             let id = UUID(uuidString: idValue)
         else {
-            fatalError("Invalid book id in database row")
+            throw DatabaseRepositoryError.invalidStoredUUID(field: "book id", value: row["id"])
         }
 
         let isEnabledValue: Int = row["isEnabled"]
@@ -145,19 +165,19 @@ enum DatabaseRecordMapper {
         )
     }
 
-    static func linkedHighlight(from row: Row) -> BulkBookDeletionLinkedHighlight {
+    static func linkedHighlight(from row: Row) throws -> BulkBookDeletionLinkedHighlight {
         guard
             let idValue: String = row["id"],
             let id = UUID(uuidString: idValue)
         else {
-            fatalError("Invalid highlight id in database row")
+            throw DatabaseRepositoryError.invalidStoredUUID(field: "linked highlight id", value: row["id"])
         }
 
         let bookIDValue: String? = row["bookId"]
         let bookID = bookIDValue.flatMap { UUID(uuidString: $0) }
 
         if bookIDValue != nil && bookID == nil {
-            fatalError("Invalid linked highlight bookId in database row")
+            throw DatabaseRepositoryError.invalidStoredUUID(field: "linked highlight bookId", value: bookIDValue)
         }
 
         return BulkBookDeletionLinkedHighlight(
