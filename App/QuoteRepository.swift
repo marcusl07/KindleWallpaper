@@ -175,35 +175,120 @@ enum QuoteRepository {
         }
     }
 
+    static func fetchQuotesQuerySnapshot(
+        searchText: String,
+        filters: QuotesListFilters,
+        sortedBy sortMode: QuotesListSortMode,
+        limit: Int,
+        offset: Int,
+        databaseQueue: DatabaseQueue
+    ) throws -> QuotesQuerySnapshot {
+        let signpostState = quotesPerformanceSignposter.beginInterval(
+            "QuotesDBSnapshotFetch",
+            "sortMode=\(sortMode.rawValue, privacy: .public) limit=\(limit) offset=\(offset)"
+        )
+        do {
+            let snapshot = try databaseQueue.read { database in
+                let totalMatchingHighlightCount = try fetchHighlightsCount(
+                    searchText: searchText,
+                    filters: filters,
+                    database: database
+                )
+                let highlights = try fetchHighlightsPage(
+                    searchText: searchText,
+                    filters: filters,
+                    sortedBy: sortMode,
+                    limit: limit,
+                    offset: offset,
+                    database: database
+                )
+                let bookTitlesQuery = quotesFilterOptionsQuery(
+                    field: .bookTitle,
+                    searchText: searchText,
+                    filters: filters
+                )
+                let authorsQuery = quotesFilterOptionsQuery(
+                    field: .author,
+                    searchText: searchText,
+                    filters: filters
+                )
+                let availableBookTitles = try String.fetchAll(
+                    database,
+                    sql: bookTitlesQuery.sql,
+                    arguments: bookTitlesQuery.arguments
+                )
+                let availableAuthors = try String.fetchAll(
+                    database,
+                    sql: authorsQuery.sql,
+                    arguments: authorsQuery.arguments
+                )
+                return QuotesQuerySnapshot(
+                    highlights: highlights,
+                    totalMatchingHighlightCount: totalMatchingHighlightCount,
+                    availableBookTitles: availableBookTitles,
+                    availableAuthors: availableAuthors
+                )
+            }
+            quotesPerformanceSignposter.endInterval(
+                "QuotesDBSnapshotFetch",
+                signpostState,
+                "rows=\(snapshot.highlights.count) total=\(snapshot.totalMatchingHighlightCount)"
+            )
+            return snapshot
+        } catch {
+            quotesPerformanceSignposter.endInterval(
+                "QuotesDBSnapshotFetch",
+                signpostState,
+                "failed=1"
+            )
+            if isFTSSyntaxError(error) {
+                return QuotesQuerySnapshot(
+                    highlights: [],
+                    totalMatchingHighlightCount: 0,
+                    availableBookTitles: [],
+                    availableAuthors: []
+                )
+            }
+            throw error
+        }
+    }
+
     static func fetchHighlightFilterOptions(
         searchText: String,
         filters: QuotesListFilters,
         databaseQueue: DatabaseQueue
     ) throws -> QuotesFilterOptionsPayload {
-        try databaseQueue.read { database in
-            let bookTitlesQuery = quotesFilterOptionsQuery(
-                field: .bookTitle,
-                searchText: searchText,
-                filters: filters
-            )
-            let authorsQuery = quotesFilterOptionsQuery(
-                field: .author,
-                searchText: searchText,
-                filters: filters
-            )
-
-            return QuotesFilterOptionsPayload(
-                availableBookTitles: try String.fetchAll(
-                    database,
-                    sql: bookTitlesQuery.sql,
-                    arguments: bookTitlesQuery.arguments
-                ),
-                availableAuthors: try String.fetchAll(
-                    database,
-                    sql: authorsQuery.sql,
-                    arguments: authorsQuery.arguments
+        do {
+            return try databaseQueue.read { database in
+                let bookTitlesQuery = quotesFilterOptionsQuery(
+                    field: .bookTitle,
+                    searchText: searchText,
+                    filters: filters
                 )
-            )
+                let authorsQuery = quotesFilterOptionsQuery(
+                    field: .author,
+                    searchText: searchText,
+                    filters: filters
+                )
+
+                return QuotesFilterOptionsPayload(
+                    availableBookTitles: try String.fetchAll(
+                        database,
+                        sql: bookTitlesQuery.sql,
+                        arguments: bookTitlesQuery.arguments
+                    ),
+                    availableAuthors: try String.fetchAll(
+                        database,
+                        sql: authorsQuery.sql,
+                        arguments: authorsQuery.arguments
+                    )
+                )
+            }
+        } catch {
+            if isFTSSyntaxError(error) {
+                return QuotesFilterOptionsPayload(availableBookTitles: [], availableAuthors: [])
+            }
+            throw error
         }
     }
 
@@ -212,17 +297,24 @@ enum QuoteRepository {
         filters: QuotesListFilters,
         databaseQueue: DatabaseQueue
     ) throws -> [String] {
-        try databaseQueue.read { database in
-            let query = quotesFilterOptionsQuery(
-                field: .bookTitle,
-                searchText: searchText,
-                filters: filters
-            )
-            return try String.fetchAll(
-                database,
-                sql: query.sql,
-                arguments: query.arguments
-            )
+        do {
+            return try databaseQueue.read { database in
+                let query = quotesFilterOptionsQuery(
+                    field: .bookTitle,
+                    searchText: searchText,
+                    filters: filters
+                )
+                return try String.fetchAll(
+                    database,
+                    sql: query.sql,
+                    arguments: query.arguments
+                )
+            }
+        } catch {
+            if isFTSSyntaxError(error) {
+                return []
+            }
+            throw error
         }
     }
 
@@ -231,17 +323,24 @@ enum QuoteRepository {
         filters: QuotesListFilters,
         databaseQueue: DatabaseQueue
     ) throws -> [String] {
-        try databaseQueue.read { database in
-            let query = quotesFilterOptionsQuery(
-                field: .author,
-                searchText: searchText,
-                filters: filters
-            )
-            return try String.fetchAll(
-                database,
-                sql: query.sql,
-                arguments: query.arguments
-            )
+        do {
+            return try databaseQueue.read { database in
+                let query = quotesFilterOptionsQuery(
+                    field: .author,
+                    searchText: searchText,
+                    filters: filters
+                )
+                return try String.fetchAll(
+                    database,
+                    sql: query.sql,
+                    arguments: query.arguments
+                )
+            }
+        } catch {
+            if isFTSSyntaxError(error) {
+                return []
+            }
+            throw error
         }
     }
 
@@ -270,14 +369,21 @@ enum QuoteRepository {
             filters: filters,
             additionalConditions: additionalConditions
         )
-        return try Int.fetchOne(
-            database,
-            sql: """
-            SELECT COUNT(*)
-            FROM highlights\(query.sql)
-            """,
-            arguments: query.arguments
-        ) ?? 0
+        do {
+            return try Int.fetchOne(
+                database,
+                sql: """
+                SELECT COUNT(*)
+                FROM highlights\(query.sql)
+                """,
+                arguments: query.arguments
+            ) ?? 0
+        } catch {
+            if isFTSSyntaxError(error) {
+                return 0
+            }
+            throw error
+        }
     }
 
     private static func fetchHighlightsPage(
@@ -288,30 +394,37 @@ enum QuoteRepository {
         offset: Int,
         database: Database
     ) throws -> [Highlight] {
-        switch sortMode {
-        case .mostRecentlyAdded:
-            return try fetchMostRecentHighlightsPage(
-                searchText: searchText,
-                filters: filters,
-                limit: limit,
-                offset: offset,
-                database: database
-            )
-        case .alphabeticalByBook:
-            let query = quotesAlphabeticalPageQuery(
-                searchText: searchText,
-                filters: filters,
-                limit: limit,
-                offset: offset
-            )
-            let rows = try Row.fetchAll(
-                database,
-                sql: query.sql,
-                arguments: query.arguments
-            )
-            return try rows.map { row in
-                try DatabaseRecordMapper.highlight(from: row)
+        do {
+            switch sortMode {
+            case .mostRecentlyAdded:
+                return try fetchMostRecentHighlightsPage(
+                    searchText: searchText,
+                    filters: filters,
+                    limit: limit,
+                    offset: offset,
+                    database: database
+                )
+            case .alphabeticalByBook:
+                let query = quotesAlphabeticalPageQuery(
+                    searchText: searchText,
+                    filters: filters,
+                    limit: limit,
+                    offset: offset
+                )
+                let rows = try Row.fetchAll(
+                    database,
+                    sql: query.sql,
+                    arguments: query.arguments
+                )
+                return try rows.map { row in
+                    try DatabaseRecordMapper.highlight(from: row)
+                }
             }
+        } catch {
+            if isFTSSyntaxError(error) {
+                return []
+            }
+            throw error
         }
     }
 
@@ -428,13 +541,20 @@ enum QuoteRepository {
         """
         query.arguments += [limit, offset]
 
-        let rows = try Row.fetchAll(
-            database,
-            sql: query.sql,
-            arguments: query.arguments
-        )
-        return try rows.map { row in
-            try DatabaseRecordMapper.highlight(from: row)
+        do {
+            let rows = try Row.fetchAll(
+                database,
+                sql: query.sql,
+                arguments: query.arguments
+            )
+            return try rows.map { row in
+                try DatabaseRecordMapper.highlight(from: row)
+            }
+        } catch {
+            if isFTSSyntaxError(error) {
+                return []
+            }
+            throw error
         }
     }
 
@@ -557,4 +677,14 @@ enum QuoteRepository {
         let queryParts = words.map { "\"\($0)\"*" }
         return queryParts.joined(separator: " AND ")
     }
+
+    private static func isFTSSyntaxError(_ error: Error) -> Bool {
+        guard let dbError = error as? DatabaseError else {
+            return false
+        }
+        let message = dbError.message ?? ""
+        return dbError.resultCode == .SQLITE_ERROR &&
+            (message.contains("fts5") || message.contains("syntax error") || message.contains("MATCH"))
+    }
 }
+

@@ -303,6 +303,19 @@
     <p><strong>Commit boundary:</strong> beta docs and hygiene only.</p>
   </article>
 
+  <article class="phase">
+    <div class="tag">Phase 7</div>
+    <h3>Quote Search Query Simplification &amp; Safety Pass</h3>
+    <p><strong>Intent:</strong> optimize search performance and protect persistence queries from malformed full-text search syntax inputs.</p>
+    <ul>
+      <li>Implement a unified snapshot query that retrieves highlights, count, and filter options in a single read transaction, eliminating sequential database requests and round-trip thread hops.</li>
+      <li>Incorporate safe catching for GRDB/SQLite FTS5 syntax errors, returning empty result lists and zero matching counts instead of propagating database failures.</li>
+      <li>Add targeted test coverage for edge case search inputs including punctuation, quotes, apostrophes, hyphens, non-ASCII text, and very long queries.</li>
+    </ul>
+    <p><strong>Verification:</strong> tests pass, <code>scripts/test.sh</code> succeeds, and searching in the quotes library with special characters handles inputs gracefully without error dialogues.</p>
+    <p><strong>Commit boundary:</strong> FTS query simplification and safety improvements.</p>
+  </article>
+
   <h2>Risk Register</h2>
   <table>
     <thead>

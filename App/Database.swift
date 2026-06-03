@@ -12,6 +12,13 @@ struct QuotesFilterOptionsPayload: Equatable {
     let availableAuthors: [String]
 }
 
+struct QuotesQuerySnapshot: Equatable {
+    let highlights: [Highlight]
+    let totalMatchingHighlightCount: Int
+    let availableBookTitles: [String]
+    let availableAuthors: [String]
+}
+
 enum DatabaseManager {
     enum HighlightUpdateError: Error, Equatable {
         case duplicateDedupeKey
@@ -311,6 +318,32 @@ enum DatabaseManager {
         } catch {
             logRecoverableDatabaseError(operation: "load quote page", error: error)
             return QuotesPagePayload(highlights: [], totalMatchingHighlightCount: 0)
+        }
+    }
+
+    static func fetchQuotesQuerySnapshot(
+        searchText: String = "",
+        filters: QuotesListFilters = QuotesListFilters(),
+        sortedBy sortMode: QuotesListSortMode = .mostRecentlyAdded,
+        limit: Int
+    ) -> QuotesQuerySnapshot {
+        do {
+            return try QuoteRepository.fetchQuotesQuerySnapshot(
+                searchText: searchText,
+                filters: filters,
+                sortedBy: sortMode,
+                limit: limit,
+                offset: 0,
+                databaseQueue: try sharedDatabaseQueue()
+            )
+        } catch {
+            logRecoverableDatabaseError(operation: "load quote snapshot", error: error)
+            return QuotesQuerySnapshot(
+                highlights: [],
+                totalMatchingHighlightCount: 0,
+                availableBookTitles: [],
+                availableAuthors: []
+            )
         }
     }
 

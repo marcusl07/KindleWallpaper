@@ -855,3 +855,7 @@ Lower text field horizontal compression resistance in QuotesNativeTableCellView 
 **T144 — Beta Readiness and Documentation**
 Complete Phase 6 of public-beta-refactor-plan.html: add a GitHub README beta section, fix repo hygiene by ignoring generated build products, trace bundles, .DS_Store, and Xcode user state, and run final verification checks.
 
+
+**T145 — Complete Phase 7 of public-beta-refactor-plan.html**
+Implement query simplification and FTS error catching for quote search. Retrieve matching highlights, count, and filter options in a single read transaction to optimize performance, and catch GRDB/SQLite FTS5 syntax errors to return empty result lists gracefully instead of raising exceptions. Add unit tests for edge case search inputs.
+

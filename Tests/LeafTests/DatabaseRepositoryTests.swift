@@ -155,6 +155,78 @@ final class DatabaseRepositoryTests: XCTestCase {
         XCTAssertEqual(punctuationSearchCount, 1)
     }
 
+    func testQuoteSearchHandlesApostrophesHyphensNonASCIIAndMalformedFTSQueries() throws {
+        let book = makeBook(title: "The O'Connor Memoirs", author: "München Press")
+        let highlight = makeHighlight(
+            bookID: book.id,
+            quoteText: "It's a self-esteem guide for the modern-day world, written in München & 世界.",
+            bookTitle: book.title,
+            author: book.author,
+            location: "8"
+        )
+
+        try databaseQueue.write { database in
+            _ = try ImportRepository.persistImport(books: [book], highlights: [highlight], database: database)
+        }
+
+        // Test apostrophe
+        let apostropheCount = try databaseQueue.read { database in
+            try QuoteRepository.fetchHighlightsCount(
+                searchText: "O'Connor",
+                filters: QuotesListFilters(),
+                database: database
+            )
+        }
+        let contractedCount = try databaseQueue.read { database in
+            try QuoteRepository.fetchHighlightsCount(
+                searchText: "It's",
+                filters: QuotesListFilters(),
+                database: database
+            )
+        }
+
+        // Test hyphen
+        let hyphenatedCount = try databaseQueue.read { database in
+            try QuoteRepository.fetchHighlightsCount(
+                searchText: "self-esteem",
+                filters: QuotesListFilters(),
+                database: database
+            )
+        }
+
+        // Test non-ASCII text
+        let umlautCount = try databaseQueue.read { database in
+            try QuoteRepository.fetchHighlightsCount(
+                searchText: "München",
+                filters: QuotesListFilters(),
+                database: database
+            )
+        }
+        let unicodeCount = try databaseQueue.read { database in
+            try QuoteRepository.fetchHighlightsCount(
+                searchText: "世界",
+                filters: QuotesListFilters(),
+                database: database
+            )
+        }
+
+        // Test malformed FTS / raw query that would normally trigger a syntax error (like unclosed quotes or FTS operators)
+        let malformedCount = try databaseQueue.read { database in
+            try QuoteRepository.fetchHighlightsCount(
+                searchText: " * OR \" AND (MATCH) ",
+                filters: QuotesListFilters(),
+                database: database
+            )
+        }
+
+        XCTAssertEqual(apostropheCount, 1)
+        XCTAssertEqual(contractedCount, 1)
+        XCTAssertEqual(hyphenatedCount, 1)
+        XCTAssertEqual(umlautCount, 1)
+        XCTAssertEqual(unicodeCount, 1)
+        XCTAssertEqual(malformedCount, 0) // Should catch syntax error gracefully and return 0
+    }
+
     func testDatabaseOpenFailureThrowsInsteadOfCrashing() throws {
         let invalidDatabaseURL = rootURL.appendingPathComponent("database-directory", isDirectory: false)
         try FileManager.default.createDirectory(at: invalidDatabaseURL, withIntermediateDirectories: false)

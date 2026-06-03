@@ -313,12 +313,28 @@ struct QuotesListView: View {
         let quotesQueryService = appState.quotesQueryService
         let reloadsFilterOptions = QuotesListRefreshPresentationModel.reloadsFilterOptions(for: reason)
         runtimeState.refreshTask = Task {
-            let pagePayload = await quotesQueryService.loadPagePayload(
-                searchText: currentSearchText,
-                filters: currentFilters,
-                sortedBy: currentSortMode,
-                pageSize: QuotesListPagingConstants.pageSize
-            )
+            let snapshot: QuotesQuerySnapshot
+            if reloadsFilterOptions {
+                snapshot = await quotesQueryService.loadSnapshot(
+                    searchText: currentSearchText,
+                    filters: currentFilters,
+                    sortedBy: currentSortMode,
+                    pageSize: QuotesListPagingConstants.pageSize
+                )
+            } else {
+                let pagePayload = await quotesQueryService.loadPagePayload(
+                    searchText: currentSearchText,
+                    filters: currentFilters,
+                    sortedBy: currentSortMode,
+                    pageSize: QuotesListPagingConstants.pageSize
+                )
+                snapshot = QuotesQuerySnapshot(
+                    highlights: pagePayload.highlights,
+                    totalMatchingHighlightCount: pagePayload.totalMatchingHighlightCount,
+                    availableBookTitles: [],
+                    availableAuthors: []
+                )
+            }
 
             guard !Task.isCancelled,
                   QuotesListRefreshPresentationModel.shouldAcceptAsyncResult(
@@ -328,25 +344,25 @@ struct QuotesListView: View {
                 return
             }
 
-            runtimeState.highlights = pagePayload.highlights
-            runtimeState.totalMatchingHighlightCount = pagePayload.totalMatchingHighlightCount
+            runtimeState.highlights = snapshot.highlights
+            runtimeState.totalMatchingHighlightCount = snapshot.totalMatchingHighlightCount
             runtimeState.hasMoreHighlights = QuotesListPagingPresentationModel.hasMoreHighlights(
-                loadedCount: pagePayload.highlights.count,
-                totalMatchingHighlightCount: pagePayload.totalMatchingHighlightCount
+                loadedCount: snapshot.highlights.count,
+                totalMatchingHighlightCount: snapshot.totalMatchingHighlightCount
             )
             runtimeState.isLoadingHighlights = false
             runtimeState.lastResolvedPrimaryContent = QuotesListContentPresentationModel.resolvedPrimaryContent(
                 totalHighlightCount: appState.totalHighlightCount,
-                displayedRowCount: pagePayload.highlights.count
+                displayedRowCount: snapshot.highlights.count
             )
-            runtimeState.replaceRows(with: pagePayload.highlights)
+            runtimeState.replaceRows(with: snapshot.highlights)
             reconcileSelectedHighlights()
-            completeRefreshMeasurement(loadedCount: pagePayload.highlights.count)
+            completeRefreshMeasurement(loadedCount: snapshot.highlights.count)
 
             runtimeState.pendingRenderSignpostState = QuotesListPerformanceSignposts.beginRender(
                 reason: reason.rawValue,
                 sortMode: currentSortMode,
-                totalCount: pagePayload.highlights.count
+                totalCount: snapshot.highlights.count
             )
             runtimeState.renderObservationToken = UUID()
 
@@ -355,21 +371,8 @@ struct QuotesListView: View {
                 return
             }
 
-            let filterOptions = await quotesQueryService.loadFilterOptions(
-                searchText: currentSearchText,
-                filters: currentFilters
-            )
-
-            guard !Task.isCancelled,
-                  QuotesListRefreshPresentationModel.shouldAcceptAsyncResult(
-                    capturedGeneration: currentGeneration,
-                    activeQueryGeneration: runtimeState.queryGeneration
-                  ) else {
-                return
-            }
-
-            runtimeState.availableBookTitles = filterOptions.availableBookTitles
-            runtimeState.availableAuthors = filterOptions.availableAuthors
+            runtimeState.availableBookTitles = snapshot.availableBookTitles
+            runtimeState.availableAuthors = snapshot.availableAuthors
 
             guard reconcileFilters() == false else {
                 runtimeState.refreshTask = nil

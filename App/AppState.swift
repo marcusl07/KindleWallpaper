@@ -21,7 +21,6 @@ struct QuotesFilterOptionsPayload: Equatable {
     let availableBookTitles: [String]
     let availableAuthors: [String]
 }
-#endif
 
 struct QuotesQuerySnapshot: Equatable {
     let highlights: [Highlight]
@@ -29,21 +28,26 @@ struct QuotesQuerySnapshot: Equatable {
     let availableBookTitles: [String]
     let availableAuthors: [String]
 }
+#endif
 
 final class QuotesQueryService {
+    typealias FetchSnapshot = (String, QuotesListFilters, QuotesListSortMode, Int) -> QuotesQuerySnapshot
     typealias FetchPagePayload = (String, QuotesListFilters, QuotesListSortMode, Int, Int) -> QuotesPagePayload
     typealias FetchFilterOptions = (String, QuotesListFilters) -> QuotesFilterOptionsPayload
     typealias FetchHighlightsPage = (String, QuotesListFilters, QuotesListSortMode, Int, Int) -> [Highlight]
 
+    private let fetchSnapshot: FetchSnapshot
     private let fetchPagePayload: FetchPagePayload
     private let fetchFilterOptions: FetchFilterOptions
     private let fetchHighlightsPage: FetchHighlightsPage
 
     init(
+        fetchSnapshot: @escaping FetchSnapshot,
         fetchPagePayload: @escaping FetchPagePayload,
         fetchFilterOptions: @escaping FetchFilterOptions,
         fetchHighlightsPage: @escaping FetchHighlightsPage
     ) {
+        self.fetchSnapshot = fetchSnapshot
         self.fetchPagePayload = fetchPagePayload
         self.fetchFilterOptions = fetchFilterOptions
         self.fetchHighlightsPage = fetchHighlightsPage
@@ -56,6 +60,18 @@ final class QuotesQueryService {
         fetchAvailableHighlightAuthors: @escaping (String, QuotesListFilters) -> [String]
     ) {
         self.init(
+            fetchSnapshot: { searchText, filters, sortMode, pageSize in
+                let pagePayload = fetchHighlightsPage(searchText, filters, sortMode, pageSize, 0)
+                let totalMatchingHighlightCount = countHighlights(searchText, filters)
+                let availableBookTitles = fetchAvailableHighlightBookTitles(searchText, filters)
+                let availableAuthors = fetchAvailableHighlightAuthors(searchText, filters)
+                return QuotesQuerySnapshot(
+                    highlights: pagePayload,
+                    totalMatchingHighlightCount: totalMatchingHighlightCount,
+                    availableBookTitles: availableBookTitles,
+                    availableAuthors: availableAuthors
+                )
+            },
             fetchPagePayload: { searchText, filters, sortMode, limit, offset in
                 QuotesPagePayload(
                     highlights: fetchHighlightsPage(searchText, filters, sortMode, limit, offset),
@@ -100,26 +116,10 @@ final class QuotesQueryService {
         sortedBy sortMode: QuotesListSortMode = .mostRecentlyAdded,
         pageSize: Int
     ) async -> QuotesQuerySnapshot {
-        async let pagePayload = loadPagePayload(
-            searchText: searchText,
-            filters: filters,
-            sortedBy: sortMode,
-            pageSize: pageSize
-        )
-        async let filterOptions = loadFilterOptions(
-            searchText: searchText,
-            filters: filters
-        )
-
-        let loadedPagePayload = await pagePayload
-        let loadedFilterOptions = await filterOptions
-
-        return QuotesQuerySnapshot(
-            highlights: loadedPagePayload.highlights,
-            totalMatchingHighlightCount: loadedPagePayload.totalMatchingHighlightCount,
-            availableBookTitles: loadedFilterOptions.availableBookTitles,
-            availableAuthors: loadedFilterOptions.availableAuthors
-        )
+        let fetchSnapshot = self.fetchSnapshot
+        return await Self.executeQuery {
+            fetchSnapshot(searchText, filters, sortMode, pageSize)
+        }
     }
 
     func loadPage(
@@ -1280,6 +1280,7 @@ extension AppState {
             fetchAvailableHighlightBookTitles: DatabaseManager.fetchAvailableHighlightBookTitles(searchText:filters:),
             fetchAvailableHighlightAuthors: DatabaseManager.fetchAvailableHighlightAuthors(searchText:filters:),
             quotesQueryService: QuotesQueryService(
+                fetchSnapshot: DatabaseManager.fetchQuotesQuerySnapshot(searchText:filters:sortedBy:limit:),
                 fetchPagePayload: DatabaseManager.fetchHighlightPagePayload(searchText:filters:sortedBy:limit:offset:),
                 fetchFilterOptions: DatabaseManager.fetchHighlightFilterOptions(searchText:filters:),
                 fetchHighlightsPage: DatabaseManager.fetchHighlightsPage(searchText:filters:sortedBy:limit:offset:)
