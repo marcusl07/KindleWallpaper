@@ -46,6 +46,7 @@
 		AFEDDEADFB13BFA4F23F0FD5 /* DisplayTopologyCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A5767AD8F86113DAE586BEF /* DisplayTopologyCoordinator.swift */; };
 		B33183E21DE8874D4FF5F3BE /* DatabaseSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02F39201D3AFB8B68A52F234 /* DatabaseSupport.swift */; };
 		B355BB125C0BFE9298F3C07C /* WallpaperGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E25B22876E6C4FDA140A324 /* WallpaperGenerator.swift */; };
+		B72645C1A3C93FBD758BC088 /* leaf-logo.png in Resources */ = {isa = PBXBuildFile; fileRef = D045D61A5F6EE22EB4BE36BC /* leaf-logo.png */; };
 		B91FD28C7AEC1D1726DD6E98 /* ScheduleSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7722C3B4FB0A66E04C7BB28 /* ScheduleSettings.swift */; };
 		C06D7617B1725A8B722A3626 /* ClippingsParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7702F347CAD3C65FDA7851 /* ClippingsParser.swift */; };
 		C11C4AA58645E3A2602523DC /* VolumeWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 653DF17A62F70DE93E169341 /* VolumeWatcher.swift */; };
@@ -122,6 +123,7 @@
 		C88BA03AB2C2B7841ADC4755 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		CCC30AE2587D563491B3028B /* AppSupportPaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSupportPaths.swift; sourceTree = "<group>"; };
 		CD851ED87C25424B419ECE55 /* QuotesListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuotesListViewModel.swift; sourceTree = "<group>"; };
+		D045D61A5F6EE22EB4BE36BC /* leaf-logo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "leaf-logo.png"; sourceTree = "<group>"; };
 		D75F5B4676E7AE45FB875FD8 /* BackgroundsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundsListView.swift; sourceTree = "<group>"; };
 		DE1A57417D9CDEAF8AE8FAB9 /* DatabaseMigrations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseMigrations.swift; sourceTree = "<group>"; };
 		E7722C3B4FB0A66E04C7BB28 /* ScheduleSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleSettings.swift; sourceTree = "<group>"; };
@@ -182,6 +184,7 @@
 				931DFDD6D12D8887EA968760 /* Info.plist */,
 				67306A31618FE6581F9F81F4 /* KindleWallApp.swift */,
 				B87EE9D3D29F4C1B63805F6A /* LaunchAtLoginService.swift */,
+				D045D61A5F6EE22EB4BE36BC /* leaf-logo.png */,
 				8BDE45CC0325BF3ED8348B84 /* LeafAppDelegate.swift */,
 				9D9D38018432B45CB791F238 /* LeafAppLifecycle.swift */,
 				C5A453AA0FAEA310481C2420 /* LibraryRepository.swift */,
@@ -276,6 +279,7 @@
 			buildConfigurationList = 943AF8627BA52137C9884D7A /* Build configuration list for PBXNativeTarget "KindleWall" */;
 			buildPhases = (
 				FB500375C2412AA6AF2AD9F6 /* Sources */,
+				0C8F5EFCCFE3F0DEEC323E3B /* Resources */,
 				E22ABD819961EAE14CB180F9 /* Frameworks */,
 			);
 			buildRules = (
@@ -329,6 +333,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		0C8F5EFCCFE3F0DEEC323E3B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B72645C1A3C93FBD758BC088 /* leaf-logo.png in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		8F20446858893A3833236A56 /* Sources */ = {
