@@ -33,6 +33,7 @@
 		5A1129A5A18530C7D5B82C69 /* LeafApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C99823322E5B7D05A34A062B /* LeafApp.swift */; };
 		5FEAB2ECFA4C076AAAAF67A9 /* LaunchAtLoginService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04A2E51A12F127552D4668FD /* LaunchAtLoginService.swift */; };
 		62E9FAF9E08BB121C905F3AF /* WallpaperRotationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B021BE4255B7655C15960853 /* WallpaperRotationService.swift */; };
+		665F5EC07DD6EE68F7A20B10 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 88420A0C25EB6CB70C004CFF /* Assets.xcassets */; };
 		6E177CE58AFF50DE769FCADB /* ClippingsParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5764D75AA933F2E0DCB68BBE /* ClippingsParser.swift */; };
 		6FF53BF65AEB4F8FECF8CB8C /* LibraryRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80AFA1C6AD3B0DD2C6917ED1 /* LibraryRepository.swift */; };
 		7A5054EE558433AB71BD616A /* QuotesImportFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61E42672BA72E6FAED513F9 /* QuotesImportFlow.swift */; };
@@ -104,6 +105,7 @@
 		7EFDCC18AEE5D75146B3F1E8 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		80AFA1C6AD3B0DD2C6917ED1 /* LibraryRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryRepository.swift; sourceTree = "<group>"; };
 		81E5809393A45C36B312BAA0 /* BulkBookDeletionPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BulkBookDeletionPlan.swift; sourceTree = "<group>"; };
+		88420A0C25EB6CB70C004CFF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		8A5AED1A150E3C2C2A833D42 /* DatabaseRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseRepositoryTests.swift; sourceTree = "<group>"; };
 		96DE04713927864141B4E8C7 /* BackgroundsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundsListView.swift; sourceTree = "<group>"; };
 		9B45D20D7EC217CE315CE08A /* BackgroundsWindowPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundsWindowPresentation.swift; sourceTree = "<group>"; };
@@ -148,6 +150,7 @@
 			children = (
 				109FB22E03F9BE67AA3CE6DB /* AppState.swift */,
 				EE661A61398770A576A8FEEB /* AppSupportPaths.swift */,
+				88420A0C25EB6CB70C004CFF /* Assets.xcassets */,
 				530D36AE78B06724AAC10108 /* BackgroundImageLoader.swift */,
 				543CBD0242B26379462C0637 /* BackgroundImageStore.swift */,
 				96DE04713927864141B4E8C7 /* BackgroundsListView.swift */,
@@ -339,6 +342,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				665F5EC07DD6EE68F7A20B10 /* Assets.xcassets in Resources */,
 				BAE88C75DA9C101E9F584BB8 /* leaf-logo.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
