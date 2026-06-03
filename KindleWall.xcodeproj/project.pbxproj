@@ -89,6 +89,7 @@
 		363D28120FD6A265CA45F299 /* QuoteDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuoteDetailView.swift; sourceTree = "<group>"; };
 		37F9D135DF467547CDB49400 /* BooksListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BooksListView.swift; sourceTree = "<group>"; };
 		3F040EDF848E9D9B7A8E5001 /* WallpaperAssignmentStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperAssignmentStoreTests.swift; sourceTree = "<group>"; };
+		40464F364FAE196CE10CC1F7 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		4E0532262BD7F480B8D9EED8 /* BackgroundImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundImageLoader.swift; sourceTree = "<group>"; };
 		578F9F25BEE00A81E7CFD41F /* SyncNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncNotificationManager.swift; sourceTree = "<group>"; };
 		5A72A5D605268A44A7EEBC47 /* ScheduleSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleSettingsTests.swift; sourceTree = "<group>"; };
@@ -224,6 +225,7 @@
 		54A9BAE9BBA9B7593F6D628B /* LeafTests */ = {
 			isa = PBXGroup;
 			children = (
+				40464F364FAE196CE10CC1F7 /* .gitkeep */,
 				829041E82AC9216C736415F9 /* DatabaseRepositoryTests.swift */,
 				5A72A5D605268A44A7EEBC47 /* ScheduleSettingsTests.swift */,
 				3F040EDF848E9D9B7A8E5001 /* WallpaperAssignmentStoreTests.swift */,

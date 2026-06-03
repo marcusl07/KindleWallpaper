@@ -1,20 +1,31 @@
+# Agent and Task documents
 AGENTS.md
-sample clippings.txt
-spec.txt
-tasks.txt
 tasks-active.txt
 tasks-archive.txt
-tasks/lessons.md
+tasks/
 
-# OS files
+# Specs and docs
+*.html
+text-files/
+
+# Xcode / OS metadata
 .DS_Store
-text-files/.DS_Store
-
-# Xcode User Data / Build Products
-build/
-Build/
-DerivedData/
 *.xcuserstate
 xcuserdata/
 *.xcworkspace/xcuserdata/
 *.trace/
+
+# Build Products
+build/
+Build/
+DerivedData/
+
+# Test data & files
+TestData/
+Tests/LeafTests/*
+!Tests/LeafTests/.gitkeep
+
+# Developer / test scripts
+scripts/archive_task.sh
+scripts/test.sh
+scripts/verify_*
