@@ -1,0 +1,45 @@
+#if canImport(AppKit)
+import AppKit
+
+@MainActor
+final class StatusItemController: NSObject {
+    private let statusItem: NSStatusItem
+    private let menuBarView: MenuBarView
+
+    init(
+        appState: AppState,
+        openSettings: @escaping () -> Void,
+        openPreferences: @escaping () -> Void,
+        rotateWallpaper: @escaping () -> Void
+    ) {
+        self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        self.menuBarView = MenuBarView(
+            appState: appState,
+            nextQuoteAction: rotateWallpaper,
+            openSettingsAction: openSettings,
+            openPreferencesAction: openPreferences,
+            quitAction: {
+                NSApp.terminate(nil)
+            }
+        )
+        super.init()
+        configureStatusButton()
+        statusItem.menu = menuBarView.menu
+    }
+
+    private func configureStatusButton() {
+        guard let button = statusItem.button else {
+            return
+        }
+
+        if let symbol = NSImage(systemSymbolName: "text.quote", accessibilityDescription: "KindleWall") {
+            symbol.isTemplate = true
+            button.image = symbol
+        } else {
+            button.title = "KW"
+        }
+
+        button.toolTip = "KindleWall"
+    }
+}
+#endif

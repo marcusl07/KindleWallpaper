@@ -4,14 +4,6 @@ import Foundation
 #if canImport(AppKit)
 import AppKit
 #endif
-#if canImport(ServiceManagement)
-import ServiceManagement
-#endif
-
-private let wallpaperRotationQueue = DispatchQueue(
-    label: "KindleWall.AppState.WallpaperRotation",
-    qos: .userInitiated
-)
 
 private let quotesQueryWorkQueue = DispatchQueue(
     label: "KindleWall.QuotesQueryService",
@@ -458,16 +450,6 @@ final class AppState: ObservableObject {
         launchAtLoginError?.errorDescription
     }
 
-    nonisolated private static func enqueueRotationWork(_ work: @escaping () -> Void) {
-        let workItem = DispatchWorkItem(block: work)
-        wallpaperRotationQueue.async(execute: workItem)
-    }
-
-    nonisolated private static func deliverRotationResultOnMain(_ work: @escaping () -> Void) {
-        let workItem = DispatchWorkItem(block: work)
-        DispatchQueue.main.async(execute: workItem)
-    }
-
     init(
         userDefaults: UserDefaults = .standard,
         currentQuotePreview: String = "",
@@ -520,8 +502,8 @@ final class AppState: ObservableObject {
         addBackgroundImageSelection: @escaping AddBackgroundImageSelection = { _ in },
         removeBackgroundImageSelection: @escaping RemoveBackgroundImageSelection = { _ in },
         setPrimaryBackgroundImageSelection: @escaping SetPrimaryBackgroundImageSelection = { _ in },
-        executeRotationWork: @escaping ExecuteRotationWork = AppState.enqueueRotationWork,
-        deliverRotationResult: @escaping DeliverRotationResult = AppState.deliverRotationResultOnMain,
+        executeRotationWork: @escaping ExecuteRotationWork = WallpaperRotationService.enqueue(_:),
+        deliverRotationResult: @escaping DeliverRotationResult = WallpaperRotationService.deliverOnMain(_:),
         now: @escaping Now = Date.init
     ) {
         let resolvedLoadBackgroundImageURLs: LoadBackgroundImageURLs
@@ -686,7 +668,7 @@ final class AppState: ObservableObject {
         isRotationInProgress = true
         let context = makeRotationPipelineContext(forcedHighlight: forcedHighlight)
         executeRotationWork { [weak self] in
-            let execution = AppState.runWallpaperRotationPipeline(using: context)
+            let execution = WallpaperRotationService.run(using: context)
             self?.deliverRotationResult { [weak self] in
                 guard let self else {
                     return
@@ -723,7 +705,7 @@ final class AppState: ObservableObject {
             isRotationInProgress = false
         }
 
-        let execution = AppState.runWallpaperRotationPipeline(
+        let execution = WallpaperRotationService.run(
             using: makeRotationPipelineContext(forcedHighlight: forcedHighlight)
         )
         publishRotationExecution(execution)
@@ -752,44 +734,17 @@ final class AppState: ObservableObject {
         storedWallpaperAssignmentPersistence.clear()
     }
 
-    private struct RotationPipelineContext {
-        let selectHighlight: () -> Highlight?
-        let loadBackgroundImageURLs: LoadBackgroundImageURLs
-        let selectBackgroundImageURL: SelectBackgroundImageURL
-        let transformQuoteTextForDisplay: (String) -> String
-        let generateWallpaper: GenerateWallpaper
-        let setWallpaper: SetWallpaper
-        let prepareWallpaperRotation: PrepareWallpaperRotation?
-        let generateWallpapers: GenerateWallpapers?
-        let persistAppliedWallpaperAssignments: ([GeneratedWallpaper]) -> Void
-        let retryWallpaperAssignmentMigrationIfNeeded: RetryWallpaperAssignmentMigrationIfNeeded
-        let markHighlightShown: MarkHighlightShown
-        let setLastChangedAt: (Date) -> Void
-        let now: Now
-    }
-
-    private struct RotationExecution {
-        let outcome: WallpaperRotationOutcome
-        let currentQuotePreview: String?
-        let lastChangedAt: Date?
-    }
-
-    private func makeRotationPipelineContext(forcedHighlight: Highlight? = nil) -> RotationPipelineContext {
+    private func makeRotationPipelineContext(forcedHighlight: Highlight? = nil) -> WallpaperRotationService.Context {
         let capitalizeHighlightText = userDefaults.capitalizeHighlightText
         let resolvedForcedHighlight = forcedHighlight
         let pickNextHighlight = self.pickNextHighlight
-        return RotationPipelineContext(
+        return WallpaperRotationService.Context(
             selectHighlight: {
                 resolvedForcedHighlight ?? pickNextHighlight()
             },
             loadBackgroundImageURLs: loadBackgroundImageURLs,
             selectBackgroundImageURL: selectBackgroundImageURL,
-            transformQuoteTextForDisplay: { quoteText in
-                AppState.transformedQuoteTextForDisplay(
-                    quoteText,
-                    capitalizeFirstLetterIfLowercase: capitalizeHighlightText
-                )
-            },
+            capitalizeFirstLetterIfLowercase: capitalizeHighlightText,
             generateWallpaper: generateWallpaper,
             setWallpaper: setWallpaper,
             prepareWallpaperRotation: prepareWallpaperRotation,
@@ -804,142 +759,6 @@ final class AppState: ObservableObject {
             },
             now: now
         )
-    }
-
-    nonisolated private static func runWallpaperRotationPipeline(using context: RotationPipelineContext) -> RotationExecution {
-        guard let highlight = context.selectHighlight() else {
-            return RotationExecution(
-                outcome: .noActivePool,
-                currentQuotePreview: nil,
-                lastChangedAt: nil
-            )
-        }
-
-        let displayQuoteText = context.transformQuoteTextForDisplay(highlight.quoteText)
-        let highlightForDisplay = displayHighlight(highlight, quoteText: displayQuoteText)
-        let backgroundURL = context.selectBackgroundImageURL(context.loadBackgroundImageURLs())
-        let appliedGeneratedWallpapers: [GeneratedWallpaper]
-        if
-            let prepareWallpaperRotation = context.prepareWallpaperRotation,
-            let generateWallpapers = context.generateWallpapers,
-            let rotationPlan = prepareWallpaperRotation()
-        {
-            let targets = rotationPlan.targets
-            guard !targets.isEmpty else {
-                return RotationExecution(
-                    outcome: .wallpaperApplyFailure(.noTargets),
-                    currentQuotePreview: nil,
-                    lastChangedAt: nil
-                )
-            }
-
-            let generatedWallpapers = generateWallpapers(highlightForDisplay, backgroundURL, targets)
-            let targetIdentifiers = Set(targets.map { $0.identifier })
-            let generatedIdentifiers = Set(generatedWallpapers.map { $0.targetIdentifier })
-
-            guard
-                generatedWallpapers.count == targets.count,
-                generatedIdentifiers == targetIdentifiers
-            else {
-                return RotationExecution(
-                    outcome: .wallpaperApplyFailure(.generatedTargetMismatch),
-                    currentQuotePreview: nil,
-                    lastChangedAt: nil
-                )
-            }
-
-            do {
-                try rotationPlan.apply(generatedWallpapers)
-            } catch {
-                return RotationExecution(
-                    outcome: .wallpaperApplyFailure(.applyError),
-                    currentQuotePreview: nil,
-                    lastChangedAt: nil
-                )
-            }
-
-            appliedGeneratedWallpapers = generatedWallpapers
-        } else {
-            do {
-                let wallpaperURL = context.generateWallpaper(highlightForDisplay, backgroundURL)
-                try context.setWallpaper(wallpaperURL)
-                appliedGeneratedWallpapers = [
-                    GeneratedWallpaper(
-                        targetIdentifier: StoredGeneratedWallpaper.allScreensTargetIdentifier,
-                        fileURL: wallpaperURL
-                    )
-                ]
-            } catch {
-                return RotationExecution(
-                    outcome: .wallpaperApplyFailure(.applyError),
-                    currentQuotePreview: nil,
-                    lastChangedAt: nil
-                )
-            }
-        }
-
-        context.persistAppliedWallpaperAssignments(appliedGeneratedWallpapers)
-        context.retryWallpaperAssignmentMigrationIfNeeded()
-        context.markHighlightShown(highlight.id)
-        let changedAt = context.now()
-        context.setLastChangedAt(changedAt)
-        return RotationExecution(
-            outcome: .success,
-            currentQuotePreview: displayQuoteText,
-            lastChangedAt: changedAt
-        )
-    }
-
-    nonisolated private static func displayHighlight(_ highlight: Highlight, quoteText: String) -> Highlight {
-        Highlight(
-            id: highlight.id,
-            bookId: highlight.bookId,
-            quoteText: quoteText,
-            bookTitle: highlight.bookTitle,
-            author: highlight.author,
-            location: highlight.location,
-            dateAdded: highlight.dateAdded,
-            lastShownAt: highlight.lastShownAt,
-            isEnabled: highlight.isEnabled
-        )
-    }
-
-    nonisolated private static func transformedQuoteTextForDisplay(
-        _ quoteText: String,
-        capitalizeFirstLetterIfLowercase: Bool
-    ) -> String {
-        guard capitalizeFirstLetterIfLowercase else {
-            return quoteText
-        }
-
-        guard let firstLetterRange = firstLetterRange(in: quoteText) else {
-            return quoteText
-        }
-
-        let firstLetter = quoteText[firstLetterRange]
-        let firstLetterString = String(firstLetter)
-        let lowercase = firstLetterString.lowercased()
-        let uppercase = firstLetterString.uppercased()
-
-        guard firstLetterString == lowercase, firstLetterString != uppercase else {
-            return quoteText
-        }
-
-        var transformed = quoteText
-        transformed.replaceSubrange(firstLetterRange, with: uppercase)
-        return transformed
-    }
-
-    nonisolated private static func firstLetterRange(in text: String) -> Range<String.Index>? {
-        for index in text.indices {
-            let nextIndex = text.index(after: index)
-            let characterRange = index..<nextIndex
-            let character = String(text[characterRange])
-            if character.rangeOfCharacter(from: .letters) != nil {
-                return characterRange
-            }
-        }
-        return nil
     }
 
     nonisolated static func reapplyCurrentWallpaperForTopology<Screen>(
@@ -998,7 +817,7 @@ final class AppState: ObservableObject {
             && newTargetedIdentifiers.isSubset(of: storedTargetedIdentifiers)
     }
 
-    private func publishRotationExecution(_ execution: RotationExecution) {
+    private func publishRotationExecution(_ execution: WallpaperRotationService.Execution) {
         guard execution.outcome == .success else {
             return
         }
@@ -1498,38 +1317,3 @@ extension AppState {
     }
 }
 #endif
-
-enum LaunchAtLoginService {
-    static func currentEnabled() -> Bool {
-#if canImport(ServiceManagement)
-        return SMAppService.mainApp.status == .enabled
-#else
-        return false
-#endif
-    }
-
-    static func refreshEnabled() -> Bool {
-        currentEnabled()
-    }
-
-    static func setEnabled(_ enabled: Bool) throws {
-#if canImport(ServiceManagement)
-        let service = SMAppService.mainApp
-        do {
-            if enabled {
-                try service.register()
-            } else {
-                try service.unregister()
-            }
-        } catch {
-            if enabled {
-                throw AppState.LaunchAtLoginError.registerFailed(error.localizedDescription)
-            } else {
-                throw AppState.LaunchAtLoginError.unregisterFailed(error.localizedDescription)
-            }
-        }
-#else
-        throw AppState.LaunchAtLoginError.unsupported
-#endif
-    }
-}
