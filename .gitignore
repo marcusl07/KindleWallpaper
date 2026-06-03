@@ -5,3 +5,16 @@ tasks.txt
 tasks-active.txt
 tasks-archive.txt
 tasks/lessons.md
+
+# OS files
+.DS_Store
+text-files/.DS_Store
+
+# Xcode User Data / Build Products
+build/
+Build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcworkspace/xcuserdata/
+*.trace/

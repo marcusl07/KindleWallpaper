@@ -851,3 +851,7 @@ Override `fittingSize` and `intrinsicContentSize` in `QuotesNativeTableScrollVie
 Lower text field horizontal compression resistance in QuotesNativeTableCellView and adjust minWidth constraints in LibraryView.
 
 
+
+**T144 — Beta Readiness and Documentation**
+Complete Phase 6 of public-beta-refactor-plan.html: add a GitHub README beta section, fix repo hygiene by ignoring generated build products, trace bundles, .DS_Store, and Xcode user state, and run final verification checks.
+
