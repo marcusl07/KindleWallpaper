@@ -7,4 +7,4 @@ cd "$ROOT_DIR"
 xcodegen generate > /dev/null
 
 # XcodeGen currently emits objectVersion 77; pin to 56 for local Xcode 15.4 compatibility.
-sed -i '' 's/objectVersion = 77;/objectVersion = 56;/' KindleWall.xcodeproj/project.pbxproj
+sed -i '' 's/objectVersion = 77;/objectVersion = 56;/' Leaf.xcodeproj/project.pbxproj

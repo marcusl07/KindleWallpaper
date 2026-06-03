@@ -21,22 +21,22 @@ struct WallpaperHistoryPruner {
         }
     }
 
-    func staleKindleWallPNGPaths(
-        kindleWallDirectoryURL: URL = AppSupportPaths.kindleWallDirectory()
+    func staleLeafPNGPaths(
+        leafDirectoryURL: URL = AppSupportPaths.leafDirectory()
     ) -> Set<String> {
         guard let history = loadHistory() else {
             return []
         }
 
-        let kindleWallDirectoryPath = normalizedAbsolutePath(for: kindleWallDirectoryURL)
-        guard !kindleWallDirectoryPath.isEmpty else {
+        let leafDirectoryPath = normalizedAbsolutePath(for: leafDirectoryURL)
+        guard !leafDirectoryPath.isEmpty else {
             return []
         }
 
         return Set(history.relativePaths.filter { path in
             guard
                 let normalizedPath = normalizedAbsolutePath(forPath: path),
-                normalizedPath.hasPrefix(kindleWallDirectoryPath + "/"),
+                normalizedPath.hasPrefix(leafDirectoryPath + "/"),
                 URL(fileURLWithPath: normalizedPath).pathExtension.lowercased() == "png"
             else {
                 return false

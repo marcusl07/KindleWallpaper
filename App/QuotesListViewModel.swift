@@ -240,7 +240,7 @@ enum QuotesListPresentationModel {
 
 enum QuotesListPerformanceSignposts {
     private static let signposter = OSSignposter(
-        subsystem: Bundle.main.bundleIdentifier ?? "com.marcuslo.KindleWall",
+        subsystem: Bundle.main.bundleIdentifier ?? "com.marcuslo.leaf",
         category: .pointsOfInterest
     )
 

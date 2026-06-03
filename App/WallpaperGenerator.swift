@@ -71,7 +71,7 @@ struct WallpaperGenerator {
     init(
         fileManager: FileManager = .default,
         appSupportDirectoryProvider: @escaping () -> URL = {
-            AppSupportPaths.kindleWallDirectory(fileManager: .default)
+            AppSupportPaths.leafDirectory(fileManager: .default)
         },
         mainScreenPixelSizeProvider: @escaping () -> CGSize? = {
             guard let screen = NSScreen.main else {

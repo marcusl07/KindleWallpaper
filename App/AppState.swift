@@ -6,7 +6,7 @@ import AppKit
 #endif
 
 private let quotesQueryWorkQueue = DispatchQueue(
-    label: "KindleWall.QuotesQueryService",
+    label: "Leaf.QuotesQueryService",
     qos: .userInitiated,
     attributes: .concurrent
 )
@@ -1120,7 +1120,7 @@ extension AppState {
         let backgroundStore = BackgroundImageStore(userDefaults: userDefaults)
         let wallpaperGenerator = WallpaperGenerator(
             appSupportDirectoryProvider: {
-                KindleWallSharedStorage.sharedContainerURL()
+                LeafSharedStorage.sharedContainerURL()
             },
             protectedGeneratedWallpapersProvider: {
                 loadGeneratedWallpapers().map(\.fileURL)

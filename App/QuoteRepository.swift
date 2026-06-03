@@ -4,7 +4,7 @@ import OSLog
 
 enum QuoteRepository {
     private static let quotesPerformanceSignposter = OSSignposter(
-        subsystem: Bundle.main.bundleIdentifier ?? "com.marcuslo.KindleWall",
+        subsystem: Bundle.main.bundleIdentifier ?? "com.marcuslo.leaf",
         category: "QuotesPerformance"
     )
 

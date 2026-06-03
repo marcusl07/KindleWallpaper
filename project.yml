@@ -1,4 +1,4 @@
-name: KindleWall
+name: Leaf
 options:
   createIntermediateGroups: true
   xcodeVersion: "15.4"
@@ -13,7 +13,7 @@ packages:
     url: https://github.com/groue/GRDB.swift.git
     from: 6.0.0
 targets:
-  KindleWall:
+  Leaf:
     type: application
     platform: macOS
     deploymentTarget: "13.0"
@@ -27,8 +27,8 @@ targets:
         LSUIElement: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.marcuslo.KindleWall
-        PRODUCT_NAME: KindleWall
+        PRODUCT_BUNDLE_IDENTIFIER: com.marcuslo.leaf
+        PRODUCT_NAME: Leaf
         GENERATE_INFOPLIST_FILE: NO
     dependencies:
       - package: GRDB
@@ -47,4 +47,4 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.marcuslo.LeafTests
         GENERATE_INFOPLIST_FILE: YES
     dependencies:
-      - target: KindleWall
+      - target: Leaf

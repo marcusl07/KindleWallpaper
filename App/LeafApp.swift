@@ -7,7 +7,7 @@ import AppKit
 @main
 #endif
 @MainActor
-struct KindleWallApp: App {
+struct LeafApp: App {
     @StateObject private var appState: AppState
     private let wallpaperScheduler: WallpaperScheduler
 
@@ -51,7 +51,7 @@ struct KindleWallApp: App {
             loadBackgroundImageURLs: { [] },
             generateWallpaper: { _, _ in
                 URL(fileURLWithPath: NSTemporaryDirectory())
-                    .appendingPathComponent("kindlewall-placeholder-wallpaper.png")
+                    .appendingPathComponent("leaf-placeholder-wallpaper.png")
             },
             setWallpaper: { _ in },
             markHighlightShown: { _ in }
@@ -63,7 +63,7 @@ struct KindleWallApp: App {
         userDefaults: UserDefaults = .standard,
         fileManager: FileManager = .default,
         indexPlistURL: URL? = nil,
-        kindleWallDirectoryURL: URL? = nil
+        leafDirectoryURL: URL? = nil
     ) {
         guard !userDefaults.didPruneStaleWallpaperHistory else {
             return
@@ -77,8 +77,8 @@ struct KindleWallApp: App {
             fileManager: fileManager,
             indexPlistURL: indexPlistURL
         )
-        let stalePaths = pruner.staleKindleWallPNGPaths(
-            kindleWallDirectoryURL: kindleWallDirectoryURL ?? AppSupportPaths.kindleWallDirectory(fileManager: fileManager)
+        let stalePaths = pruner.staleLeafPNGPaths(
+            leafDirectoryURL: leafDirectoryURL ?? AppSupportPaths.leafDirectory(fileManager: fileManager)
         )
         pruner.prune(pathsToPrune: stalePaths)
     }
@@ -128,18 +128,18 @@ struct KindleWallApp: App {
 }
 
 #if TESTING
-extension KindleWallApp {
+extension LeafApp {
     nonisolated static func testPruneStaleWallpaperHistoryIfNeeded(
         userDefaults: UserDefaults,
         fileManager: FileManager = .default,
         indexPlistURL: URL,
-        kindleWallDirectoryURL: URL
+        leafDirectoryURL: URL
     ) {
         pruneStaleWallpaperHistoryIfNeeded(
             userDefaults: userDefaults,
             fileManager: fileManager,
             indexPlistURL: indexPlistURL,
-            kindleWallDirectoryURL: kindleWallDirectoryURL
+            leafDirectoryURL: leafDirectoryURL
         )
     }
 }

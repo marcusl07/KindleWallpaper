@@ -4,7 +4,7 @@ import OSLog
 
 enum WallpaperSetter {
     private static let logger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "com.marcuslo.KindleWall",
+        subsystem: Bundle.main.bundleIdentifier ?? "com.marcuslo.leaf",
         category: "WallpaperSetter"
     )
 

@@ -1,0 +1,670 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		026FE0628E0ADA16A1FD34F4 /* ImportCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31DE8864FD27CEF3EE2A672A /* ImportCoordinator.swift */; };
+		050DB5C2736430E2051C3A3E /* QuotesListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79100C142B75238148F2C3BC /* QuotesListViewModel.swift */; };
+		0ADDBAE6BD56A9080E28EDA6 /* BackgroundImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 530D36AE78B06724AAC10108 /* BackgroundImageLoader.swift */; };
+		0F86969B92449C850A5AE266 /* QuoteDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1AA080525D27DC583BF39FF /* QuoteDetailView.swift */; };
+		10230B049E997CE52818D9EF /* Highlight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DFBB61D7CF94DEBB5467831 /* Highlight.swift */; };
+		1084BBCD8C7002D32037F202 /* DisplayTopologyCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16A4DF2A0229EA544F21C46 /* DisplayTopologyCoordinator.swift */; };
+		150C6DAD24682AA0D40B6663 /* WallpaperGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E1412723FE1D774F7A72BCB /* WallpaperGenerator.swift */; };
+		194B606827E3E6FB9693B38F /* WallpaperScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA6FA6EE525A3566CF40C70 /* WallpaperScheduler.swift */; };
+		20F0E440540FA595096C108D /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 792C8F93199825D733E65555 /* MenuBarView.swift */; };
+		2442C20095B65E044D91F490 /* BooksListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ABD13F8A7443B969D2AAE42 /* BooksListView.swift */; };
+		25F95167A46096C0DFAE3A51 /* DebouncedTaskScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A61EBCFE365133324E9371A1 /* DebouncedTaskScheduler.swift */; };
+		2904DAC520129E7F1FA704CE /* WallpaperSetter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37BE4B6C3EE4D00EA86CAC59 /* WallpaperSetter.swift */; };
+		2DB605B60C37EA699CDC53B0 /* BackgroundsWindowPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B45D20D7EC217CE315CE08A /* BackgroundsWindowPresentation.swift */; };
+		31358FA4A9002E3DA0B586DE /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 2847FA0C02B7FE821A8AF88E /* GRDB */; };
+		3B27DDAD1527D9167EF3195D /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 109FB22E03F9BE67AA3CE6DB /* AppState.swift */; };
+		3EA40889FD6F30107BE06BCF /* BackgroundsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96DE04713927864141B4E8C7 /* BackgroundsListView.swift */; };
+		406BC2AF1D8F461CAF72B2B4 /* WallpaperAssignmentStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA3A0A3D26048641D447D3AF /* WallpaperAssignmentStoreTests.swift */; };
+		4283B8DDEED7B61521D3C12E /* DedupeKeyBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AD536570A1CA2F08ABF71AA /* DedupeKeyBuilder.swift */; };
+		4F69268C0EB73101DD97E5D8 /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EFDCC18AEE5D75146B3F1E8 /* LibraryView.swift */; };
+		52A0721FD375BBDA472F73AF /* StatusItemController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FA257CE3C63FAE9508BB4AB /* StatusItemController.swift */; };
+		556EFAD0D372041690B0D115 /* LeafAppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17E9DB09229AABF9F4667760 /* LeafAppDelegate.swift */; };
+		55D486B3BE6A13A021E5844C /* DisplayIdentityResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 603DE04255F1417AEC3BF1E8 /* DisplayIdentityResolver.swift */; };
+		575673E26A7AD703A45D76A6 /* DatabaseRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A5AED1A150E3C2C2A833D42 /* DatabaseRepositoryTests.swift */; };
+		5A1129A5A18530C7D5B82C69 /* LeafApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C99823322E5B7D05A34A062B /* LeafApp.swift */; };
+		5FEAB2ECFA4C076AAAAF67A9 /* LaunchAtLoginService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04A2E51A12F127552D4668FD /* LaunchAtLoginService.swift */; };
+		62E9FAF9E08BB121C905F3AF /* WallpaperRotationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B021BE4255B7655C15960853 /* WallpaperRotationService.swift */; };
+		6E177CE58AFF50DE769FCADB /* ClippingsParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5764D75AA933F2E0DCB68BBE /* ClippingsParser.swift */; };
+		6FF53BF65AEB4F8FECF8CB8C /* LibraryRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80AFA1C6AD3B0DD2C6917ED1 /* LibraryRepository.swift */; };
+		7A5054EE558433AB71BD616A /* QuotesImportFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61E42672BA72E6FAED513F9 /* QuotesImportFlow.swift */; };
+		7CD842AA1749C1C7F1EBD5E1 /* BulkBookDeletionPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81E5809393A45C36B312BAA0 /* BulkBookDeletionPlan.swift */; };
+		86C26893EC7441CEDCC04F9B /* WallpaperHistoryPruner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7F84402EC77443BDDDDD8C8 /* WallpaperHistoryPruner.swift */; };
+		890DAB015686B6F097F2237F /* BackgroundImageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 543CBD0242B26379462C0637 /* BackgroundImageStore.swift */; };
+		895481746F1EAF913DA14AC2 /* ScheduleSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E73AC9328D93309AEE4DCBF /* ScheduleSettings.swift */; };
+		8F9FBB4AF8CB0FEB020AB1AE /* ImportRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A31191CED8A297FC98150A8 /* ImportRepository.swift */; };
+		99DDCE2B15F916DF653B5788 /* SyncNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFB331E53A7AA4B92120AA41 /* SyncNotificationManager.swift */; };
+		9FA585FA6CCC10DAA45C9E67 /* LeafAppLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C905A5E220A5BD17D745426 /* LeafAppLifecycle.swift */; };
+		A16590C126B1E8E69DF8C310 /* DatabaseSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBE8935156A4E972897BED3A /* DatabaseSupport.swift */; };
+		A4700EFBAC601610E4A391A1 /* DatabaseSchema.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E56816837524B6F4ADD526E /* DatabaseSchema.swift */; };
+		AFE4B85CB7069F47014482A5 /* ScheduleSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A3BC74896736E45DCD88D0A /* ScheduleSettingsTests.swift */; };
+		BAE88C75DA9C101E9F584BB8 /* leaf-logo.png in Resources */ = {isa = PBXBuildFile; fileRef = D89606995F66D0A441E64DCE /* leaf-logo.png */; };
+		BBB8FE3A47216548E7BF19CA /* SettingsWindowCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3226997EC7EFE3DDA5D0151F /* SettingsWindowCoordinator.swift */; };
+		BC50CB3EEAA42D6AC3436010 /* WallpaperTopologyRestorer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A471712215EA9914A28EF1F /* WallpaperTopologyRestorer.swift */; };
+		C1BFC6AC00671AE950F93F00 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EC1AE276C70E736FA77C458 /* SettingsView.swift */; };
+		C335984CDD513105423B0F31 /* DatabaseMigrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 489310D7168FE5D7E67DB93D /* DatabaseMigrations.swift */; };
+		C46860E5437473B481DAE80D /* AppSupportPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE661A61398770A576A8FEEB /* AppSupportPaths.swift */; };
+		C72B4F061BA4BF72F833C9C8 /* Book.swift in Sources */ = {isa = PBXBuildFile; fileRef = C33DABA0568DD12C9F108CD1 /* Book.swift */; };
+		D87E6F716FBB34E1142C7170 /* QuotesListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDA2DDBB6B70FD6F6FCE2B24 /* QuotesListView.swift */; };
+		E828E9E74D436F1CF7F87E66 /* QuoteEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00762D714F6F9B359F2465F9 /* QuoteEditView.swift */; };
+		EE6789FA82B6E16226C13D8F /* WallpaperAssignmentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7D7E5DE76E7CA7E143510A0 /* WallpaperAssignmentStore.swift */; };
+		F2265633793AEE78DAC021F8 /* QuotesNativeTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24F0D4B75389FFCBAF99D404 /* QuotesNativeTableView.swift */; };
+		F66CCCD1A534901A99F4BEF0 /* Database.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFEB104123BE974DD40B0BAE /* Database.swift */; };
+		F9FBA5A64429D990157EF89D /* QuoteRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = C99794172587FDB4C2D6F96C /* QuoteRepository.swift */; };
+		FDA4C936C9B55E3AE4836409 /* VolumeWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = E55A0BA68FBC819CF017BD92 /* VolumeWatcher.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		D93F239949C766D176ED2D7D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 73A66D198EB406AF2DB43537 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 769C6C86EF978AF3BD344B5C;
+			remoteInfo = Leaf;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		00762D714F6F9B359F2465F9 /* QuoteEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuoteEditView.swift; sourceTree = "<group>"; };
+		04A2E51A12F127552D4668FD /* LaunchAtLoginService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginService.swift; sourceTree = "<group>"; };
+		0AD536570A1CA2F08ABF71AA /* DedupeKeyBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DedupeKeyBuilder.swift; sourceTree = "<group>"; };
+		0FBF438EA1773331A97D7772 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		109FB22E03F9BE67AA3CE6DB /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		17E9DB09229AABF9F4667760 /* LeafAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeafAppDelegate.swift; sourceTree = "<group>"; };
+		1C905A5E220A5BD17D745426 /* LeafAppLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeafAppLifecycle.swift; sourceTree = "<group>"; };
+		1E1412723FE1D774F7A72BCB /* WallpaperGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperGenerator.swift; sourceTree = "<group>"; };
+		1FA257CE3C63FAE9508BB4AB /* StatusItemController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusItemController.swift; sourceTree = "<group>"; };
+		24F0D4B75389FFCBAF99D404 /* QuotesNativeTableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuotesNativeTableView.swift; sourceTree = "<group>"; };
+		2E73AC9328D93309AEE4DCBF /* ScheduleSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleSettings.swift; sourceTree = "<group>"; };
+		31DE8864FD27CEF3EE2A672A /* ImportCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportCoordinator.swift; sourceTree = "<group>"; };
+		3226997EC7EFE3DDA5D0151F /* SettingsWindowCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowCoordinator.swift; sourceTree = "<group>"; };
+		37BE4B6C3EE4D00EA86CAC59 /* WallpaperSetter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperSetter.swift; sourceTree = "<group>"; };
+		3A3BC74896736E45DCD88D0A /* ScheduleSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleSettingsTests.swift; sourceTree = "<group>"; };
+		489310D7168FE5D7E67DB93D /* DatabaseMigrations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseMigrations.swift; sourceTree = "<group>"; };
+		530D36AE78B06724AAC10108 /* BackgroundImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundImageLoader.swift; sourceTree = "<group>"; };
+		543CBD0242B26379462C0637 /* BackgroundImageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundImageStore.swift; sourceTree = "<group>"; };
+		5764D75AA933F2E0DCB68BBE /* ClippingsParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClippingsParser.swift; sourceTree = "<group>"; };
+		5A471712215EA9914A28EF1F /* WallpaperTopologyRestorer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperTopologyRestorer.swift; sourceTree = "<group>"; };
+		5ABD13F8A7443B969D2AAE42 /* BooksListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BooksListView.swift; sourceTree = "<group>"; };
+		5DFBB61D7CF94DEBB5467831 /* Highlight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Highlight.swift; sourceTree = "<group>"; };
+		603DE04255F1417AEC3BF1E8 /* DisplayIdentityResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayIdentityResolver.swift; sourceTree = "<group>"; };
+		67BC30D06622F9291DA78759 /* Leaf.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Leaf.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		68DAB62F4F69F4FB32F5F799 /* LeafTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LeafTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		79100C142B75238148F2C3BC /* QuotesListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuotesListViewModel.swift; sourceTree = "<group>"; };
+		792C8F93199825D733E65555 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
+		7A31191CED8A297FC98150A8 /* ImportRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportRepository.swift; sourceTree = "<group>"; };
+		7EFDCC18AEE5D75146B3F1E8 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
+		80AFA1C6AD3B0DD2C6917ED1 /* LibraryRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryRepository.swift; sourceTree = "<group>"; };
+		81E5809393A45C36B312BAA0 /* BulkBookDeletionPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BulkBookDeletionPlan.swift; sourceTree = "<group>"; };
+		8A5AED1A150E3C2C2A833D42 /* DatabaseRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseRepositoryTests.swift; sourceTree = "<group>"; };
+		96DE04713927864141B4E8C7 /* BackgroundsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundsListView.swift; sourceTree = "<group>"; };
+		9B45D20D7EC217CE315CE08A /* BackgroundsWindowPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundsWindowPresentation.swift; sourceTree = "<group>"; };
+		9E56816837524B6F4ADD526E /* DatabaseSchema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseSchema.swift; sourceTree = "<group>"; };
+		9EC1AE276C70E736FA77C458 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A16A4DF2A0229EA544F21C46 /* DisplayTopologyCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTopologyCoordinator.swift; sourceTree = "<group>"; };
+		A61EBCFE365133324E9371A1 /* DebouncedTaskScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebouncedTaskScheduler.swift; sourceTree = "<group>"; };
+		A7D7E5DE76E7CA7E143510A0 /* WallpaperAssignmentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperAssignmentStore.swift; sourceTree = "<group>"; };
+		A7F84402EC77443BDDDDD8C8 /* WallpaperHistoryPruner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperHistoryPruner.swift; sourceTree = "<group>"; };
+		B021BE4255B7655C15960853 /* WallpaperRotationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperRotationService.swift; sourceTree = "<group>"; };
+		B1AA080525D27DC583BF39FF /* QuoteDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuoteDetailView.swift; sourceTree = "<group>"; };
+		BBA6FA6EE525A3566CF40C70 /* WallpaperScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperScheduler.swift; sourceTree = "<group>"; };
+		BFB331E53A7AA4B92120AA41 /* SyncNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncNotificationManager.swift; sourceTree = "<group>"; };
+		C33DABA0568DD12C9F108CD1 /* Book.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Book.swift; sourceTree = "<group>"; };
+		C99794172587FDB4C2D6F96C /* QuoteRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuoteRepository.swift; sourceTree = "<group>"; };
+		C99823322E5B7D05A34A062B /* LeafApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeafApp.swift; sourceTree = "<group>"; };
+		CA3A0A3D26048641D447D3AF /* WallpaperAssignmentStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperAssignmentStoreTests.swift; sourceTree = "<group>"; };
+		CDA2DDBB6B70FD6F6FCE2B24 /* QuotesListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuotesListView.swift; sourceTree = "<group>"; };
+		D61E42672BA72E6FAED513F9 /* QuotesImportFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuotesImportFlow.swift; sourceTree = "<group>"; };
+		D89606995F66D0A441E64DCE /* leaf-logo.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "leaf-logo.png"; sourceTree = "<group>"; };
+		DBE8935156A4E972897BED3A /* DatabaseSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseSupport.swift; sourceTree = "<group>"; };
+		E55A0BA68FBC819CF017BD92 /* VolumeWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VolumeWatcher.swift; sourceTree = "<group>"; };
+		EE661A61398770A576A8FEEB /* AppSupportPaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSupportPaths.swift; sourceTree = "<group>"; };
+		EFEB104123BE974DD40B0BAE /* Database.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Database.swift; sourceTree = "<group>"; };
+		F9E808C203D9A4AD1F91CD16 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		CCC0F7F03E43887054E5D480 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				31358FA4A9002E3DA0B586DE /* GRDB in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		07135514A6B280CF3BCED099 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				109FB22E03F9BE67AA3CE6DB /* AppState.swift */,
+				EE661A61398770A576A8FEEB /* AppSupportPaths.swift */,
+				530D36AE78B06724AAC10108 /* BackgroundImageLoader.swift */,
+				543CBD0242B26379462C0637 /* BackgroundImageStore.swift */,
+				96DE04713927864141B4E8C7 /* BackgroundsListView.swift */,
+				9B45D20D7EC217CE315CE08A /* BackgroundsWindowPresentation.swift */,
+				5ABD13F8A7443B969D2AAE42 /* BooksListView.swift */,
+				EFEB104123BE974DD40B0BAE /* Database.swift */,
+				489310D7168FE5D7E67DB93D /* DatabaseMigrations.swift */,
+				9E56816837524B6F4ADD526E /* DatabaseSchema.swift */,
+				DBE8935156A4E972897BED3A /* DatabaseSupport.swift */,
+				A61EBCFE365133324E9371A1 /* DebouncedTaskScheduler.swift */,
+				603DE04255F1417AEC3BF1E8 /* DisplayIdentityResolver.swift */,
+				A16A4DF2A0229EA544F21C46 /* DisplayTopologyCoordinator.swift */,
+				31DE8864FD27CEF3EE2A672A /* ImportCoordinator.swift */,
+				7A31191CED8A297FC98150A8 /* ImportRepository.swift */,
+				0FBF438EA1773331A97D7772 /* Info.plist */,
+				04A2E51A12F127552D4668FD /* LaunchAtLoginService.swift */,
+				D89606995F66D0A441E64DCE /* leaf-logo.png */,
+				C99823322E5B7D05A34A062B /* LeafApp.swift */,
+				17E9DB09229AABF9F4667760 /* LeafAppDelegate.swift */,
+				1C905A5E220A5BD17D745426 /* LeafAppLifecycle.swift */,
+				80AFA1C6AD3B0DD2C6917ED1 /* LibraryRepository.swift */,
+				7EFDCC18AEE5D75146B3F1E8 /* LibraryView.swift */,
+				792C8F93199825D733E65555 /* MenuBarView.swift */,
+				B1AA080525D27DC583BF39FF /* QuoteDetailView.swift */,
+				00762D714F6F9B359F2465F9 /* QuoteEditView.swift */,
+				C99794172587FDB4C2D6F96C /* QuoteRepository.swift */,
+				D61E42672BA72E6FAED513F9 /* QuotesImportFlow.swift */,
+				CDA2DDBB6B70FD6F6FCE2B24 /* QuotesListView.swift */,
+				79100C142B75238148F2C3BC /* QuotesListViewModel.swift */,
+				24F0D4B75389FFCBAF99D404 /* QuotesNativeTableView.swift */,
+				2E73AC9328D93309AEE4DCBF /* ScheduleSettings.swift */,
+				9EC1AE276C70E736FA77C458 /* SettingsView.swift */,
+				3226997EC7EFE3DDA5D0151F /* SettingsWindowCoordinator.swift */,
+				1FA257CE3C63FAE9508BB4AB /* StatusItemController.swift */,
+				BFB331E53A7AA4B92120AA41 /* SyncNotificationManager.swift */,
+				E55A0BA68FBC819CF017BD92 /* VolumeWatcher.swift */,
+				A7D7E5DE76E7CA7E143510A0 /* WallpaperAssignmentStore.swift */,
+				1E1412723FE1D774F7A72BCB /* WallpaperGenerator.swift */,
+				A7F84402EC77443BDDDDD8C8 /* WallpaperHistoryPruner.swift */,
+				B021BE4255B7655C15960853 /* WallpaperRotationService.swift */,
+				BBA6FA6EE525A3566CF40C70 /* WallpaperScheduler.swift */,
+				37BE4B6C3EE4D00EA86CAC59 /* WallpaperSetter.swift */,
+				5A471712215EA9914A28EF1F /* WallpaperTopologyRestorer.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		29297EC67F0B2D66153E1A13 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				67BC30D06622F9291DA78759 /* Leaf.app */,
+				68DAB62F4F69F4FB32F5F799 /* LeafTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		43AC52B80D69B4361D136391 /* Parsing */ = {
+			isa = PBXGroup;
+			children = (
+				5764D75AA933F2E0DCB68BBE /* ClippingsParser.swift */,
+			);
+			path = Parsing;
+			sourceTree = "<group>";
+		};
+		69D077EC5804F109B8EE99D8 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				C33DABA0568DD12C9F108CD1 /* Book.swift */,
+				81E5809393A45C36B312BAA0 /* BulkBookDeletionPlan.swift */,
+				0AD536570A1CA2F08ABF71AA /* DedupeKeyBuilder.swift */,
+				5DFBB61D7CF94DEBB5467831 /* Highlight.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		A614D6DEE3386DE2BA4E9614 /* LeafTests */ = {
+			isa = PBXGroup;
+			children = (
+				F9E808C203D9A4AD1F91CD16 /* .gitkeep */,
+				8A5AED1A150E3C2C2A833D42 /* DatabaseRepositoryTests.swift */,
+				3A3BC74896736E45DCD88D0A /* ScheduleSettingsTests.swift */,
+				CA3A0A3D26048641D447D3AF /* WallpaperAssignmentStoreTests.swift */,
+			);
+			path = LeafTests;
+			sourceTree = "<group>";
+		};
+		B1E338CADA3DAC0EE34F076C /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				A614D6DEE3386DE2BA4E9614 /* LeafTests */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		E18449014F787EC2FDB92C60 = {
+			isa = PBXGroup;
+			children = (
+				07135514A6B280CF3BCED099 /* App */,
+				69D077EC5804F109B8EE99D8 /* Models */,
+				43AC52B80D69B4361D136391 /* Parsing */,
+				B1E338CADA3DAC0EE34F076C /* Tests */,
+				29297EC67F0B2D66153E1A13 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		0F4308D30DAD728E419EAAAA /* LeafTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A5234E501934F46128C1204D /* Build configuration list for PBXNativeTarget "LeafTests" */;
+			buildPhases = (
+				6BA7A707906A26B0F26260E5 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				977DA0739AA465540E8F456E /* PBXTargetDependency */,
+			);
+			name = LeafTests;
+			packageProductDependencies = (
+			);
+			productName = LeafTests;
+			productReference = 68DAB62F4F69F4FB32F5F799 /* LeafTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		769C6C86EF978AF3BD344B5C /* Leaf */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2CDB440F20A532DFD5C0BD53 /* Build configuration list for PBXNativeTarget "Leaf" */;
+			buildPhases = (
+				44EE57EB42AF40CA404463E3 /* Sources */,
+				C98ACB3B0B18156D83E0604B /* Resources */,
+				CCC0F7F03E43887054E5D480 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Leaf;
+			packageProductDependencies = (
+				2847FA0C02B7FE821A8AF88E /* GRDB */,
+			);
+			productName = Leaf;
+			productReference = 67BC30D06622F9291DA78759 /* Leaf.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		73A66D198EB406AF2DB43537 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1540;
+				TargetAttributes = {
+					0F4308D30DAD728E419EAAAA = {
+						DevelopmentTeam = "";
+					};
+					769C6C86EF978AF3BD344B5C = {
+						DevelopmentTeam = "";
+					};
+				};
+			};
+			buildConfigurationList = 1A2A2803F75CC9E06E126F21 /* Build configuration list for PBXProject "Leaf" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = E18449014F787EC2FDB92C60;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				B2CD5C5C3AF605C6914D48B7 /* XCRemoteSwiftPackageReference "GRDB.swift" */,
+			);
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				769C6C86EF978AF3BD344B5C /* Leaf */,
+				0F4308D30DAD728E419EAAAA /* LeafTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		C98ACB3B0B18156D83E0604B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BAE88C75DA9C101E9F584BB8 /* leaf-logo.png in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		44EE57EB42AF40CA404463E3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3B27DDAD1527D9167EF3195D /* AppState.swift in Sources */,
+				C46860E5437473B481DAE80D /* AppSupportPaths.swift in Sources */,
+				0ADDBAE6BD56A9080E28EDA6 /* BackgroundImageLoader.swift in Sources */,
+				890DAB015686B6F097F2237F /* BackgroundImageStore.swift in Sources */,
+				3EA40889FD6F30107BE06BCF /* BackgroundsListView.swift in Sources */,
+				2DB605B60C37EA699CDC53B0 /* BackgroundsWindowPresentation.swift in Sources */,
+				C72B4F061BA4BF72F833C9C8 /* Book.swift in Sources */,
+				2442C20095B65E044D91F490 /* BooksListView.swift in Sources */,
+				7CD842AA1749C1C7F1EBD5E1 /* BulkBookDeletionPlan.swift in Sources */,
+				6E177CE58AFF50DE769FCADB /* ClippingsParser.swift in Sources */,
+				F66CCCD1A534901A99F4BEF0 /* Database.swift in Sources */,
+				C335984CDD513105423B0F31 /* DatabaseMigrations.swift in Sources */,
+				A4700EFBAC601610E4A391A1 /* DatabaseSchema.swift in Sources */,
+				A16590C126B1E8E69DF8C310 /* DatabaseSupport.swift in Sources */,
+				25F95167A46096C0DFAE3A51 /* DebouncedTaskScheduler.swift in Sources */,
+				4283B8DDEED7B61521D3C12E /* DedupeKeyBuilder.swift in Sources */,
+				55D486B3BE6A13A021E5844C /* DisplayIdentityResolver.swift in Sources */,
+				1084BBCD8C7002D32037F202 /* DisplayTopologyCoordinator.swift in Sources */,
+				10230B049E997CE52818D9EF /* Highlight.swift in Sources */,
+				026FE0628E0ADA16A1FD34F4 /* ImportCoordinator.swift in Sources */,
+				8F9FBB4AF8CB0FEB020AB1AE /* ImportRepository.swift in Sources */,
+				5FEAB2ECFA4C076AAAAF67A9 /* LaunchAtLoginService.swift in Sources */,
+				5A1129A5A18530C7D5B82C69 /* LeafApp.swift in Sources */,
+				556EFAD0D372041690B0D115 /* LeafAppDelegate.swift in Sources */,
+				9FA585FA6CCC10DAA45C9E67 /* LeafAppLifecycle.swift in Sources */,
+				6FF53BF65AEB4F8FECF8CB8C /* LibraryRepository.swift in Sources */,
+				4F69268C0EB73101DD97E5D8 /* LibraryView.swift in Sources */,
+				20F0E440540FA595096C108D /* MenuBarView.swift in Sources */,
+				0F86969B92449C850A5AE266 /* QuoteDetailView.swift in Sources */,
+				E828E9E74D436F1CF7F87E66 /* QuoteEditView.swift in Sources */,
+				F9FBA5A64429D990157EF89D /* QuoteRepository.swift in Sources */,
+				7A5054EE558433AB71BD616A /* QuotesImportFlow.swift in Sources */,
+				D87E6F716FBB34E1142C7170 /* QuotesListView.swift in Sources */,
+				050DB5C2736430E2051C3A3E /* QuotesListViewModel.swift in Sources */,
+				F2265633793AEE78DAC021F8 /* QuotesNativeTableView.swift in Sources */,
+				895481746F1EAF913DA14AC2 /* ScheduleSettings.swift in Sources */,
+				C1BFC6AC00671AE950F93F00 /* SettingsView.swift in Sources */,
+				BBB8FE3A47216548E7BF19CA /* SettingsWindowCoordinator.swift in Sources */,
+				52A0721FD375BBDA472F73AF /* StatusItemController.swift in Sources */,
+				99DDCE2B15F916DF653B5788 /* SyncNotificationManager.swift in Sources */,
+				FDA4C936C9B55E3AE4836409 /* VolumeWatcher.swift in Sources */,
+				EE6789FA82B6E16226C13D8F /* WallpaperAssignmentStore.swift in Sources */,
+				150C6DAD24682AA0D40B6663 /* WallpaperGenerator.swift in Sources */,
+				86C26893EC7441CEDCC04F9B /* WallpaperHistoryPruner.swift in Sources */,
+				62E9FAF9E08BB121C905F3AF /* WallpaperRotationService.swift in Sources */,
+				194B606827E3E6FB9693B38F /* WallpaperScheduler.swift in Sources */,
+				2904DAC520129E7F1FA704CE /* WallpaperSetter.swift in Sources */,
+				BC50CB3EEAA42D6AC3436010 /* WallpaperTopologyRestorer.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6BA7A707906A26B0F26260E5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				575673E26A7AD703A45D76A6 /* DatabaseRepositoryTests.swift in Sources */,
+				AFE4B85CB7069F47014482A5 /* ScheduleSettingsTests.swift in Sources */,
+				406BC2AF1D8F461CAF72B2B4 /* WallpaperAssignmentStoreTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		977DA0739AA465540E8F456E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 769C6C86EF978AF3BD344B5C /* Leaf */;
+			targetProxy = D93F239949C766D176ED2D7D /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		2181481EB53ADCDE145ADEAB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.marcuslo.LeafTests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Leaf.app/Contents/MacOS/Leaf";
+			};
+			name = Release;
+		};
+		54D6BDAE11E519BEF34ED068 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.marcuslo.leaf;
+				PRODUCT_NAME = Leaf;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		9B41EE8E9FEA147E3926D253 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.marcuslo.LeafTests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Leaf.app/Contents/MacOS/Leaf";
+			};
+			name = Debug;
+		};
+		A11A7FC07E43E2AD01EE2A53 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		ABCC06B8E8FF7B8F984C584E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.marcuslo.leaf;
+				PRODUCT_NAME = Leaf;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		D9708EA041276BFAFF01BEF6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1A2A2803F75CC9E06E126F21 /* Build configuration list for PBXProject "Leaf" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D9708EA041276BFAFF01BEF6 /* Debug */,
+				A11A7FC07E43E2AD01EE2A53 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		2CDB440F20A532DFD5C0BD53 /* Build configuration list for PBXNativeTarget "Leaf" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				ABCC06B8E8FF7B8F984C584E /* Debug */,
+				54D6BDAE11E519BEF34ED068 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A5234E501934F46128C1204D /* Build configuration list for PBXNativeTarget "LeafTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9B41EE8E9FEA147E3926D253 /* Debug */,
+				2181481EB53ADCDE145ADEAB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		B2CD5C5C3AF605C6914D48B7 /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groue/GRDB.swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 6.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		2847FA0C02B7FE821A8AF88E /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B2CD5C5C3AF605C6914D48B7 /* XCRemoteSwiftPackageReference "GRDB.swift" */;
+			productName = GRDB;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 73A66D198EB406AF2DB43537 /* Project object */;
+}

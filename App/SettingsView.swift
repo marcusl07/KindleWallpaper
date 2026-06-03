@@ -37,7 +37,7 @@ struct SettingsView: View {
         .onAppear {
             refreshBackgroundSummary()
         }
-        .onReceive(NotificationCenter.default.publisher(for: .kindleWallBackgroundCollectionDidChange)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: .leafBackgroundCollectionDidChange)) { _ in
             refreshBackgroundSummary()
         }
     }
@@ -154,7 +154,7 @@ struct SettingsView: View {
                 settingsMessageRow(error, tone: .error)
             }
 
-            settingsValueRow(label: "App", value: "KindleWall")
+            settingsValueRow(label: "App", value: "Leaf")
             settingsValueRow(label: "Version", value: appVersionDisplay)
         }
     }
@@ -163,7 +163,7 @@ struct SettingsView: View {
         Section("Display") {
             Toggle("Capitalize first letter of highlight text", isOn: capitalizeHighlightTextBinding)
             settingsMessageRow(
-                "If a quote starts lowercase, KindleWall displays it with an uppercase first letter.",
+                "If a quote starts lowercase, Leaf displays it with an uppercase first letter.",
                 tone: .secondary
             )
         }
@@ -259,9 +259,9 @@ struct SettingsView: View {
 
     private var launchAtLoginStatusMessage: String {
         if appState.isLaunchAtLoginEnabled {
-            return "KindleWall will open automatically when you log in."
+            return "Leaf will open automatically when you log in."
         }
-        return "KindleWall will not open automatically when you log in."
+        return "Leaf will not open automatically when you log in."
     }
 
     private var formattedLastChangedAt: String {

@@ -115,7 +115,7 @@ struct BackgroundImageStore {
         if let appSupportDirectoryURL {
             self.appSupportDirectoryURL = appSupportDirectoryURL
         } else {
-            self.appSupportDirectoryURL = AppSupportPaths.kindleWallDirectory(fileManager: fileManager)
+            self.appSupportDirectoryURL = AppSupportPaths.leafDirectory(fileManager: fileManager)
         }
 
         let decoder = JSONDecoder()

@@ -2,7 +2,7 @@ import Dispatch
 import Foundation
 
 private let wallpaperRotationQueue = DispatchQueue(
-    label: "KindleWall.AppState.WallpaperRotation",
+    label: "Leaf.AppState.WallpaperRotation",
     qos: .userInitiated
 )
 

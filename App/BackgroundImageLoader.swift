@@ -51,7 +51,7 @@ final class BackgroundImageLoader {
         fileManager: FileManager = .default,
         loadImage: @escaping (URL) -> NSImage? = { NSImage(contentsOf: $0) },
         logger: @escaping (String) -> Void = { message in
-            fputs("[KindleWall] \(message)\n", stderr)
+            fputs("[Leaf] \(message)\n", stderr)
         }
     ) {
         self.fileManager = fileManager

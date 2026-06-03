@@ -36,14 +36,14 @@ final class StatusItemController: NSObject {
             logo.size = NSSize(width: 16.2 * (350.0 / 550.0), height: 16.2)
             logo.isTemplate = true
             button.image = logo
-        } else if let symbol = NSImage(systemSymbolName: "text.quote", accessibilityDescription: "KindleWall") {
+        } else if let symbol = NSImage(systemSymbolName: "text.quote", accessibilityDescription: "Leaf") {
             symbol.isTemplate = true
             button.image = symbol
         } else {
-            button.title = "KW"
+            button.title = "Leaf"
         }
 
-        button.toolTip = "KindleWall"
+        button.toolTip = "Leaf"
     }
 }
 #endif

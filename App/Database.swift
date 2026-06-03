@@ -39,7 +39,7 @@ enum DatabaseManager {
     }
 
     private static let logger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "com.marcuslo.KindleWall",
+        subsystem: Bundle.main.bundleIdentifier ?? "com.marcuslo.leaf",
         category: "Database"
     )
 
@@ -84,7 +84,7 @@ enum DatabaseManager {
     }
 
     private static func makeDatabaseURL() throws -> URL {
-        let appSupportURL = AppSupportPaths.kindleWallDirectory(fileManager: .default)
+        let appSupportURL = AppSupportPaths.leafDirectory(fileManager: .default)
         return appSupportURL.appendingPathComponent("highlights.db", isDirectory: false)
     }
 

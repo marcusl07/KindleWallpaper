@@ -2,15 +2,15 @@ import Foundation
 
 enum BackgroundsWindowPresentation {
     static func requestShowWindow(notificationCenter: NotificationCenter = .default) {
-        notificationCenter.post(name: .kindleWallShowBackgroundsWindow, object: nil)
+        notificationCenter.post(name: .leafShowBackgroundsWindow, object: nil)
     }
 
     static func notifyCollectionChanged(notificationCenter: NotificationCenter = .default) {
-        notificationCenter.post(name: .kindleWallBackgroundCollectionDidChange, object: nil)
+        notificationCenter.post(name: .leafBackgroundCollectionDidChange, object: nil)
     }
 }
 
 extension Notification.Name {
-    static let kindleWallShowBackgroundsWindow = Notification.Name("kindleWallShowBackgroundsWindow")
-    static let kindleWallBackgroundCollectionDidChange = Notification.Name("kindleWallBackgroundCollectionDidChange")
+    static let leafShowBackgroundsWindow = Notification.Name("leafShowBackgroundsWindow")
+    static let leafBackgroundCollectionDidChange = Notification.Name("leafBackgroundCollectionDidChange")
 }

@@ -37,7 +37,7 @@ final class SettingsWindowCoordinator: NSObject, NSWindowDelegate {
         }
 
         backgroundsWindowObserver = NotificationCenter.default.addObserver(
-            forName: .kindleWallShowBackgroundsWindow,
+            forName: .leafShowBackgroundsWindow,
             object: nil,
             queue: .main
         ) { [weak self] _ in

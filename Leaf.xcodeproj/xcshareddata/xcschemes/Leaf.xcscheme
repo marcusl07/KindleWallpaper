@@ -15,10 +15,10 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "D9B056B258DD0ADC060E0F5A"
-               BuildableName = "KindleWall.app"
-               BlueprintName = "KindleWall"
-               ReferencedContainer = "container:KindleWall.xcodeproj">
+               BlueprintIdentifier = "769C6C86EF978AF3BD344B5C"
+               BuildableName = "Leaf.app"
+               BlueprintName = "Leaf"
+               ReferencedContainer = "container:Leaf.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -32,10 +32,10 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "D9B056B258DD0ADC060E0F5A"
-            BuildableName = "KindleWall.app"
-            BlueprintName = "KindleWall"
-            ReferencedContainer = "container:KindleWall.xcodeproj">
+            BlueprintIdentifier = "769C6C86EF978AF3BD344B5C"
+            BuildableName = "Leaf.app"
+            BlueprintName = "Leaf"
+            ReferencedContainer = "container:Leaf.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
@@ -44,10 +44,10 @@
             parallelizable = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "B4B27C6945C968CCCE20759D"
+               BlueprintIdentifier = "0F4308D30DAD728E419EAAAA"
                BuildableName = "LeafTests.xctest"
                BlueprintName = "LeafTests"
-               ReferencedContainer = "container:KindleWall.xcodeproj">
+               ReferencedContainer = "container:Leaf.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -68,10 +68,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "D9B056B258DD0ADC060E0F5A"
-            BuildableName = "KindleWall.app"
-            BlueprintName = "KindleWall"
-            ReferencedContainer = "container:KindleWall.xcodeproj">
+            BlueprintIdentifier = "769C6C86EF978AF3BD344B5C"
+            BuildableName = "Leaf.app"
+            BlueprintName = "Leaf"
+            ReferencedContainer = "container:Leaf.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>
@@ -87,10 +87,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "D9B056B258DD0ADC060E0F5A"
-            BuildableName = "KindleWall.app"
-            BlueprintName = "KindleWall"
-            ReferencedContainer = "container:KindleWall.xcodeproj">
+            BlueprintIdentifier = "769C6C86EF978AF3BD344B5C"
+            BuildableName = "Leaf.app"
+            BlueprintName = "Leaf"
+            ReferencedContainer = "container:Leaf.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>
