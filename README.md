@@ -21,20 +21,6 @@ Because Leaf is currently in public beta, it is distributed directly as an unsig
    - Alternatively, if you double-clicked it and got blocked, go to **System Settings > Privacy & Security**, scroll down to the Security section, and click **Open Anyway**.
    - Subsequent launches will start normally without any prompts.
 
-### Distribution Expectations
-
-* **Direct/GitHub Distribution**: During this public beta stage, all releases are posted directly to GitHub.
-* **No App Store/Notarization**: To prioritize rapid development, debugging, and user validation, code signing and Apple notarization are deferred until paid distribution is planned.
-
-### How to Update
-
-Since there is no automatic updater in the public beta, updates must be performed manually:
-1. Quit Leaf by clicking the menu bar icon and selecting **Quit**.
-2. Download the latest version of `Leaf.app` from the GitHub Releases page.
-3. Replace the old `Leaf.app` in your `/Applications` folder with the new version.
-4. Launch Leaf again.
-5. **Data Safety**: All of your imported highlights, selected background images, and configurations are stored separately in your user directory (`~/Library/Application Support/KindleWall`) and will remain safe and fully intact across updates.
-
 ### Privacy & Local-Data Policy
 
 Leaf respects your privacy completely. The app is built with a local-first architecture:
@@ -45,7 +31,6 @@ Leaf respects your privacy completely. The app is built with a local-first archi
 ### Known Limitations
 
 As an early public beta, Leaf has some known limitations:
-* **Menu Bar Only**: Leaf runs entirely as a background/menu bar utility and does not show an icon in the Dock. Click the Leaf icon in the menu bar to access settings or trigger wallpaper rotations.
 * **Must Remain Running**: For scheduled wallpaper rotations (e.g., every 30 minutes, or daily at 9:00 AM) to fire, the Leaf application must be running. You can enable **Launch at Login** in the settings window under the *About* section to ensure it runs automatically.
 * **Single Monitor Centering**: When multiple monitors are connected, Leaf sets the same generated wallpaper on all active displays.
 * **English-only Kindle Parsing**: The highlight parser is designed to read standard English-language clipping formats from `My Clippings.txt`. Sideloaded books or non-English clipping formats may have limited parsing support.
