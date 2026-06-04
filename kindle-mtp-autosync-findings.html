@@ -273,8 +273,8 @@
           </tr>
           <tr>
             <td data-label="Device path">Device triggers both paths</td>
-            <td data-label="How Leaf should sync">Deduplicate by file content, modification timestamp, or import result.</td>
-            <td data-label="Status">Handle defensively.</td>
+            <td data-label="How Leaf should sync">Deduplicate through the existing import/database path; a second import should produce 0 new highlights.</td>
+            <td data-label="Status">Use importer result as the product-level source of truth.</td>
           </tr>
         </tbody>
       </table>
@@ -300,6 +300,53 @@
         The MTP layer should download only the needed file, likely <code>/documents/My Clippings.txt</code> or a
         case-insensitive equivalent, into a temporary local file. From there, Leaf can reuse the existing parser,
         persistence, and import status logic.
+      </p>
+      <p>
+        Import deduplication should stay in the existing import/database layer, not in the MTP transport layer. The MTP
+        backend may skip a transfer optimization if the remote file metadata is unchanged, but correctness should come
+        from importing the file and letting Leaf's existing highlight identity rules return 0 new highlights for content
+        that is already stored.
+      </p>
+      <p>
+        Temporary downloads should live under a Leaf-owned directory inside <code>FileManager.default.temporaryDirectory</code>,
+        for example <code>Leaf/MTPImports/&lt;sync-id&gt;/My Clippings.txt</code>. The sync operation should delete that
+        per-sync directory with <code>defer</code> after import finishes. On startup, Leaf can opportunistically remove stale
+        <code>Leaf/MTPImports</code> children older than 24 hours to cover crashes.
+      </p>
+    </section>
+
+    <section>
+      <h2>MTP Watcher Behavior</h2>
+      <p>
+        macOS does not provide a Finder-style mount notification for MTP devices. <code>MTPKindleWatcher</code> should use
+        lightweight polling as the primary mechanism, then trigger immediate scans from app lifecycle events.
+      </p>
+      <ul>
+        <li>Poll for MTP devices every 10-15 seconds while Leaf is running.</li>
+        <li>Run an immediate scan when Leaf launches and when the Mac wakes from sleep.</li>
+        <li>If a low-level USB attach signal is practical through IOKit/libusb, use it only as a scan trigger, not as the only detection path.</li>
+        <li>Track active sync state per detected device so polling does not start overlapping imports.</li>
+      </ul>
+      <p>
+        The user-facing behavior remains automatic: plug in a supported Kindle, wait a few seconds, and Leaf syncs.
+      </p>
+    </section>
+
+    <section>
+      <h2>Detection Rule</h2>
+      <p>
+        For the spike, "detect the Kindle" should mean more than seeing any USB device or trusting a friendly device
+        name. The minimum useful detection rule is:
+      </p>
+      <ol>
+        <li>Enumerate an MTP device through <code>libmtp</code>/<code>libusb</code>.</li>
+        <li>Read stable device metadata for logging, including vendor ID, product ID, manufacturer, model, serial number when available, and storage ID.</li>
+        <li>Find a case-insensitive <code>documents</code> folder and a case-insensitive <code>My Clippings.txt</code> file inside it.</li>
+        <li>Download that file and parse at least one valid Kindle clipping, or report that the file exists but contains no importable highlights.</li>
+      </ol>
+      <p>
+        Vendor/product IDs and device name strings are useful for diagnostics and future allow-listing, but the reliable
+        product signal is the presence of the expected clippings file on an MTP device.
       </p>
     </section>
 
@@ -353,7 +400,7 @@
           <tr>
             <td data-label="Phase">Command-line spike</td>
             <td data-label="Estimate">1-2 days with a real affected Kindle</td>
-            <td data-label="Exit criteria">A tool can detect the Kindle, list storage, and pull <code>My Clippings.txt</code> without Finder or Amazon's app.</td>
+            <td data-label="Exit criteria">A tool can enumerate an MTP device, log stable metadata, find <code>documents/My Clippings.txt</code>, download it to a temp file, parse it, and clean up the temp file without Finder or Amazon's app.</td>
           </tr>
           <tr>
             <td data-label="Phase">Leaf integration</td>
@@ -397,7 +444,7 @@
         Do not build the full Leaf feature until the spike proves this exact operation:
       </p>
       <p>
-        <code>Plug in a 2024+ Kindle on Mac -> detect MTP device -> pull My Clippings.txt -> parse it successfully</code>
+        <code>Plug in a 2024+ Kindle on Mac -> enumerate MTP device -> find documents/My Clippings.txt -> download to temp -> parse -> delete temp file</code>
       </p>
       <p>
         If that works on the tester's Kindle, native MTP sync should become Leaf's new auto-sync path for modern Kindles.
