@@ -416,6 +416,77 @@
       </table>
     </section>
 
+    <section>
+      <h2>Remote Probe Results</h2>
+      <p>
+        A tester ran four privacy-preserving MTP probes on an Apple Silicon Mac running macOS 26.3.2 with
+        <code>libmtp</code> 1.1.23 installed through Homebrew. The Kindle did not mount in Finder, but the command-line
+        MTP tools could sometimes see it as a USB/MTP device with vendor ID <code>1949</code> and product ID
+        <code>9981</code>.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Probe</th>
+            <th>Result</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td data-label="Probe">Original detect/list probe</td>
+            <td data-label="Result">
+              <code>mtp-detect</code> saw an Amazon Kindle MTP device, but later <code>mtp-folders</code> and
+              <code>mtp-files</code> reported no device.
+            </td>
+            <td data-label="Meaning">
+              Basic MTP detection works, but separate command-line sessions are fragile.
+            </td>
+          </tr>
+          <tr>
+            <td data-label="Probe">Fresh listing probe</td>
+            <td data-label="Result">
+              Running <code>mtp-files</code> first after a fresh plug-in listed the device and found
+              <code>My Clippings.txt</code> at 3,050 bytes.
+            </td>
+            <td data-label="Meaning">
+              The affected Kindle does expose the target clippings file over MTP.
+            </td>
+          </tr>
+          <tr>
+            <td data-label="Probe">Download probe without Kindle restart</td>
+            <td data-label="Result">
+              <code>mtp-files</code> could not see the device.
+            </td>
+            <td data-label="Meaning">
+              The MTP state can remain wedged after previous sessions; sleep/wake or replug alone may not be enough.
+            </td>
+          </tr>
+          <tr>
+            <td data-label="Probe">Download probe after Kindle restart</td>
+            <td data-label="Result">
+              <code>mtp-files</code> again found <code>My Clippings.txt</code>, this time with file ID <code>2</code>,
+              but <code>mtp-getfile</code> then reported <code>No devices.</code>
+            </td>
+            <td data-label="Meaning">
+              File IDs are per-session and unstable, and a second CLI process cannot be trusted to reopen the Kindle
+              for download.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="panel callout">
+        <h3>Current Conclusion</h3>
+        <p>
+          The tester proved the important product premise: a new Kindle that does not mount in Finder can still expose
+          <code>My Clippings.txt</code> through MTP on macOS. The remaining blocker is not file visibility; it is reliable
+          session handling. The next spike should be a one-process native <code>libmtp</code> probe that opens the device,
+          enumerates files, finds <code>My Clippings.txt</code>, downloads it, summarizes it, and closes the session
+          without chaining separate CLI tools.
+        </p>
+      </div>
+    </section>
+
     <section class="panel warning">
       <h2>Main Risks</h2>
       <ul>
