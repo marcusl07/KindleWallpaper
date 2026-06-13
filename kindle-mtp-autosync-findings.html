@@ -487,6 +487,28 @@
       </div>
     </section>
 
+    <section>
+      <h2>Next Spike Handoff</h2>
+      <p>
+        Build a one-shot native probe for the tester to run next. The deliverable should be a simple script under
+        <code>scripts/</code> that compiles or runs a small Leaf-owned helper using Homebrew's <code>libmtp</code> and
+        <code>libusb</code> for the spike. The helper must keep all MTP work inside one process and one opened device
+        session.
+      </p>
+      <ul>
+        <li>Do not shell out to <code>mtp-detect</code>, <code>mtp-files</code>, and <code>mtp-getfile</code> as separate steps.</li>
+        <li>Do not rely on stable MTP file IDs; discover <code>My Clippings.txt</code> during the same session used for download.</li>
+        <li>Close competing transfer apps before the run, then ask the tester to unplug, fully restart the Kindle, plug it back in, and wait 5 seconds.</li>
+        <li>Create a timestamped output folder containing <code>system.txt</code>, probe logs, and <code>clippings-summary.txt</code>.</li>
+        <li>Download only <code>My Clippings.txt</code>, write byte count, SHA-256, clipping separator count, and metadata-line count, then delete the raw clippings file by default.</li>
+        <li>Support an explicit <code>--keep-clippings</code> option for a private debug run where the tester intentionally keeps the downloaded file.</li>
+      </ul>
+      <p>
+        Success means the probe can open the Kindle, find <code>My Clippings.txt</code>, download a non-empty file,
+        summarize it, and clean up without Finder, Amazon USB File Manager, or any second MTP CLI process.
+      </p>
+    </section>
+
     <section class="panel warning">
       <h2>Main Risks</h2>
       <ul>
