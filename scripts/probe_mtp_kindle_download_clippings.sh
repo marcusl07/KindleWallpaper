@@ -162,6 +162,13 @@ run_capture "mtp-getfile My Clippings.txt" "mtp-getfile.txt" "$mtp_getfile" "$cl
   exit 4
 }
 
+if [[ ! -s "$clippings_file" ]]; then
+  log ""
+  log "Result: Found My Clippings.txt, but mtp-getfile did not create a non-empty downloaded file."
+  log "Send back the probe directory: $out_dir"
+  exit 4
+fi
+
 {
   echo "file_id: $clippings_id"
   echo "bytes: $(wc -c <"$clippings_file" | tr -d ' ')"
